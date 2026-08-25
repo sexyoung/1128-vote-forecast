@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Forecast {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  probability Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
