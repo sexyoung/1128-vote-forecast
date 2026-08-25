@@ -1,0 +1,592 @@
+{
+  "schemaVersion": "1.0.0",
+  "dataStatus": "baseline",
+  "warning": "本檔案刻意不猜測尚未完成逐區核對的議員、鄉鎮市民代表與村里長細分選區；請以 2026-08-20 中選會及各縣市選委會公告匯入。已列出的行政區型選區可直接作為正式固定資料。",
+  "election": {
+    "id": "TW-LOCAL-2026",
+    "year": 2026,
+    "rocYear": 115,
+    "name": "115年地方公職人員選舉",
+    "date": "2026-11-28",
+    "status": "pre_candidate_registration",
+    "source": {
+      "agency": "中央選舉委員會",
+      "announcementDate": "2026-08-20",
+      "announcement": "中選務字第1153150253號"
+    }
+  },
+  "electionTypes": [
+    {
+      "id": "MAYOR",
+      "name": "直轄市長",
+      "category": "executive",
+      "districtLevel": "municipality",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "COUNTY_MAYOR",
+      "name": "縣（市）長",
+      "category": "executive",
+      "districtLevel": "county",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "CITY_COUNCILOR",
+      "name": "直轄市議員",
+      "category": "legislative",
+      "districtLevel": "district",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "COUNTY_COUNCILOR",
+      "name": "縣（市）議員",
+      "category": "legislative",
+      "districtLevel": "district",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "TOWNSHIP_MAYOR",
+      "name": "鄉（鎮、市）長",
+      "category": "executive",
+      "districtLevel": "township",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "INDIGENOUS_DISTRICT_MAYOR",
+      "name": "直轄市山地原住民區長",
+      "category": "executive",
+      "districtLevel": "indigenousDistrict",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "TOWNSHIP_COUNCILOR",
+      "name": "鄉（鎮、市）民代表",
+      "category": "legislative",
+      "districtLevel": "district",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "INDIGENOUS_DISTRICT_COUNCILOR",
+      "name": "直轄市山地原住民區民代表",
+      "category": "legislative",
+      "districtLevel": "district",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    },
+    {
+      "id": "VILLAGE_CHIEF",
+      "name": "村（里）長",
+      "category": "executive",
+      "districtLevel": "village",
+      "predictionModeBeforeCandidates": "party",
+      "predictionModeAfterCandidates": "candidate"
+    }
+  ],
+  "jurisdictions": [
+    {
+      "id": "TPE",
+      "name": "臺北市",
+      "kind": "municipality"
+    },
+    {
+      "id": "NTP",
+      "name": "新北市",
+      "kind": "municipality"
+    },
+    {
+      "id": "TAO",
+      "name": "桃園市",
+      "kind": "municipality"
+    },
+    {
+      "id": "TXG",
+      "name": "臺中市",
+      "kind": "municipality"
+    },
+    {
+      "id": "TNN",
+      "name": "臺南市",
+      "kind": "municipality"
+    },
+    {
+      "id": "KHH",
+      "name": "高雄市",
+      "kind": "municipality"
+    },
+    {
+      "id": "KEE",
+      "name": "基隆市",
+      "kind": "county"
+    },
+    {
+      "id": "HSZ",
+      "name": "新竹市",
+      "kind": "county"
+    },
+    {
+      "id": "HSQ",
+      "name": "新竹縣",
+      "kind": "county"
+    },
+    {
+      "id": "MIA",
+      "name": "苗栗縣",
+      "kind": "county"
+    },
+    {
+      "id": "CHA",
+      "name": "彰化縣",
+      "kind": "county"
+    },
+    {
+      "id": "NAN",
+      "name": "南投縣",
+      "kind": "county"
+    },
+    {
+      "id": "YUN",
+      "name": "雲林縣",
+      "kind": "county"
+    },
+    {
+      "id": "CYI",
+      "name": "嘉義市",
+      "kind": "county"
+    },
+    {
+      "id": "CYQ",
+      "name": "嘉義縣",
+      "kind": "county"
+    },
+    {
+      "id": "PIF",
+      "name": "屏東縣",
+      "kind": "county"
+    },
+    {
+      "id": "ILA",
+      "name": "宜蘭縣",
+      "kind": "county"
+    },
+    {
+      "id": "HUA",
+      "name": "花蓮縣",
+      "kind": "county"
+    },
+    {
+      "id": "TTT",
+      "name": "臺東縣",
+      "kind": "county"
+    },
+    {
+      "id": "PEN",
+      "name": "澎湖縣",
+      "kind": "county"
+    },
+    {
+      "id": "KIN",
+      "name": "金門縣",
+      "kind": "county"
+    },
+    {
+      "id": "LIE",
+      "name": "連江縣",
+      "kind": "county"
+    }
+  ],
+  "parties": [
+    {
+      "id": "KMT",
+      "name": "中國國民黨",
+      "shortName": "國民黨",
+      "status": "active"
+    },
+    {
+      "id": "DPP",
+      "name": "民主進步黨",
+      "shortName": "民進黨",
+      "status": "active"
+    },
+    {
+      "id": "TPP",
+      "name": "台灣民眾黨",
+      "shortName": "民眾黨",
+      "status": "active"
+    },
+    {
+      "id": "NPP",
+      "name": "時代力量",
+      "shortName": "時代力量",
+      "status": "active"
+    },
+    {
+      "id": "PFP",
+      "name": "親民黨",
+      "shortName": "親民黨",
+      "status": "active"
+    },
+    {
+      "id": "TSP",
+      "name": "台灣基進",
+      "shortName": "台灣基進",
+      "status": "active"
+    },
+    {
+      "id": "NPU",
+      "name": "新黨",
+      "shortName": "新黨",
+      "status": "active"
+    },
+    {
+      "id": "IND",
+      "name": "無黨籍",
+      "shortName": "無黨籍",
+      "status": "active"
+    }
+  ],
+  "districts": [
+    {
+      "id": "2026-TPE-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "TPE",
+      "name": "臺北市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "臺北市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-NTP-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "NTP",
+      "name": "新北市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "新北市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TAO-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "TAO",
+      "name": "桃園市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "桃園市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TXG-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "TXG",
+      "name": "臺中市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "臺中市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TNN-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "TNN",
+      "name": "臺南市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "臺南市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-KHH-MAYOR",
+      "electionTypeId": "MAYOR",
+      "jurisdictionId": "KHH",
+      "name": "高雄市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "高雄市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-KEE-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "KEE",
+      "name": "基隆市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "基隆市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-HSZ-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "HSZ",
+      "name": "新竹市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "新竹市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-HSQ-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "HSQ",
+      "name": "新竹縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "新竹縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-MIA-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "MIA",
+      "name": "苗栗縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "苗栗縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-CHA-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "CHA",
+      "name": "彰化縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "彰化縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-NAN-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "NAN",
+      "name": "南投縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "南投縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-YUN-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "YUN",
+      "name": "雲林縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "雲林縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-CYI-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "CYI",
+      "name": "嘉義市",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "嘉義市"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-CYQ-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "CYQ",
+      "name": "嘉義縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "嘉義縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-PIF-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "PIF",
+      "name": "屏東縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "屏東縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-ILA-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "ILA",
+      "name": "宜蘭縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "宜蘭縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-HUA-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "HUA",
+      "name": "花蓮縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "花蓮縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TTT-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "TTT",
+      "name": "臺東縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "臺東縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-PEN-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "PEN",
+      "name": "澎湖縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "澎湖縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-KIN-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "KIN",
+      "name": "金門縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "金門縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-LIE-COUNTY-MAYOR",
+      "electionTypeId": "COUNTY_MAYOR",
+      "jurisdictionId": "LIE",
+      "name": "連江縣",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "連江縣"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-NTP-IND-MAYOR-烏來",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "NTP",
+      "name": "烏來區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "烏來區"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TAO-IND-MAYOR-復興",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "TAO",
+      "name": "復興區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "復興區"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TXG-IND-MAYOR-和平",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "TXG",
+      "name": "和平區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "和平區"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-TNN-IND-MAYOR-南化",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "TNN",
+      "name": "南化區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "南化區"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-KHH-IND-MAYOR-桃源",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "KHH",
+      "name": "桃源區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "桃源區"
+      ],
+      "candidateStatus": "not_announced"
+    },
+    {
+      "id": "2026-KHH-IND-MAYOR-茂林",
+      "electionTypeId": "INDIGENOUS_DISTRICT_MAYOR",
+      "jurisdictionId": "KHH",
+      "name": "茂林區山地原住民區",
+      "districtNo": null,
+      "seats": 1,
+      "areas": [
+        "茂林區"
+      ],
+      "candidateStatus": "not_announced"
+    }
+  ]
+}
