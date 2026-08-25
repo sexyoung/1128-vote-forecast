@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "accessibility-scanner"
+  ],
+  "statusLine": {
+    "type": "command",
+    "command": "bash /workspaces/1128-vote-forecast/.claude/statusline-command.sh"
+  }
+}
