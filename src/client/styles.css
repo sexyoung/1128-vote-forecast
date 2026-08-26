@@ -2071,6 +2071,13 @@ a:focus-visible {
   opacity: 0.06;
   pointer-events: none;
 }
+/* 聚焦到某個鄉鎮市區時，底下的縣市整片藏起來。村里本來就鋪滿整個縣市，縣市
+   的輪廓交給那些 6% 的村里去呈現就好；縣市自己再疊一層（不管是政黨色、中性
+   灰底、還是同樣的 6%）都會讓淡化區變成一塊看得出來的色塊，而不是像其他縣市
+   那樣隱約可見。 */
+.map-app.township-focus .taiwan-county.selected {
+  opacity: 0;
+}
 .taiwan-township {
   cursor: pointer;
   outline: none;
@@ -2092,6 +2099,34 @@ a:focus-visible {
   filter: saturate(1.22);
   stroke: #203029;
   stroke-width: 2.2;
+}
+.taiwan-village {
+  cursor: pointer;
+  outline: none;
+  stroke-linejoin: round;
+  stroke-width: 0.6;
+  transition:
+    filter 0.18s ease,
+    opacity 0.18s ease,
+    stroke 0.18s ease;
+  vector-effect: non-scaling-stroke;
+}
+.taiwan-village:hover,
+.taiwan-village:focus-visible {
+  filter: brightness(0.92) saturate(1.15);
+  stroke: #203029;
+  stroke-width: 1.4;
+}
+.taiwan-village.selected {
+  filter: saturate(1.22);
+  stroke: #203029;
+  stroke-width: 2;
+}
+/* 淡化程度比照縣市層的 .taiwan-county（0.06），但保留 pointer-events，
+   這樣滾輪滑過旁邊的區還能把聚焦換過去。只有村里層會淡化——鄉鎮層一律維持
+   整個縣市都上色。 */
+.taiwan-village.dimmed {
+  opacity: 0.06;
 }
 .map-data-message {
   background: rgb(255 253 248 / 92%);

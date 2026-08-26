@@ -262,6 +262,14 @@ type MapPanState = MapBounds & {
   screenY: number;
   moved: boolean;
 };
+type MapPinchState = {
+  anchor: { x: number; y: number };
+  bounds: MapBounds;
+  distance: number;
+  inverseMatrix: DOMMatrix;
+  screenX: number;
+  screenY: number;
+};
 type CountyShape = { id: string; name: string; path: string };
 type TownshipShape = {
   id: string;
@@ -270,11 +278,24 @@ type TownshipShape = {
   townName: string;
   countyName: string;
 };
+type VillageShape = TownshipShape & { villCode: string; villName: string };
+type CountyLayer<Shape> = { locationId: string; shapes: Shape[] };
+
+const jurisdictionToMapLocation: Record<string, string> = Object.fromEntries(
+  Object.entries(mapLocationToJurisdiction).map(([locationId, jurisdictionId]) => [
+    jurisdictionId,
+    locationId,
+  ]),
+);
 
 const initialMapViewBox = '205 10 590 1080';
 const initialMapBounds = parseMapBounds(initialMapViewBox);
 const mapCanvasBounds = { x: 0, y: 0, width: 860, height: 1100 };
 const townshipZoomWidth = 320;
+// 一單位約 360 公尺，所以 90 單位大約是 32 公里寬——縣市已填滿畫面、村里
+// 也大到看得出形狀的時候，就換成村里圖層。
+const villageZoomWidth = 90;
+const minimumZoomWidth = 14;
 const mainMapBounds = { x: 184, y: 20, width: 652, height: 1060 };
 const islandInsets = [
   {
@@ -309,6 +330,25 @@ function formatMapBounds(bounds: MapBounds) {
   return `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`;
 }
 
+// 以 anchor（SVG 座標）為定點縮放，滾輪與雙指縮放共用。
+function scaleMapBounds(
+  bounds: MapBounds,
+  requestedScale: number,
+  anchor: { x: number; y: number },
+): MapBounds {
+  const width = Math.min(
+    initialMapBounds.width,
+    Math.max(minimumZoomWidth, bounds.width * requestedScale),
+  );
+  const scale = width / bounds.width;
+  return {
+    x: anchor.x - (anchor.x - bounds.x) * scale,
+    y: anchor.y - (anchor.y - bounds.y) * scale,
+    width,
+    height: bounds.height * scale,
+  };
+}
+
 function constrainMapBounds(bounds: MapBounds): MapBounds {
   return {
     ...bounds,
@@ -317,36 +357,66 @@ function constrainMapBounds(bounds: MapBounds): MapBounds {
   };
 }
 
-async function loadOfficialMapData(signal: AbortSignal) {
-  const [countyResponse, townshipResponse] = await Promise.all([
-    fetch('/maps/taiwan-counties.svg', { signal }),
-    fetch('/maps/taiwan-townships.svg', { signal }),
-  ]);
-  if (!countyResponse.ok || !townshipResponse.ok) throw new Error('地圖資料載入失敗');
+async function loadMapPaths(url: string, selector: string) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('地圖資料載入失敗');
+  const document = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
+  return [...document.querySelectorAll<SVGPathElement>(selector)];
+}
 
-  const parser = new DOMParser();
-  const countyDocument = parser.parseFromString(await countyResponse.text(), 'image/svg+xml');
-  const townshipDocument = parser.parseFromString(await townshipResponse.text(), 'image/svg+xml');
+async function loadCountyShapes() {
+  const paths = await loadMapPaths('/maps/taiwan-counties.svg', 'path.county');
+  const counties = paths.map((path) => ({
+    id: path.id,
+    name: path.dataset.name ?? '',
+    path: path.getAttribute('d') ?? '',
+  }));
+  if (counties.length !== 22) throw new Error('地圖資料不完整');
+  return counties;
+}
 
-  const counties = [...countyDocument.querySelectorAll<SVGPathElement>('path.county')].map(
-    (path) => ({
-      id: path.id,
-      name: path.dataset.name ?? '',
-      path: path.getAttribute('d') ?? '',
-    }),
-  );
-  const townships = [...townshipDocument.querySelectorAll<SVGPathElement>('path.township')].map(
-    (path) => ({
+// 鄉鎮市區與村里都按縣市切檔，點到哪個縣市才載入哪一份；靜態圖資不會變動，
+// 所以用 module 層的 cache 保留已載入的 promise。
+const countyLayerCache = new Map<string, Promise<TownshipShape[] | VillageShape[]>>();
+
+function loadTownshipShapes(locationId: string): Promise<TownshipShape[]> {
+  const url = `/maps/townships/${locationId}.svg`;
+  const cached = countyLayerCache.get(url) as Promise<TownshipShape[]> | undefined;
+  if (cached) return cached;
+
+  const pending = loadMapPaths(url, 'path.township').then((paths) =>
+    paths.map((path) => ({
       id: path.id,
       path: path.getAttribute('d') ?? '',
       townCode: path.dataset.townCode ?? '',
       townName: path.dataset.townName ?? '',
       countyName: path.dataset.countyName ?? '',
-    }),
+    })),
   );
+  pending.catch(() => countyLayerCache.delete(url));
+  countyLayerCache.set(url, pending);
+  return pending;
+}
 
-  if (counties.length !== 22 || townships.length !== 368) throw new Error('地圖資料不完整');
-  return { counties, townships };
+function loadVillageShapes(locationId: string): Promise<VillageShape[]> {
+  const url = `/maps/villages/${locationId}.svg`;
+  const cached = countyLayerCache.get(url) as Promise<VillageShape[]> | undefined;
+  if (cached) return cached;
+
+  const pending = loadMapPaths(url, 'path.village').then((paths) =>
+    paths.map((path) => ({
+      id: path.id,
+      path: path.getAttribute('d') ?? '',
+      townCode: path.dataset.townCode ?? '',
+      townName: path.dataset.townName ?? '',
+      countyName: path.dataset.countyName ?? '',
+      villCode: path.dataset.villCode ?? '',
+      villName: path.dataset.villName ?? '',
+    })),
+  );
+  pending.catch(() => countyLayerCache.delete(url));
+  countyLayerCache.set(url, pending);
+  return pending;
 }
 
 function getTownshipContest(
@@ -368,6 +438,34 @@ function getTownshipContest(
     leader,
     percentage: 36 + (seed % 18),
     forecasts: 80 + ((seed * 47) % 720),
+  };
+}
+
+function getVillageContest(
+  village: VillageShape,
+  jurisdiction: Jurisdiction,
+  view: ElectionView,
+): Contest {
+  // 未編定村里的 VILLCODE 夾雜英文字母（例如 09007010S31），非數字一律當 7。
+  const seed = village.villCode
+    .split('')
+    .reduce(
+      (total, character) => total + (Number.isNaN(Number(character)) ? 7 : Number(character)),
+      0,
+    );
+  const challengers: Contest['leader'][] = ['KMT', 'DPP', 'TPP', 'IND'];
+  const leader = seed % 5 < 3 ? jurisdiction.leader : challengers[seed % challengers.length];
+  const viewLabel = electionViews.find((item) => item.id === view)?.label ?? '選舉';
+  return {
+    id: `${village.id}-${view}`,
+    jurisdictionId: jurisdiction.id,
+    name: `${village.townName}${village.villName || '未編定村里'}`,
+    area: `${jurisdiction.name}${village.townName} · ${viewLabel}村里預測示意`,
+    seatCount: 1,
+    view,
+    leader,
+    percentage: 34 + (seed % 22),
+    forecasts: 20 + ((seed * 31) % 260),
   };
 }
 
@@ -548,8 +646,13 @@ export function ElectionHomePage() {
   const [forecastOpen, setForecastOpen] = useState(false);
   const [viewBox, setViewBox] = useState(initialMapViewBox);
   const [selectedTownshipId, setSelectedTownshipId] = useState<string | null>(null);
+  const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
+  // 目前聚焦的鄉鎮市區：滑鼠滾輪放大時會自動跟著游標下的區切換，點選也會設定。
+  // 只要它不是 null，同縣市其他鄉鎮市區與村里就淡化。
+  const [focusedTownCode, setFocusedTownCode] = useState<string | null>(null);
   const [countyShapes, setCountyShapes] = useState<CountyShape[]>([]);
-  const [townshipShapes, setTownshipShapes] = useState<TownshipShape[]>([]);
+  const [townshipLayer, setTownshipLayer] = useState<CountyLayer<TownshipShape> | null>(null);
+  const [villageLayer, setVillageLayer] = useState<CountyLayer<VillageShape> | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{
     x: number;
@@ -559,45 +662,98 @@ export function ElectionHomePage() {
   const pathRefs = useRef<Record<string, SVGPathElement | null>>({});
   const mapStageRef = useRef<HTMLElement | null>(null);
   const panRef = useRef<MapPanState | null>(null);
+  const pinchRef = useRef<MapPinchState | null>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const suppressClickRef = useRef(false);
 
+  const selectedLocationId = selectedJurisdiction
+    ? (jurisdictionToMapLocation[selectedJurisdiction.id] ?? null)
+    : null;
+  const mapWidth = parseMapBounds(viewBox).width;
+  const villageZoom = detailMode && mapWidth <= villageZoomWidth;
+
   useEffect(() => {
-    const controller = new AbortController();
-    loadOfficialMapData(controller.signal)
-      .then(({ counties, townships }) => {
-        setCountyShapes(counties);
-        setTownshipShapes(townships);
+    let active = true;
+    loadCountyShapes()
+      .then((counties) => {
+        if (active) setCountyShapes(counties);
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setMapError(error instanceof Error ? error.message : '地圖資料載入失敗');
+        if (active) setMapError(error instanceof Error ? error.message : '地圖資料載入失敗');
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const activeContest =
-    selectedContest ?? (selectedJurisdiction ? getContests(selectedJurisdiction, view)[0] : null);
-  const visibleTownships = useMemo(() => {
-    if (!selectedJurisdiction) return [];
-    return townshipShapes
-      .filter((township) => township.countyName === selectedJurisdiction.name)
-      .map((township) => ({
-        contest: getTownshipContest(township, selectedJurisdiction, view),
-        township,
-      }));
-  }, [selectedJurisdiction, townshipShapes, view]);
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    let active = true;
+    loadTownshipShapes(selectedLocationId)
+      .then((shapes) => {
+        if (active) setTownshipLayer({ locationId: selectedLocationId, shapes });
+      })
+      .catch((error: unknown) => {
+        if (active) setMapError(error instanceof Error ? error.message : '鄉鎮市區圖層載入失敗');
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedLocationId]);
 
+  // 村里圖層每個縣市 40 KB～730 KB，快靠近村里縮放級距時才預先抓。
+  const villageNeeded = detailMode && mapWidth <= villageZoomWidth * 2;
+  useEffect(() => {
+    if (!selectedLocationId || !villageNeeded) return;
+    let active = true;
+    loadVillageShapes(selectedLocationId)
+      .then((shapes) => {
+        if (active) setVillageLayer({ locationId: selectedLocationId, shapes });
+      })
+      .catch((error: unknown) => {
+        if (active) setMapError(error instanceof Error ? error.message : '村里圖層載入失敗');
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedLocationId, villageNeeded]);
+
+  const activeContest = selectedContest;
+  const visibleTownships = useMemo(() => {
+    if (!selectedJurisdiction || townshipLayer?.locationId !== selectedLocationId) return [];
+    return townshipLayer.shapes.map((township) => ({
+      contest: getTownshipContest(township, selectedJurisdiction, view),
+      township,
+    }));
+  }, [selectedJurisdiction, selectedLocationId, townshipLayer, view]);
+  const visibleVillages = useMemo(() => {
+    if (!selectedJurisdiction || !villageZoom) return [];
+    if (villageLayer?.locationId !== selectedLocationId) return [];
+    return villageLayer.shapes.map((village) => ({
+      contest: getVillageContest(village, selectedJurisdiction, view),
+      village,
+    }));
+  }, [selectedJurisdiction, selectedLocationId, villageLayer, villageZoom, view]);
+  const villageMode = visibleVillages.length > 0;
+  // 村里還沒畫出來就不要淡化：不然會停在「縣市灰底＋單一區有顏色、卻沒有更
+  // 細的東西可看」的中間狀態。
+  const townshipFocus = villageMode ? focusedTownCode : null;
+
+  // 選到縣市、放大到鄉鎮市區都不開面板；面板只在點特定鄉鎮市區或村里時出現。
   function selectJurisdiction(jurisdiction: Jurisdiction) {
     setSelectedJurisdiction(jurisdiction);
-    setSelectedContest(getContests(jurisdiction, view)[0]);
+    setSelectedContest(null);
     setSelectedTownshipId(null);
+    setSelectedVillageId(null);
+    clearTownshipFocus();
     setInspectorExpanded(false);
   }
 
   function changeView(nextView: ElectionView) {
     setView(nextView);
-    if (selectedJurisdiction) setSelectedContest(getContests(selectedJurisdiction, nextView)[0]);
+    setSelectedContest(null);
     setSelectedTownshipId(null);
+    setSelectedVillageId(null);
   }
 
   function zoomIntoSelection() {
@@ -610,6 +766,30 @@ export function ElectionHomePage() {
     );
     setDetailMode(true);
     setSelectedTownshipId(null);
+    setSelectedVillageId(null);
+    clearTownshipFocus();
+  }
+
+  // 進入縣市後，＋／− 以畫面中心為準逐級縮放，讓不用滾輪的人也能到村里層。
+  function zoomBy(factor: number) {
+    const current = parseMapBounds(viewBox);
+    const width = Math.min(
+      initialMapBounds.width,
+      Math.max(minimumZoomWidth, current.width * factor),
+    );
+    if (detailMode && width > townshipZoomWidth * 1.25) {
+      resetMap(false);
+      return;
+    }
+
+    // 按鈕沒有游標位置，改用畫面正中央的那一區當作聚焦目標，其餘走跟滾輪、
+    // 雙指縮放同一條路徑，層級切換的規則才不會各走各的。
+    const stage = mapStageRef.current?.getBoundingClientRect();
+    const center = stage
+      ? document.elementFromPoint(stage.left + stage.width / 2, stage.top + stage.height / 2)
+      : null;
+    const anchor = { x: current.x + current.width / 2, y: current.y + current.height / 2 };
+    applyZoom(scaleMapBounds(current, factor, anchor), factor < 1, center);
   }
 
   function getSelectedMapBounds(jurisdiction: Jurisdiction): MapBounds | null {
@@ -631,26 +811,26 @@ export function ElectionHomePage() {
     if (!matrix) return;
 
     const current = parseMapBounds(viewBox);
-    const pointer = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    const anchor = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
     const requestedScale = Math.exp(event.deltaY * 0.0015);
-    const width = Math.min(initialMapBounds.width, Math.max(42, current.width * requestedScale));
-    const scale = width / current.width;
-    const height = current.height * scale;
-    const next = constrainMapBounds({
-      x: pointer.x - (pointer.x - current.x) * scale,
-      y: pointer.y - (pointer.y - current.y) * scale,
-      width,
-      height,
-    });
+    applyZoom(scaleMapBounds(current, requestedScale, anchor), requestedScale < 1, event.target);
+  }
+
+  // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
+  function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
+    const next = constrainMapBounds(bounds);
     setViewBox(formatMapBounds(next));
 
-    const target =
-      event.target instanceof Element ? event.target.closest('[data-jurisdiction-id]') : null;
-    const targetId = target?.getAttribute('data-jurisdiction-id');
+    // 聚焦／淡化只存在於村里層。還沒放大到村里之前，整個縣市的鄉鎮市區維持
+    // 全部上色；縮回鄉鎮層時也要立刻還原，不然會退不回「每一區都有顏色」。
+    if (next.width > villageZoomWidth) clearTownshipFocus();
+    else if (target) focusTownshipUnder(target);
+
+    const element = target instanceof Element ? target.closest('[data-jurisdiction-id]') : null;
+    const targetId = element?.getAttribute('data-jurisdiction-id');
     const targetJurisdiction = targetId
       ? jurisdictions.find((jurisdiction) => jurisdiction.id === targetId)
       : null;
-    const zoomingIn = requestedScale < 1;
     if (zoomingIn && next.width <= townshipZoomWidth) {
       if (targetJurisdiction && targetJurisdiction.id !== selectedJurisdiction?.id) {
         selectJurisdiction(targetJurisdiction);
@@ -659,14 +839,51 @@ export function ElectionHomePage() {
     } else if (!zoomingIn && next.width > townshipZoomWidth * 1.25 && detailMode) {
       setDetailMode(false);
       setSelectedTownshipId(null);
-      if (selectedJurisdiction) {
-        setSelectedContest(getContests(selectedJurisdiction, view)[0]);
-      }
+      setSelectedVillageId(null);
+      setSelectedContest(null);
+      clearTownshipFocus();
     }
   }
 
+  // 跟縣市層同一套規則：往內縮放時，游標下的那一區就是聚焦目標，其餘淡化。
+  // 縣市層沒有大小門檻（滑到哪個縣市就選哪個），這裡也刻意不加。
+  function focusTownshipUnder(target: EventTarget) {
+    const path = target instanceof Element ? target.closest('[data-town-code]') : null;
+    const townCode = path?.getAttribute('data-town-code');
+    if (townCode) setFocusedTownCode(townCode);
+  }
+
+  function clearTownshipFocus() {
+    setFocusedTownCode(null);
+  }
+
   function handleMapPointerDown(event: React.PointerEvent<SVGSVGElement>) {
-    if (event.button !== 0) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    setTooltip(null);
+
+    // 第二根手指落下就從拖曳切成雙指縮放，並記下起始的距離、中點與 viewBox；
+    // 之後每次移動都以這組起始值換算，手指才會跟畫面貼合。
+    if (pointersRef.current.size === 2) {
+      const matrix = event.currentTarget.getScreenCTM();
+      if (!matrix) return;
+      const [first, second] = [...pointersRef.current.values()];
+      const screenX = (first.x + second.x) / 2;
+      const screenY = (first.y + second.y) / 2;
+      panRef.current = null;
+      event.currentTarget.classList.remove('panning');
+      pinchRef.current = {
+        anchor: new DOMPoint(screenX, screenY).matrixTransform(matrix.inverse()),
+        bounds: parseMapBounds(viewBox),
+        distance: Math.max(1, Math.hypot(first.x - second.x, first.y - second.y)),
+        inverseMatrix: matrix.inverse(),
+        screenX,
+        screenY,
+      };
+      return;
+    }
+    if (pointersRef.current.size > 2) return;
+
     const bounds = parseMapBounds(viewBox);
     if (bounds.width >= initialMapBounds.width - 0.5) return;
     const matrix = event.currentTarget.getScreenCTM();
@@ -681,10 +898,38 @@ export function ElectionHomePage() {
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.classList.add('panning');
-    setTooltip(null);
+  }
+
+  function handleMapPinch() {
+    const pinch = pinchRef.current;
+    const pointers = [...pointersRef.current.values()];
+    if (!pinch || pointers.length < 2) return false;
+
+    const [first, second] = pointers;
+    const distance = Math.max(1, Math.hypot(first.x - second.x, first.y - second.y));
+    const requestedScale = pinch.distance / distance;
+    const zoomed = scaleMapBounds(pinch.bounds, requestedScale, pinch.anchor);
+
+    // 兩指同時平移的部分：起始矩陣算出來的位移是起始縮放下的單位，要按目前
+    // 的縮放比例換算，畫面才跟得上手指。
+    const screenX = (first.x + second.x) / 2 - pinch.screenX;
+    const screenY = (first.y + second.y) / 2 - pinch.screenY;
+    const factor = zoomed.width / pinch.bounds.width;
+    const x = (screenX * pinch.inverseMatrix.a + screenY * pinch.inverseMatrix.c) * factor;
+    const y = (screenX * pinch.inverseMatrix.b + screenY * pinch.inverseMatrix.d) * factor;
+
+    const midpoint = document.elementFromPoint((first.x + second.x) / 2, (first.y + second.y) / 2);
+    applyZoom({ ...zoomed, x: zoomed.x - x, y: zoomed.y - y }, requestedScale < 1, midpoint);
+    suppressClickRef.current = true;
+    return true;
   }
 
   function handleMapPan(event: React.PointerEvent<SVGSVGElement>) {
+    if (pointersRef.current.has(event.pointerId)) {
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+    if (handleMapPinch()) return;
+
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
     const screenX = event.clientX - pan.screenX;
@@ -705,6 +950,15 @@ export function ElectionHomePage() {
   }
 
   function finishMapPan(event: React.PointerEvent<SVGSVGElement>) {
+    pointersRef.current.delete(event.pointerId);
+    if (pinchRef.current && pointersRef.current.size < 2) {
+      pinchRef.current = null;
+      // 縮放結束時放開的那一下不要被當成點選。
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -728,11 +982,10 @@ export function ElectionHomePage() {
     setViewBox(initialMapViewBox);
     setDetailMode(false);
     setSelectedTownshipId(null);
-    setSelectedContest(selectedJurisdiction ? getContests(selectedJurisdiction, view)[0] : null);
-    if (clearSelection) {
-      setSelectedJurisdiction(null);
-      setSelectedContest(null);
-    }
+    setSelectedVillageId(null);
+    setSelectedContest(null);
+    clearTownshipFocus();
+    if (clearSelection) setSelectedJurisdiction(null);
   }
 
   function handlePointerMove(
@@ -746,7 +999,7 @@ export function ElectionHomePage() {
 
   return (
     <main
-      className={`map-app ${selectedJurisdiction ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''}`}
+      className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''}`}
     >
       <section className="map-stage" ref={mapStageRef}>
         <div className="map-floating-top">
@@ -838,7 +1091,7 @@ export function ElectionHomePage() {
             })}
           </g>
 
-          {detailMode && selectedJurisdiction && (
+          {detailMode && selectedJurisdiction && !villageMode && (
             <g className="township-layer">
               {visibleTownships.map(({ contest, township }) => {
                 const party = getParty(contest.leader);
@@ -847,12 +1100,46 @@ export function ElectionHomePage() {
                     aria-label={`${township.countyName}${township.townName}，${party.shortName} ${contest.percentage}%`}
                     className={`taiwan-township ${selectedTownshipId === township.id ? 'selected' : ''}`}
                     data-jurisdiction-id={selectedJurisdiction.id}
+                    data-town-code={township.townCode}
                     d={township.path}
                     fill={tint(party.color, contest.percentage)}
                     key={township.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
                       setSelectedTownshipId(township.id);
+                      setFocusedTownCode(township.townCode);
+                      setSelectedContest(contest);
+                      setInspectorExpanded(false);
+                    }}
+                    role="button"
+                    stroke="#fffdf8"
+                    tabIndex={0}
+                  />
+                );
+              })}
+            </g>
+          )}
+
+          {villageMode && selectedJurisdiction && (
+            <g className="village-layer">
+              {visibleVillages.map(({ contest, village }) => {
+                const party = getParty(contest.leader);
+                const name = village.villName || '未編定村里';
+                const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
+                return (
+                  <path
+                    aria-label={`${village.countyName}${village.townName}${name}，${party.shortName} ${contest.percentage}%`}
+                    className={`taiwan-village ${selectedVillageId === village.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
+                    data-jurisdiction-id={selectedJurisdiction.id}
+                    data-town-code={village.townCode}
+                    d={village.path}
+                    fill={tint(party.color, contest.percentage)}
+                    key={village.id}
+                    onClick={() => {
+                      if (!mapClickAllowed()) return;
+                      setSelectedVillageId(village.id);
+                      setSelectedTownshipId(null);
+                      setFocusedTownCode(village.townCode);
                       setSelectedContest(contest);
                       setInspectorExpanded(false);
                     }}
@@ -910,9 +1197,9 @@ export function ElectionHomePage() {
         <MapLegend />
         <div className="map-zoom-controls">
           <button
-            aria-label="放大選取縣市"
-            disabled={!selectedJurisdiction || detailMode}
-            onClick={zoomIntoSelection}
+            aria-label={detailMode ? '放大到村里' : '放大選取縣市'}
+            disabled={!selectedJurisdiction || (detailMode && mapWidth <= minimumZoomWidth)}
+            onClick={() => (detailMode ? zoomBy(0.55) : zoomIntoSelection())}
             type="button"
           >
             ＋
@@ -920,7 +1207,7 @@ export function ElectionHomePage() {
           <button
             aria-label="縮小地圖"
             disabled={!detailMode}
-            onClick={() => resetMap(false)}
+            onClick={() => zoomBy(1.8)}
             type="button"
           >
             −
@@ -932,7 +1219,11 @@ export function ElectionHomePage() {
         <div className="map-status">
           <span>
             <i />
-            {detailMode ? `${visibleTownships.length} 個官方鄉鎮市區邊界` : '16,263 份有效預測'}
+            {villageMode
+              ? `${visibleVillages.length} 個官方村里邊界`
+              : detailMode
+                ? `${visibleTownships.length} 個官方鄉鎮市區邊界`
+                : '16,263 份有效預測'}
           </span>
           <span>色深依預測占比</span>
           <span>{detailMode ? '預測資料為示意' : '介面原型 · 非科學民調'}</span>

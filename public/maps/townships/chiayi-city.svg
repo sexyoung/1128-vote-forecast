@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1100" role="img" aria-labelledby="title description">
+  <title id="title">嘉義市鄉鎮市區界線</title>
+  <desc id="description">由 scripts/data/taiwan-townships.svg 依縣市拆分，資料版本 2023-03-17。座標系統與 taiwan-counties.svg、villages/*.svg 相同。</desc>
+  <metadata>
+    Original dataset: https://data.gov.tw/dataset/7441
+    License: 政府資料開放授權條款第1版
+    Split by scripts/split-township-svg.mjs
+  </metadata>
+  <style>
+    .township { fill: #dce4df; stroke: #fff; stroke-linejoin: round; stroke-width: 0.72; vector-effect: non-scaling-stroke; }
+  </style>
+  <g class="townships">
+    <path id="town-10020010" class="township" data-town-id="I01" data-town-code="10020010" data-town-name="東區" data-county-code="10020" data-county-name="嘉義市" aria-label="嘉義市東區" fill-rule="evenodd" d="M361.22 617.68L362.02 617.29L363.12 615.14L364.89 614.39L364.9 613.67L365.93 612.78L367.92 612.68L371.08 615.3L372.45 615.13L373.8 612.95L373.57 611.76L374.59 611.26L375.41 610.05L375.77 610.15L375.95 609.37L374.55 608.13L374.65 607.56L374.09 607.58L374.56 606.48L373.95 605.16L371.03 604.77L369.78 603.75L369.49 601L368.71 601.27L367.11 600.6L366.18 602.5L365.14 602.78L364.43 602.24L363.02 599.63L363.04 598.19L359.02 597.51L359.38 598.86L359.09 599.19L358.49 599.04L357.63 597.79L357.25 597.85L357.01 598.75L359.37 602.99L360.61 601.11L361.01 602.85L361.35 604.77L360.72 606.05L361.84 610.13L361.18 610.43L361.75 612.53L360.62 612.74L360.58 614.56L361.7 615.54Z" />
+    <path id="town-10020020" class="township" data-town-id="I02" data-town-code="10020020" data-town-name="西區" data-county-code="10020" data-county-name="嘉義市" aria-label="嘉義市西區" fill-rule="evenodd" d="M361.22 617.68L361.7 615.54L360.58 614.56L360.62 612.74L361.75 612.53L361.18 610.43L361.84 610.13L360.72 606.05L361.37 604.6L360.61 601.11L359.37 602.99L357.32 599.79L355.51 600.06L355.03 600.77L353.12 601L351.69 602.79L351.04 602.79L351.16 600.67L349.23 601.94L349.04 602.78L347.62 602.22L346.53 602.62L346.47 604.77L347.68 604.93L347.37 607.19L348.76 608.25L348.81 610.23L347.58 611.47L347.55 612.53L351.77 611.92L352.72 613.14L356.21 612.93L356.43 615.32L357.08 615.88L357.48 615.72L358.36 616.84L358.41 617.3L357.83 617.63L358.73 618.71Z" />
+  </g>
+</svg>

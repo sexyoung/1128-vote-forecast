@@ -1,0 +1,185 @@
+{
+  "source": "VILLAGE_NLSC_1150817.shp",
+  "dataset": "https://data.gov.tw/dataset/7438",
+  "dataVersion": "2026-08-17",
+  "viewBox": "0 0 860 1100",
+  "villages": 7986,
+  "counties": [
+    {
+      "countyId": "nantou-county",
+      "countyName": "南投縣",
+      "countyCode": "10008",
+      "file": "nantou-county.svg",
+      "villages": 263,
+      "bytes": 354012
+    },
+    {
+      "countyId": "chiayi-city",
+      "countyName": "嘉義市",
+      "countyCode": "10020",
+      "file": "chiayi-city.svg",
+      "villages": 84,
+      "bytes": 45192
+    },
+    {
+      "countyId": "chiayi-county",
+      "countyName": "嘉義縣",
+      "countyCode": "10010",
+      "file": "chiayi-county.svg",
+      "villages": 359,
+      "bytes": 345735
+    },
+    {
+      "countyId": "keelung-city",
+      "countyName": "基隆市",
+      "countyCode": "10017",
+      "file": "keelung-city.svg",
+      "villages": 165,
+      "bytes": 106497
+    },
+    {
+      "countyId": "yilan-county",
+      "countyName": "宜蘭縣",
+      "countyCode": "10002",
+      "file": "yilan-county.svg",
+      "villages": 237,
+      "bytes": 280379
+    },
+    {
+      "countyId": "pingtung-county",
+      "countyName": "屏東縣",
+      "countyCode": "10013",
+      "file": "pingtung-county.svg",
+      "villages": 447,
+      "bytes": 431177
+    },
+    {
+      "countyId": "changhua-county",
+      "countyName": "彰化縣",
+      "countyCode": "10007",
+      "file": "changhua-county.svg",
+      "villages": 591,
+      "bytes": 411046
+    },
+    {
+      "countyId": "new-taipei-city",
+      "countyName": "新北市",
+      "countyCode": "65000",
+      "file": "new-taipei-city.svg",
+      "villages": 1056,
+      "bytes": 728816
+    },
+    {
+      "countyId": "hsinchu-city",
+      "countyName": "新竹市",
+      "countyCode": "10018",
+      "file": "hsinchu-city.svg",
+      "villages": 124,
+      "bytes": 79667
+    },
+    {
+      "countyId": "hsinchu-county",
+      "countyName": "新竹縣",
+      "countyCode": "10004",
+      "file": "hsinchu-county.svg",
+      "villages": 193,
+      "bytes": 203270
+    },
+    {
+      "countyId": "taoyuan-city",
+      "countyName": "桃園市",
+      "countyCode": "68000",
+      "file": "taoyuan-city.svg",
+      "villages": 529,
+      "bytes": 397146
+    },
+    {
+      "countyId": "penghu-county",
+      "countyName": "澎湖縣",
+      "countyCode": "10016",
+      "file": "penghu-county.svg",
+      "villages": 106,
+      "bytes": 130510
+    },
+    {
+      "countyId": "taichung-city",
+      "countyName": "臺中市",
+      "countyCode": "66000",
+      "file": "taichung-city.svg",
+      "villages": 630,
+      "bytes": 445975
+    },
+    {
+      "countyId": "taipei-city",
+      "countyName": "臺北市",
+      "countyCode": "63000",
+      "file": "taipei-city.svg",
+      "villages": 456,
+      "bytes": 233591
+    },
+    {
+      "countyId": "tainan-city",
+      "countyName": "臺南市",
+      "countyCode": "67000",
+      "file": "tainan-city.svg",
+      "villages": 650,
+      "bytes": 531530
+    },
+    {
+      "countyId": "taitung-county",
+      "countyName": "臺東縣",
+      "countyCode": "10014",
+      "file": "taitung-county.svg",
+      "villages": 139,
+      "bytes": 211260
+    },
+    {
+      "countyId": "hualien-county",
+      "countyName": "花蓮縣",
+      "countyCode": "10015",
+      "file": "hualien-county.svg",
+      "villages": 180,
+      "bytes": 219959
+    },
+    {
+      "countyId": "miaoli-county",
+      "countyName": "苗栗縣",
+      "countyCode": "10005",
+      "file": "miaoli-county.svg",
+      "villages": 277,
+      "bytes": 289365
+    },
+    {
+      "countyId": "lienchiang-county",
+      "countyName": "連江縣",
+      "countyCode": "09007",
+      "file": "lienchiang-county.svg",
+      "villages": 156,
+      "bytes": 121196
+    },
+    {
+      "countyId": "kinmen-county",
+      "countyName": "金門縣",
+      "countyCode": "09020",
+      "file": "kinmen-county.svg",
+      "villages": 46,
+      "bytes": 41412
+    },
+    {
+      "countyId": "yunlin-county",
+      "countyName": "雲林縣",
+      "countyCode": "10009",
+      "file": "yunlin-county.svg",
+      "villages": 394,
+      "bytes": 305227
+    },
+    {
+      "countyId": "kaohsiung-city",
+      "countyName": "高雄市",
+      "countyCode": "64000",
+      "file": "kaohsiung-city.svg",
+      "villages": 904,
+      "bytes": 640589
+    }
+  ]
+}
