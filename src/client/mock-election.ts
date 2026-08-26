@@ -1,3 +1,5 @@
+import { getCouncilDistricts } from './council-districts';
+
 export type PartyId = 'KMT' | 'DPP' | 'TPP' | 'IND';
 
 export type ElectionView = 'EXECUTIVE' | 'COUNCIL' | 'TOWNSHIP' | 'REPRESENTATIVE' | 'VILLAGE';
@@ -5,7 +7,7 @@ export type ElectionView = 'EXECUTIVE' | 'COUNCIL' | 'TOWNSHIP' | 'REPRESENTATIV
 export type Jurisdiction = {
   id: string;
   name: string;
-  kind: 'municipality' | 'county';
+  kind: 'municipality' | 'county' | 'city';
   gridArea: string;
   leader: PartyId;
   percentage: number;
@@ -88,7 +90,7 @@ export const jurisdictions: Jurisdiction[] = [
   {
     id: 'KEE',
     name: '基隆市',
-    kind: 'county',
+    kind: 'city',
     gridArea: 'kee',
     leader: 'DPP',
     percentage: 41,
@@ -106,7 +108,7 @@ export const jurisdictions: Jurisdiction[] = [
   {
     id: 'HSZ',
     name: '新竹市',
-    kind: 'county',
+    kind: 'city',
     gridArea: 'hsz',
     leader: 'TPP',
     percentage: 38,
@@ -178,7 +180,7 @@ export const jurisdictions: Jurisdiction[] = [
   {
     id: 'CYI',
     name: '嘉義市',
-    kind: 'county',
+    kind: 'city',
     gridArea: 'cyi',
     leader: 'DPP',
     percentage: 43,
@@ -240,20 +242,10 @@ export const jurisdictions: Jurisdiction[] = [
   },
 ];
 
-const taipeiCouncilAreas = [
-  '北投區、士林區',
-  '內湖區、南港區',
-  '松山區、信義區',
-  '中山區、大同區',
-  '中正區、萬華區',
-  '大安區、文山區',
-];
-
 const viewSettings: Record<
-  Exclude<ElectionView, 'EXECUTIVE'>,
+  Exclude<ElectionView, 'EXECUTIVE' | 'COUNCIL'>,
   { count: number; seats: number; noun: string }
 > = {
-  COUNCIL: { count: 6, seats: 6, noun: '議員' },
   TOWNSHIP: { count: 5, seats: 1, noun: '鄉鎮市長' },
   REPRESENTATIVE: { count: 5, seats: 5, noun: '代表' },
   VILLAGE: { count: 8, seats: 1, noun: '村里長' },
@@ -284,6 +276,23 @@ export function getContests(jurisdiction: Jurisdiction, view: ElectionView): Con
     ];
   }
 
+  if (view === 'COUNCIL') {
+    return getCouncilDistricts(jurisdiction.id).map((district, index) => {
+      const party = parties[(jurisdictions.indexOf(jurisdiction) + index) % parties.length];
+      return {
+        id: district.id,
+        jurisdictionId: jurisdiction.id,
+        name: `議員第 ${district.number} 選舉區`,
+        area: district.area,
+        seatCount: district.seats,
+        view,
+        leader: party.id,
+        percentage: 34 + ((index * 3 + jurisdiction.forecasts) % 16),
+        forecasts: 186 + ((index * 137 + jurisdiction.forecasts) % 900),
+      };
+    });
+  }
+
   const setting = viewSettings[view];
   return Array.from({ length: setting.count }, (_, index) => {
     const party = parties[(jurisdictions.indexOf(jurisdiction) + index) % parties.length];
@@ -291,10 +300,7 @@ export function getContests(jurisdiction: Jurisdiction, view: ElectionView): Con
       id: `${jurisdiction.id}-${view}-${index + 1}`,
       jurisdictionId: jurisdiction.id,
       name: `${setting.noun}第 ${index + 1} 選舉區`,
-      area:
-        jurisdiction.id === 'TPE' && view === 'COUNCIL'
-          ? taipeiCouncilAreas[index]
-          : `示意範圍 ${String.fromCharCode(65 + index)}、${String.fromCharCode(66 + index)}`,
+      area: `示意範圍 ${String.fromCharCode(65 + index)}、${String.fromCharCode(66 + index)}`,
       seatCount: setting.seats === 1 ? 1 : Math.max(2, setting.seats + ((index % 3) - 1)),
       view,
       leader: party.id,

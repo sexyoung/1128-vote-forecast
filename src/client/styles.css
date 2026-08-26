@@ -1821,9 +1821,6 @@ a:focus-visible {
 }
 .map-floating-top,
 .map-floating-actions,
-.map-zoom-controls,
-.map-legend-panel,
-.map-status,
 .map-back-button {
   position: absolute;
   z-index: 12;
@@ -1862,7 +1859,8 @@ a:focus-visible {
   font-size: 15px;
   letter-spacing: 0.08em;
 }
-.map-select {
+.map-select,
+.map-context {
   align-items: center;
   background: rgb(255 253 248 / 94%);
   border: 1px solid rgb(31 43 39 / 10%);
@@ -1873,15 +1871,22 @@ a:focus-visible {
   padding: 0 12px;
   backdrop-filter: blur(14px);
 }
-.map-select .icon {
+.map-select .icon,
+.map-context .icon {
   color: #6b7570;
   margin-right: 7px;
   width: 17px;
 }
-.map-select > span {
+.map-context > span {
   color: #7b8580;
   font-size: 11px;
   font-weight: 700;
+  margin-right: 4px;
+}
+.map-context > strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
 }
 .map-select select {
   appearance: none;
@@ -1928,70 +1933,6 @@ a:focus-visible {
 .map-round-button .icon {
   width: 19px;
 }
-.map-search {
-  position: relative;
-}
-.map-search-popover {
-  background: rgb(255 253 248 / 97%);
-  border: 1px solid var(--line);
-  border-radius: 17px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  padding: 9px;
-  position: absolute;
-  right: 0;
-  top: 55px;
-  width: 285px;
-  backdrop-filter: blur(16px);
-}
-.map-search-popover label {
-  align-items: center;
-  background: #efede7;
-  border-radius: 11px;
-  display: flex;
-  height: 40px;
-  padding: 0 11px;
-}
-.map-search-popover label .icon {
-  color: #737c77;
-  width: 16px;
-}
-.map-search-popover input {
-  background: transparent;
-  border: 0;
-  min-width: 0;
-  outline: 0;
-  padding: 0 8px;
-  width: 100%;
-}
-.map-search-popover > div {
-  display: grid;
-  margin-top: 6px;
-  max-height: 330px;
-  overflow-y: auto;
-}
-.map-search-popover > div button {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 9px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  padding: 10px;
-  text-align: left;
-}
-.map-search-popover > div button:hover {
-  background: #efede7;
-}
-.map-search-popover > div span {
-  font-size: 12px;
-  font-weight: 750;
-}
-.map-search-popover > div small {
-  color: var(--muted);
-  font-size: 9px;
-}
 /* 滿版鋪滿整個 map-stage。浮動 UI 都有 z-index 12，蓋在地圖上不受影響。 */
 /* width/height 一定要寫死 100%：<svg> 是 replaced element，只給 inset: 0 時
    auto 尺寸會用 viewBox 的比例算出自己的高度（590×1080 會變成極高的元素），
@@ -2016,6 +1957,7 @@ a:focus-visible {
   inset: 0;
   pointer-events: none;
   position: absolute;
+  transition: transform 0.35s ease;
   z-index: 8;
 }
 .map-island-insets button {
@@ -2047,8 +1989,9 @@ a:focus-visible {
   font-size: 10px;
   font-weight: 750;
 }
-/* 右側面板寬約 410px，地圖往左讓一半，讓剩下的空間仍然置中。 */
-.map-app.has-selection .taiwan-map-svg {
+/* 右側面板寬約 410px，地圖與離島標籤一起往左讓一半，讓剩下的空間仍然置中。 */
+.map-app.has-selection .taiwan-map-svg,
+.map-app.has-selection .map-island-insets {
   transform: translateX(-205px);
 }
 .taiwan-county {
@@ -2113,10 +2056,12 @@ a:focus-visible {
 }
 /* 鄉鎮市區與村里兩層在村里級距前後交叉淡入淡出，不是瞬間換層。 */
 .township-layer,
+.council-village-layer,
 .village-layer {
   transition: opacity 0.24s ease;
 }
 .township-layer.faded,
+.council-village-layer.faded,
 .village-layer.faded {
   opacity: 0;
   pointer-events: none;
@@ -2134,6 +2079,12 @@ a:focus-visible {
 }
 .taiwan-township:focus-visible {
   filter: brightness(0.88) saturate(1.2);
+}
+.taiwan-township.unresolved {
+  pointer-events: none;
+}
+.taiwan-township.council-village {
+  stroke-width: 0.6;
 }
 .taiwan-village {
   cursor: pointer;
@@ -2192,102 +2143,6 @@ a:focus-visible {
 }
 .map-data-message.error {
   color: #a24a3d;
-}
-.map-legend-panel {
-  background: rgb(255 253 248 / 93%);
-  border: 1px solid rgb(31 43 39 / 9%);
-  border-radius: 15px;
-  bottom: 53px;
-  box-shadow: 0 10px 25px rgb(31 43 39 / 7%);
-  left: 22px;
-  padding: 13px 14px;
-  width: 246px;
-  backdrop-filter: blur(14px);
-}
-.map-legend-panel > strong {
-  display: block;
-  font-size: 10px;
-  margin-bottom: 8px;
-}
-.gradient-legend {
-  align-items: center;
-  display: grid;
-  gap: 6px;
-  grid-template-columns: auto 1fr auto 1fr auto;
-}
-.gradient-legend span {
-  color: #66716b;
-  font-size: 8px;
-}
-.gradient-legend i,
-.gradient-legend b {
-  border-radius: 99px;
-  height: 8px;
-}
-.gradient-legend i {
-  background: linear-gradient(90deg, #174e9e, #b8cee9);
-}
-.gradient-legend b {
-  background: linear-gradient(90deg, #c7e8cf, #159340);
-}
-.map-legend-panel small {
-  color: #8a918d;
-  display: block;
-  font-size: 8px;
-  margin-top: 8px;
-}
-.map-zoom-controls {
-  bottom: 53px;
-  display: grid;
-  gap: 6px;
-  right: 22px;
-}
-.map-app.has-selection .map-zoom-controls {
-  right: 410px;
-}
-.map-zoom-controls button {
-  align-items: center;
-  background: rgb(255 253 248 / 95%);
-  border: 1px solid rgb(31 43 39 / 11%);
-  border-radius: 11px;
-  box-shadow: 0 7px 18px rgb(31 43 39 / 8%);
-  cursor: pointer;
-  display: flex;
-  font-size: 20px;
-  height: 40px;
-  justify-content: center;
-  width: 40px;
-}
-.map-zoom-controls button:disabled {
-  color: #b9bdb9;
-  cursor: not-allowed;
-}
-.map-zoom-controls .icon {
-  width: 17px;
-}
-.map-status {
-  align-items: center;
-  bottom: 0;
-  color: #6f7974;
-  display: flex;
-  font-size: 8px;
-  gap: 18px;
-  height: 34px;
-  left: 0;
-  padding: 0 22px;
-  right: 0;
-}
-.map-status span:first-child {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-}
-.map-status span:first-child i {
-  background: #37a477;
-  border-radius: 50%;
-  box-shadow: 0 0 0 4px rgb(55 164 119 / 12%);
-  height: 6px;
-  width: 6px;
 }
 .map-back-button {
   background: rgb(255 253 248 / 94%);
@@ -2351,6 +2206,30 @@ a:focus-visible {
   box-shadow: none;
   height: 36px;
   width: 36px;
+}
+.map-contest-switch {
+  background: #f0eee7;
+  border-radius: 11px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+  padding: 4px;
+}
+.map-contest-switch button {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 750;
+  padding: 8px 5px;
+}
+.map-contest-switch button.active {
+  background: #fffdf8;
+  box-shadow: 0 2px 8px rgb(31 43 39 / 8%);
+  color: var(--ink);
 }
 .map-leading {
   align-items: end;
@@ -2942,17 +2821,22 @@ a:focus-visible {
   .map-brand strong {
     display: none;
   }
-  .map-select {
+  .map-select,
+  .map-context {
     border-radius: 12px;
     height: 42px;
     padding: 0 10px;
   }
-  .map-select .icon {
+  .map-select .icon,
+  .map-context .icon {
     margin-right: 5px;
     width: 15px;
   }
-  .map-select > span {
+  .map-context > span {
     display: none;
+  }
+  .map-context > strong {
+    font-size: 11px;
   }
   .map-select select {
     font-size: 11px;
@@ -2976,12 +2860,6 @@ a:focus-visible {
   .map-round-button {
     height: 42px;
     width: 42px;
-  }
-  .map-search-popover {
-    position: fixed;
-    right: 10px;
-    top: 60px;
-    width: calc(100vw - 20px);
   }
   .map-island-insets button {
     gap: 4px;
@@ -3008,35 +2886,6 @@ a:focus-visible {
   .map-back-button {
     left: 11px;
     top: 92px;
-  }
-  .map-legend-panel {
-    bottom: 16px;
-    left: 10px;
-    padding: 10px 11px;
-    width: 205px;
-  }
-  .map-app.has-selection .map-legend-panel {
-    display: none;
-  }
-  .map-zoom-controls,
-  .map-app.has-selection .map-zoom-controls {
-    bottom: 18px;
-    gap: 4px;
-    right: 10px;
-  }
-  .map-app.has-selection .map-zoom-controls {
-    bottom: 136px;
-  }
-  .map-app.has-selection .map-zoom-controls button:nth-child(3) {
-    display: none;
-  }
-  .map-zoom-controls button {
-    border-radius: 10px;
-    height: 38px;
-    width: 38px;
-  }
-  .map-status {
-    display: none;
   }
   .map-inspector {
     border: 0;
@@ -3100,6 +2949,7 @@ a:focus-visible {
   }
   .map-inspector:not(.expanded) .map-result-list,
   .map-inspector:not(.expanded) .map-inspector-total,
+  .map-inspector:not(.expanded) .map-contest-switch,
   .map-inspector:not(.expanded) > .button,
   .map-inspector:not(.expanded) .map-inspector-links {
     display: none;
