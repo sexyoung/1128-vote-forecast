@@ -2089,6 +2089,28 @@ a:focus-visible {
 .map-app.township-focus .taiwan-county.selected {
   opacity: 0;
 }
+/* 全臺視野點選本島縣市時，保留底下加深的縣市色，只疊上鄉鎮市區界線。 */
+.township-boundary-preview {
+  pointer-events: none;
+}
+.taiwan-township-boundary {
+  fill: none;
+  stroke: #fffdf8;
+  stroke-linejoin: round;
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+/* 區檢視點選鄉鎮市區時，同樣保留加深的鄉鎮填色，只疊上該區的村里界線。 */
+.village-boundary-preview {
+  pointer-events: none;
+}
+.taiwan-village-boundary {
+  fill: none;
+  stroke: #fffdf8;
+  stroke-linejoin: round;
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
 /* 鄉鎮市區與村里兩層在村里級距前後交叉淡入淡出，不是瞬間換層。 */
 .township-layer,
 .village-layer {

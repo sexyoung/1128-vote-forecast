@@ -317,6 +317,7 @@ const maxVillageZoomWidth = 160;
 const minimumZoomWidth = 14;
 // 比開場視野（860）再往外一級。必須大於開場寬度，否則第一次滾動就會被夾回來。
 const maximumZoomWidth = 965;
+const mapFocusAnimationDuration = 520;
 const mainMapBounds = { x: 184, y: 20, width: 652, height: 1060 };
 const islandInsets = [
   {
@@ -341,6 +342,41 @@ const islandInsets = [
     viewBox: '18 340 140 150',
   },
 ];
+
+export function shouldImmediatelyFocusJurisdiction(jurisdictionId: string) {
+  return islandInsets.some((inset) => inset.jurisdictionId === jurisdictionId);
+}
+
+export function shouldShowTownshipBoundaryPreview(
+  jurisdictionId: string | null,
+  detailMode: boolean,
+) {
+  return (
+    jurisdictionId !== null && !detailMode && !shouldImmediatelyFocusJurisdiction(jurisdictionId)
+  );
+}
+
+export function shouldShowVillageBoundaryPreview(
+  selectedTownshipId: string | null,
+  villageMode: boolean,
+) {
+  return selectedTownshipId !== null && !villageMode;
+}
+
+export function shouldShowMapInspector(jurisdictionId: string | null, contest: Contest | null) {
+  return jurisdictionId !== null && contest?.jurisdictionId === jurisdictionId;
+}
+
+export function interpolateMapBounds(start: MapBounds, end: MapBounds, progress: number) {
+  const clamped = Math.min(1, Math.max(0, progress));
+  const eased = 1 - (1 - clamped) ** 3;
+  return {
+    x: start.x + (end.x - start.x) * eased,
+    y: start.y + (end.y - start.y) * eased,
+    width: start.width + (end.width - start.width) * eased,
+    height: start.height + (end.height - start.height) * eased,
+  };
+}
 
 function parseMapBounds(viewBox: string): MapBounds {
   const [x, y, width, height] = viewBox.split(' ').map(Number);
@@ -709,6 +745,7 @@ export function ElectionHomePage() {
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const multiTouchRef = useRef(false);
   const suppressClickRef = useRef(false);
+  const mapFocusAnimationRef = useRef<number | null>(null);
 
   const selectedLocationId = selectedJurisdiction
     ? (jurisdictionToMapLocation[selectedJurisdiction.id] ?? null)
@@ -729,6 +766,15 @@ export function ElectionHomePage() {
       active = false;
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      if (mapFocusAnimationRef.current !== null) {
+        window.cancelAnimationFrame(mapFocusAnimationRef.current);
+      }
+    },
+    [],
+  );
 
   // 離島標籤要跟著地圖跑：把每個離島框右緣的畫布座標換算成畫面座標，標籤就
   // 貼在該島旁邊，縮放平移都不會跑掉。detail mode 不顯示標籤，就不用算。
@@ -808,8 +854,10 @@ export function ElectionHomePage() {
     };
   }, [selectedLocationId]);
 
-  // 村里圖層每個縣市 40 KB～730 KB，快靠近村里縮放級距時才預先抓。
-  const villageNeeded = detailMode && mapWidth <= villageZoomWidth * 2;
+  // 村里圖層每個縣市 40 KB～730 KB：快靠近村里縮放級距時預先抓，
+  // 或在區檢視點了某個鄉鎮市區後載入，才能疊上該區的村里界線。
+  const villageNeeded =
+    detailMode && (selectedTownshipId !== null || mapWidth <= villageZoomWidth * 2);
   useEffect(() => {
     if (!selectedLocationId || !villageNeeded) return;
     let active = true;
@@ -848,8 +896,9 @@ export function ElectionHomePage() {
   // 細的東西可看」的中間狀態。
   const townshipFocus = villageMode ? focusedTownCode : null;
 
-  // 選到縣市、放大到鄉鎮市區都不開面板；面板只在點特定鄉鎮市區或村里時出現。
+  // 先清掉上一個選區的面板；從地圖點縣市時會在下方的入口放回該縣市 contest。
   function selectJurisdiction(jurisdiction: Jurisdiction) {
+    cancelMapFocusAnimation();
     setSelectedJurisdiction(jurisdiction);
     setSelectedContest(null);
     setSelectedTownshipId(null);
@@ -857,6 +906,22 @@ export function ElectionHomePage() {
     clearTownshipFocus();
     setVillageZoomWidth(defaultVillageZoomWidth);
     setInspectorExpanded(false);
+  }
+
+  function selectJurisdictionFromMap(jurisdiction: Jurisdiction, contest: Contest) {
+    selectJurisdiction(jurisdiction);
+    setSelectedContest(contest);
+    if (shouldImmediatelyFocusJurisdiction(jurisdiction.id)) {
+      focusOnJurisdiction(jurisdiction, true);
+      return;
+    }
+
+    // 切層本來只發生在縮放事件裡，所以縮放深度已經夠、卻是用
+    // 「點選」換縣市時，區不會出現，得再滾一下才有。這裡補上：
+    // 目前視野已經到該縣市的區級距就直接切層，畫面不動。
+    if (detailMode || mapWidth <= getTownshipZoomWidth(jurisdiction)) {
+      setDetailMode(true);
+    }
   }
 
   function changeView(nextView: ElectionView) {
@@ -887,11 +952,44 @@ export function ElectionHomePage() {
     };
   }
 
-  // 帶到某個縣市並切進鄉鎮層，只剩該縣市的區有顏色。
-  function focusOnJurisdiction(jurisdiction: Jurisdiction) {
+  function cancelMapFocusAnimation() {
+    if (mapFocusAnimationRef.current === null) return;
+    window.cancelAnimationFrame(mapFocusAnimationRef.current);
+    mapFocusAnimationRef.current = null;
+  }
+
+  function animateMapToBounds(bounds: MapBounds) {
+    cancelMapFocusAnimation();
+    const target = constrainMapBounds(bounds);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setViewBox(formatMapBounds(target));
+      return;
+    }
+
+    const start = parseMapBounds(viewBox);
+    let startedAt: number | null = null;
+    const animate = (timestamp: number) => {
+      startedAt ??= timestamp;
+      const progress = Math.min(1, (timestamp - startedAt) / mapFocusAnimationDuration);
+      setViewBox(formatMapBounds(interpolateMapBounds(start, target, progress)));
+      if (progress < 1) {
+        mapFocusAnimationRef.current = window.requestAnimationFrame(animate);
+      } else {
+        mapFocusAnimationRef.current = null;
+      }
+    };
+    mapFocusAnimationRef.current = window.requestAnimationFrame(animate);
+  }
+
+  // 帶到某個縣市並切進鄉鎮層，只剩該縣市的區有顏色。澎金馬從全臺視野進入時會平滑移動與放大。
+  function focusOnJurisdiction(jurisdiction: Jurisdiction, smooth = false) {
     const fitted = getFittedBounds(jurisdiction);
     if (!fitted) return;
-    setViewBox(formatMapBounds(constrainMapBounds(fitted)));
+    if (smooth) animateMapToBounds(fitted);
+    else {
+      cancelMapFocusAnimation();
+      setViewBox(formatMapBounds(constrainMapBounds(fitted)));
+    }
     setDetailMode(true);
     setSelectedTownshipId(null);
     setSelectedVillageId(null);
@@ -926,6 +1024,7 @@ export function ElectionHomePage() {
 
   // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
   function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
+    cancelMapFocusAnimation();
     const next = constrainMapBounds(bounds);
     const element = target instanceof Element ? target.closest('[data-jurisdiction-id]') : null;
     const targetId = element?.getAttribute('data-jurisdiction-id');
@@ -1028,6 +1127,7 @@ export function ElectionHomePage() {
   function handleGestureStart(event: Event) {
     event.preventDefault();
     if (pointersRef.current.size >= 2) return;
+    cancelMapFocusAnimation();
     const gesture = event as GestureLikeEvent;
     const anchor = toCanvasPoint(gesture.clientX ?? 0, gesture.clientY ?? 0);
     if (!anchor) return;
@@ -1066,6 +1166,7 @@ export function ElectionHomePage() {
 
   function handleMapPointerDown(event: React.PointerEvent<SVGSVGElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    cancelMapFocusAnimation();
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     // 新的單指序列開始，清掉上一輪的多指旗標。這是唯一的清除點，所以縮放
@@ -1206,6 +1307,7 @@ export function ElectionHomePage() {
 
   // 回到「看得到所有縣市」的視野就一併取消選取，不留著上一個縣市。
   function resetMap() {
+    cancelMapFocusAnimation();
     setViewBox(initialMapViewBox);
     setDetailMode(false);
     setSelectedJurisdiction(null);
@@ -1296,13 +1398,7 @@ export function ElectionHomePage() {
                   key={location.id}
                   onClick={() => {
                     if (!mapClickAllowed()) return;
-                    selectJurisdiction(jurisdiction);
-                    // 切層本來只發生在縮放事件裡，所以縮放深度已經夠、卻是用
-                    // 「點選」換縣市時，區不會出現，得再滾一下才有。這裡補上：
-                    // 目前視野已經到該縣市的區級距就直接切層，畫面不動。
-                    if (detailMode || mapWidth <= getTownshipZoomWidth(jurisdiction)) {
-                      setDetailMode(true);
-                    }
+                    selectJurisdictionFromMap(jurisdiction, contest);
                   }}
                   ref={(node) => {
                     pathRefs.current[jurisdiction.id] = node;
@@ -1314,6 +1410,14 @@ export function ElectionHomePage() {
               );
             })}
           </g>
+
+          {shouldShowTownshipBoundaryPreview(selectedJurisdiction?.id ?? null, detailMode) && (
+            <g aria-hidden="true" className="township-boundary-preview">
+              {visibleTownships.map(({ township }) => (
+                <path className="taiwan-township-boundary" d={township.path} key={township.id} />
+              ))}
+            </g>
+          )}
 
           {detailMode && selectedJurisdiction && (
             <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
@@ -1342,6 +1446,16 @@ export function ElectionHomePage() {
                   />
                 );
               })}
+            </g>
+          )}
+
+          {shouldShowVillageBoundaryPreview(selectedTownshipId, villageMode) && (
+            <g aria-hidden="true" className="village-boundary-preview">
+              {visibleVillages
+                .filter(({ village }) => village.townCode === focusedTownCode)
+                .map(({ village }) => (
+                  <path className="taiwan-village-boundary" d={village.path} key={village.id} />
+                ))}
             </g>
           )}
 
@@ -1397,7 +1511,7 @@ export function ElectionHomePage() {
               return (
                 <button
                   key={inset.locationId}
-                  onClick={() => selectJurisdiction(jurisdiction)}
+                  onClick={() => selectJurisdictionFromMap(jurisdiction, contest)}
                   style={{ left: anchor.left, top: anchor.top }}
                   type="button"
                 >
@@ -1445,16 +1559,18 @@ export function ElectionHomePage() {
         </div>
       </section>
 
-      {selectedJurisdiction && activeContest && (
-        <MapInspector
-          contest={activeContest}
-          expanded={inspectorExpanded}
-          jurisdiction={selectedJurisdiction}
-          onClose={() => resetMap()}
-          onExpandedChange={setInspectorExpanded}
-          onForecast={() => setForecastOpen(true)}
-        />
-      )}
+      {selectedJurisdiction &&
+        activeContest &&
+        shouldShowMapInspector(selectedJurisdiction.id, activeContest) && (
+          <MapInspector
+            contest={activeContest}
+            expanded={inspectorExpanded}
+            jurisdiction={selectedJurisdiction}
+            onClose={() => resetMap()}
+            onExpandedChange={setInspectorExpanded}
+            onForecast={() => setForecastOpen(true)}
+          />
+        )}
       {forecastOpen && activeContest && (
         <ForecastSheet
           contest={activeContest}
