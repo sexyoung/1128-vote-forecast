@@ -19,9 +19,9 @@ import {
   findContest,
   getContests,
   getJurisdiction,
+  getMockCandidates,
   getParty,
   jurisdictions,
-  mockCandidates,
   parties,
 } from '../mock-election';
 
@@ -713,7 +713,6 @@ function MapInspector({
 }
 
 export function ElectionHomePage() {
-  const { phase, setPhase } = usePrototype();
   const [selectedJurisdiction, setSelectedJurisdiction] = useState<Jurisdiction | null>(null);
   const [selectedContest, setSelectedContest] = useState<Contest | null>(null);
   const [detailMode, setDetailMode] = useState(false);
@@ -1366,16 +1365,6 @@ export function ElectionHomePage() {
             <span>{selectedJurisdiction ? `${selectedJurisdiction.name} ›` : '全臺 ›'}</span>
             <strong>{mapLevelLabel}</strong>
           </div>
-          <label className="map-select phase">
-            <select
-              aria-label="候選人名單狀態"
-              onChange={(event) => setPhase(event.target.value as CandidatePhase)}
-              value={phase}
-            >
-              <option value="party">名單公布前</option>
-              <option value="candidate">名單公布後</option>
-            </select>
-          </label>
         </div>
 
         <div className="map-floating-actions">
@@ -1808,16 +1797,28 @@ function getResultRows(contest: Contest, phase: CandidatePhase) {
       color: party.color,
       value: values[index],
     }));
-  return mockCandidates.slice(0, 4).map((candidate, index) => {
-    const party = getParty(candidate.partyId);
-    return {
-      id: candidate.id,
-      label: candidate.name,
-      meta: party.shortName,
-      color: party.color,
-      value: values[index],
-    };
-  });
+  return getMockCandidates(contest)
+    .slice(0, 4)
+    .map((candidate, index) => {
+      const party = getParty(candidate.partyId);
+      return {
+        id: candidate.id,
+        label: candidate.name,
+        meta: party.shortName,
+        color: party.color,
+        value: values[index],
+      };
+    });
+}
+
+function usesPreAnnouncementCandidateSelection(contest: Contest) {
+  return contest.view === 'COUNCIL' || contest.view === 'REPRESENTATIVE';
+}
+
+export function getForecastInputMode(contest: Contest, phase: CandidatePhase) {
+  return usesPreAnnouncementCandidateSelection(contest) || phase === 'candidate'
+    ? 'candidate'
+    : 'party';
 }
 
 function ResultsPanel({ contest }: { contest: Contest }) {
@@ -2072,6 +2073,9 @@ function ForecastSheet({
 }) {
   const { phase } = usePrototype();
   const singleSeat = contest.seatCount === 1;
+  const usesPlaceholderCandidates = usesPreAnnouncementCandidateSelection(contest);
+  const inputMode = getForecastInputMode(contest, phase);
+  const candidates = getMockCandidates(contest);
   const [selectedTarget, setSelectedTarget] = useState('');
   const [candidateIds, setCandidateIds] = useState<string[]>([]);
   const [allocation, setAllocation] = useState<Record<string, number>>(() =>
@@ -2092,7 +2096,7 @@ function ForecastSheet({
 
   const allocatedSeats = Object.values(allocation).reduce((total, value) => total + value, 0);
   const isValid =
-    phase === 'party'
+    inputMode === 'party'
       ? singleSeat
         ? Boolean(selectedTarget)
         : allocatedSeats === contest.seatCount
@@ -2142,8 +2146,18 @@ function ForecastSheet({
         <div className="sheet-status">
           <i />
           <span>
-            <strong>{phase === 'party' ? '候選人名單尚未公布' : '官方候選人名單已匯入'}</strong>
-            {phase === 'party' ? '目前以政黨或席次進行預測' : '目前以候選人進行預測'}
+            <strong>
+              {usesPlaceholderCandidates
+                ? '正式候選人名單尚待公告'
+                : inputMode === 'party'
+                  ? '候選人名單尚未公布'
+                  : '官方候選人名單已匯入'}
+            </strong>
+            {usesPlaceholderCandidates
+              ? '目前以黨籍示意候選人進行預測'
+              : inputMode === 'party'
+                ? '目前以政黨或席次進行預測'
+                : '目前以候選人進行預測'}
           </span>
         </div>
 
@@ -2151,15 +2165,15 @@ function ForecastSheet({
           <div className="sheet-instruction">
             <h3>{singleSeat ? '你認為誰會勝出？' : `預測 ${contest.seatCount} 個當選席次`}</h3>
             <span>
-              {phase === 'party' && !singleSeat
+              {inputMode === 'party' && !singleSeat
                 ? `已分配 ${allocatedSeats} / ${contest.seatCount} 席`
-                : phase === 'candidate' && !singleSeat
+                : inputMode === 'candidate' && !singleSeat
                   ? `已選 ${candidateIds.length} / ${contest.seatCount} 位`
                   : '請選擇一個項目'}
             </span>
           </div>
 
-          {phase === 'party' && singleSeat && (
+          {inputMode === 'party' && singleSeat && (
             <div className="choice-list">
               {parties.map((party) => (
                 <label className={selectedTarget === party.id ? 'selected' : ''} key={party.id}>
@@ -2180,7 +2194,7 @@ function ForecastSheet({
             </div>
           )}
 
-          {phase === 'party' && !singleSeat && (
+          {inputMode === 'party' && !singleSeat && (
             <div className="seat-allocation">
               {parties.map((party) => (
                 <div key={party.id}>
@@ -2211,9 +2225,9 @@ function ForecastSheet({
             </div>
           )}
 
-          {phase === 'candidate' && (
+          {inputMode === 'candidate' && (
             <div className="candidate-grid">
-              {mockCandidates.slice(0, Math.max(4, contest.seatCount + 2)).map((candidate) => {
+              {candidates.map((candidate) => {
                 const party = getParty(candidate.partyId);
                 const selected = singleSeat
                   ? selectedTarget === candidate.id

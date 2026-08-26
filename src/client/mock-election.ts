@@ -320,13 +320,19 @@ export function findContest(contestId?: string) {
   return { contest: getContests(jurisdiction, 'EXECUTIVE')[0], jurisdiction };
 }
 
-export const mockCandidates = [
-  { id: 'candidate-a', name: '候選人 A', partyId: 'DPP' as const, number: 1 },
-  { id: 'candidate-b', name: '候選人 B', partyId: 'KMT' as const, number: 2 },
-  { id: 'candidate-c', name: '候選人 C', partyId: 'TPP' as const, number: 3 },
-  { id: 'candidate-d', name: '候選人 D', partyId: 'IND' as const, number: 4 },
-  { id: 'candidate-e', name: '候選人 E', partyId: 'DPP' as const, number: 5 },
-  { id: 'candidate-f', name: '候選人 F', partyId: 'KMT' as const, number: 6 },
-  { id: 'candidate-g', name: '候選人 G', partyId: 'IND' as const, number: 7 },
-  { id: 'candidate-h', name: '候選人 H', partyId: 'TPP' as const, number: 8 },
-];
+export function getMockCandidates(contest: Contest) {
+  const candidateCount = Math.max(4, contest.seatCount + 4);
+  const partyOrder: PartyId[] = ['KMT', 'DPP', 'TPP', 'IND'];
+  const partyCounts: Record<PartyId, number> = { KMT: 0, DPP: 0, TPP: 0, IND: 0 };
+
+  return Array.from({ length: candidateCount }, (_, index) => {
+    const partyId = partyOrder[index % partyOrder.length];
+    partyCounts[partyId] += 1;
+    return {
+      id: `${contest.id}-CANDIDATE-${index + 1}`,
+      name: `${getParty(partyId).shortName}候選人 ${partyCounts[partyId]}`,
+      partyId,
+      number: index + 1,
+    };
+  });
+}

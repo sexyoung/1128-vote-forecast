@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vite-plus/test';
-import { getContests, getJurisdiction } from '../mock-election';
+import { getContests, getJurisdiction, getMockCandidates } from '../mock-election';
 import {
   getElectionViewsForMapLevel,
+  getForecastInputMode,
   getTownshipContestOptions,
   interpolateMapBounds,
   shouldImmediatelyFocusJurisdiction,
@@ -74,6 +75,35 @@ describe('map jurisdiction focus behavior', () => {
     expect(neihu.area).toBe('內湖區、南港區');
   });
 
+  it('uses candidate selection for council contests before official names are available', () => {
+    const contest = getContests(getJurisdiction('NTP'), 'COUNCIL')[1];
+    const candidates = getMockCandidates(contest);
+
+    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
+    expect(candidates.length).toBeGreaterThan(contest.seatCount);
+    expect(candidates.slice(0, 5).map(({ name }) => name)).toEqual([
+      '國民黨候選人 1',
+      '民進黨候選人 1',
+      '民眾黨候選人 1',
+      '無黨籍候選人 1',
+      '國民黨候選人 2',
+    ]);
+    expect(new Set(candidates.map(({ id }) => id)).size).toBe(candidates.length);
+  });
+
+  it('uses the same candidate selection for township representative contests', () => {
+    const contest = getContests(getJurisdiction('NAN'), 'REPRESENTATIVE')[0];
+    const candidates = getMockCandidates(contest);
+
+    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
+    expect(candidates.length).toBeGreaterThan(contest.seatCount);
+  });
+
+  it('preserves party selection for single-seat contests without official candidates', () => {
+    const contest = getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0];
+    expect(getForecastInputMode(contest, 'party')).toBe('party');
+  });
+
   it('highlights only the official New Taipei district 2 membership', () => {
     const newTaipei = getJurisdiction('NTP');
     const shape = (townName: string) => ({
@@ -116,6 +146,8 @@ describe('map jurisdiction focus behavior', () => {
       expect(source).not.toContain(marker);
     }
     expect(source).not.toMatch(/<select\s+aria-label="選舉種類"/);
+    expect(source).not.toContain('aria-label="候選人名單狀態"');
+    expect(source).not.toContain('className="map-select phase"');
   });
 
   it('smoothly interpolates both map position and zoom', () => {

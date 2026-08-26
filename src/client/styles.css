@@ -1859,7 +1859,6 @@ a:focus-visible {
   font-size: 15px;
   letter-spacing: 0.08em;
 }
-.map-select,
 .map-context {
   align-items: center;
   background: rgb(255 253 248 / 94%);
@@ -1871,7 +1870,6 @@ a:focus-visible {
   padding: 0 12px;
   backdrop-filter: blur(14px);
 }
-.map-select .icon,
 .map-context .icon {
   color: #6b7570;
   margin-right: 7px;
@@ -1887,24 +1885,6 @@ a:focus-visible {
   color: var(--ink);
   font-size: 13px;
   font-weight: 800;
-}
-.map-select select {
-  appearance: none;
-  background: transparent
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23616b66' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
-    no-repeat right center;
-  border: 0;
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 800;
-  outline: 0;
-  padding: 0 21px 0 0;
-}
-.map-select.phase select {
-  color: #66716b;
-  font-size: 11px;
-  font-weight: 700;
 }
 .map-floating-actions {
   display: flex;
@@ -2821,13 +2801,11 @@ a:focus-visible {
   .map-brand strong {
     display: none;
   }
-  .map-select,
   .map-context {
     border-radius: 12px;
     height: 42px;
     padding: 0 10px;
   }
-  .map-select .icon,
   .map-context .icon {
     margin-right: 5px;
     width: 15px;
@@ -2837,17 +2815,6 @@ a:focus-visible {
   }
   .map-context > strong {
     font-size: 11px;
-  }
-  .map-select select {
-    font-size: 11px;
-  }
-  .map-select.phase {
-    height: 34px;
-    margin-left: 49px;
-    margin-top: -1px;
-  }
-  .map-select.phase select {
-    font-size: 9px;
   }
   .map-floating-actions {
     gap: 5px;
