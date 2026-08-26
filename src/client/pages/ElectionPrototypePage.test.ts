@@ -134,6 +134,19 @@ describe('map jurisdiction focus behavior', () => {
 }`);
   });
 
+  it('docks the map inspector to the bottom of the phone screen', async () => {
+    const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+    const phone = styles.slice(styles.indexOf('@media (max-width: 720px) {'));
+    const inspector = phone.slice(phone.indexOf('\n  .map-inspector {'));
+    const baseRule = inspector.slice(0, inspector.indexOf('\n  }'));
+
+    // 這些宣告一旦漏掉，面板會退回桌機的 right/top/width，變成一片蓋住地圖的浮動直條。
+    // 選區沒有選舉切換器（縣市長、村里長）時只剩基礎規則兜著，所以它必須自己完整。
+    for (const declaration of ['bottom: 0;', 'right: 0;', 'top: auto;', 'width: 100%;'])
+      expect(baseRule).toContain(declaration);
+    expect(baseRule).toContain('animation: drawer-up');
+  });
+
   it('omits the removed map chrome', async () => {
     const source = await readFile(new URL('./ElectionPrototypePage.tsx', import.meta.url), 'utf8');
 

@@ -1423,8 +1423,8 @@ a:focus-visible {
   flex-direction: column;
   max-width: 500px;
   min-width: 420px;
-  overflow-y: auto;
-  padding: 28px;
+  overflow: hidden;
+  padding: 28px 28px 0;
   width: 40vw;
 }
 @keyframes slide-in {
@@ -1443,6 +1443,7 @@ a:focus-visible {
 .sheet-header {
   align-items: flex-start;
   display: flex;
+  gap: 12px;
   justify-content: space-between;
 }
 .sheet-header h2 {
@@ -1453,220 +1454,172 @@ a:focus-visible {
 }
 .sheet-header p {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12.5px;
   margin: 7px 0 0;
 }
-.sheet-status {
-  align-items: center;
-  background: #f2eee4;
-  border-radius: 13px;
-  display: flex;
-  gap: 10px;
-  margin: 22px 0;
-  padding: 12px;
-}
-.sheet-status > i {
-  background: #c59146;
-  border-radius: 50%;
-  box-shadow: 0 0 0 5px rgb(197 145 70 / 13%);
-  height: 7px;
-  margin-left: 4px;
-  width: 7px;
-}
-.sheet-status span {
-  display: flex;
-  flex-direction: column;
-}
-.sheet-status strong {
-  font-size: 11px;
-}
-.sheet-status span {
-  color: var(--muted);
-  font-size: 9px;
-}
-.sheet-body {
+
+/* 預測表單：地圖面板與獨立側欄共用同一份，容器只負責左右留白。 */
+.forecast-body {
   flex: 1;
+  overflow-y: auto;
+  padding: 22px 0 8px;
 }
-.sheet-instruction {
-  align-items: baseline;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 14px;
+.map-inspector .forecast-body {
+  padding: 22px 22px 8px;
 }
-.sheet-instruction h3 {
-  font-size: 16px;
+.forecast-body h3 {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1.25;
   margin: 0;
 }
-.sheet-instruction span {
-  color: var(--muted);
-  font-size: 10px;
-}
-.choice-list {
-  display: grid;
-  gap: 9px;
-}
-.choice-list label,
-.candidate-grid label {
+/* 多席次時的計數是這個畫面最重要的回饋，所以做成看得見的 chip。 */
+.forecast-counter {
   align-items: center;
-  background: #f5f3ed;
-  border: 1px solid transparent;
-  border-radius: 14px;
+  background: #f0eee7;
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 7px;
+  margin: 13px 0 0;
+  padding: 7px 13px;
+}
+.forecast-counter.done {
+  background: #e3ede7;
+  color: var(--green);
+}
+.forecast-counter .icon {
+  stroke-width: 2.4;
+  width: 13px;
+}
+.forecast-notice {
+  align-items: flex-start;
+  color: var(--muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 9px;
+  line-height: 1.6;
+  margin: 20px 0 14px;
+}
+.forecast-notice i {
+  background: #c59146;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgb(197 145 70 / 15%);
+  flex: none;
+  height: 7px;
+  margin-top: 6px;
+  width: 7px;
+}
+.forecast-options {
+  display: grid;
+  gap: 10px;
+}
+.forecast-options label {
+  align-items: center;
+  background: #f7f5ef;
+  border: 2px solid #e6e3da;
+  border-radius: 16px;
   cursor: pointer;
   display: grid;
-  gap: 11px;
-  grid-template-columns: 10px 1fr auto;
-  padding: 14px;
-  transition: 0.15s ease;
+  gap: 13px;
+  grid-template-columns: auto 1fr auto;
+  min-height: 60px;
+  padding: 12px 15px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
-.choice-list label {
-  grid-template-columns: 10px 9px 1fr auto;
-}
-.choice-list label:hover,
-.candidate-grid label:hover {
+.forecast-options label:hover {
   border-color: #c7cbc7;
 }
-.choice-list label.selected,
-.candidate-grid label.selected {
-  background: #e7f0eb;
-  border-color: #7ba18f;
-}
-.choice-list input,
-.candidate-grid input {
+.forecast-options input {
   height: 1px;
   opacity: 0;
   position: absolute;
   width: 1px;
 }
-.choice-list label > i {
+/* 政黨模式時整顆填成黨色，候選人模式時是白底的選票號次。 */
+.forecast-mark {
+  align-items: center;
+  background: #fffdf8;
+  border: 1px solid #dcd9d0;
   border-radius: 50%;
-  height: 9px;
-  width: 9px;
+  color: var(--ink);
+  display: inline-flex;
+  flex: none;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
 }
-.choice-list label > span,
-.candidate-grid label > span:nth-of-type(2) {
+.forecast-option-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
-.choice-list strong,
-.candidate-grid strong {
-  font-size: 12px;
+.forecast-option-text strong {
+  font-size: 15.5px;
 }
-.choice-list small,
-.candidate-grid small {
-  color: var(--muted);
-  font-size: 9px;
-  margin-top: 2px;
-}
-.choice-list label > b,
-.candidate-grid label > b {
+.forecast-option-text small {
   align-items: center;
-  background: var(--green);
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 6px;
+  margin-top: 3px;
+}
+.forecast-option-text small i {
+  border-radius: 50%;
+  flex: none;
+  height: 7px;
+  width: 7px;
+}
+.forecast-tick {
+  align-items: center;
   border-radius: 50%;
   color: #fff;
-  display: flex;
-  font-size: 9px;
-  height: 20px;
+  display: inline-flex;
+  flex: none;
+  height: 26px;
   justify-content: center;
   opacity: 0;
-  width: 20px;
+  transform: scale(0.7);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  width: 26px;
 }
-.choice-list label.selected > b,
-.candidate-grid label.selected > b {
+.forecast-options label.selected .forecast-tick {
   opacity: 1;
+  transform: scale(1);
 }
-.seat-allocation {
-  display: grid;
-  gap: 9px;
+.forecast-tick .icon {
+  stroke-width: 2.6;
+  width: 14px;
 }
-.seat-allocation > div {
-  align-items: center;
-  background: #f5f3ed;
-  border-radius: 14px;
-  display: flex;
-  justify-content: space-between;
-  padding: 13px 14px;
-}
-.seat-allocation > div > span {
-  align-items: center;
-  display: flex;
-  font-size: 12px;
-  gap: 8px;
-}
-.seat-allocation > div > span i {
-  border-radius: 50%;
-  height: 9px;
-  width: 9px;
-}
-.seat-allocation > div > div {
-  align-items: center;
-  background: #fff;
-  border: 1px solid #dadad4;
-  border-radius: 999px;
-  display: grid;
-  grid-template-columns: 32px 35px 32px;
-  overflow: hidden;
-}
-.seat-allocation button {
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-size: 17px;
-  height: 32px;
-}
-.seat-allocation button:disabled {
-  color: #c7c9c6;
-  cursor: not-allowed;
-}
-.seat-allocation b {
-  font-size: 12px;
-  text-align: center;
-}
-.candidate-grid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr 1fr;
-}
-.candidate-grid label {
-  grid-template-columns: 29px 1fr auto;
-  padding: 12px;
-}
-.candidate-number {
-  align-items: center;
-  background: #fff;
-  border: 1px solid #d6d6d0;
-  border-radius: 50%;
-  display: flex;
-  font-family: Georgia, serif;
-  font-size: 11px;
-  height: 29px;
-  justify-content: center;
-  width: 29px;
-}
-.candidate-grid small {
-  align-items: center;
-  display: flex;
-  gap: 5px;
-}
-.candidate-grid small i {
-  border-radius: 50%;
-  height: 6px;
-  width: 6px;
-}
-.sheet-footer {
-  align-items: center;
+.forecast-footer {
   border-top: 1px solid var(--line);
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  margin-top: 25px;
+  margin-top: 18px;
   padding-top: 18px;
 }
-.sheet-footer p {
+.forecast-sheet .forecast-footer {
+  margin: 0 -28px;
+  padding: 16px 28px 24px;
+}
+.map-inspector .forecast-footer {
+  margin-top: 0;
+  padding: 16px 22px 20px;
+}
+.forecast-footer p {
   color: var(--muted);
-  font-size: 9px;
-  line-height: 1.5;
-  margin: 0;
-  max-width: 185px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 0 0 13px;
+  text-align: center;
 }
 
 .mine-heading {
@@ -2144,8 +2097,7 @@ a:focus-visible {
   box-shadow: -18px 18px 60px rgb(31 43 39 / 15%);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  padding: 24px;
+  overflow: hidden;
   position: fixed;
   right: 18px;
   top: 82px;
@@ -2153,180 +2105,337 @@ a:focus-visible {
   z-index: 30;
   backdrop-filter: blur(18px);
 }
-.map-sheet-handle {
+.map-sheet-handle,
+.map-peek {
   display: none;
 }
 .map-inspector > header {
   align-items: flex-start;
   display: flex;
+  gap: 12px;
   justify-content: space-between;
+  padding: 22px 22px 16px;
 }
 .map-inspector > header > div {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .map-inspector > header span {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
 }
 .map-inspector > header h2 {
   font-family: Georgia, 'Noto Serif TC', serif;
-  font-size: 27px;
+  font-size: 28px;
   font-weight: 500;
-  line-height: 1.2;
-  margin: 5px 0;
+  line-height: 1.15;
+  margin: 7px 0 0;
 }
 .map-inspector > header small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12.5px;
+  margin-top: 7px;
 }
 .map-inspector > header .map-round-button {
   box-shadow: none;
-  height: 36px;
-  width: 36px;
+  flex: none;
+  height: 38px;
+  width: 38px;
+}
+/* 表單頁的返回列：面板原地換頁，不再另外疊一層側欄蓋住地圖。 */
+.map-inspector-back {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  padding: 18px 20px 16px;
+}
+.map-inspector-back .map-round-button {
+  box-shadow: none;
+  flex: none;
+  height: 40px;
+  width: 40px;
+}
+.map-inspector-back > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.map-inspector-back strong {
+  font-size: 15px;
+}
+.map-inspector-back small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.map-peek {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+  padding: 2px 18px 0;
+}
+.map-peek > span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+}
+.map-peek > span i {
+  border-radius: 50%;
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+.map-peek > b {
+  font-family: Georgia, serif;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1;
+}
+/* 份數太少時摘要不放大百分比，跟展開後的處理一致。 */
+.map-peek.low > b {
+  color: var(--muted);
+  font-size: 19px;
 }
 .map-contest-switch {
   background: #f0eee7;
-  border-radius: 11px;
+  border-radius: 13px;
   display: grid;
   gap: 4px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
+  margin: 0 22px;
   padding: 4px;
 }
 .map-contest-switch button {
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--muted);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 750;
-  padding: 8px 5px;
+  min-height: 40px;
+  padding: 0 6px;
 }
 .map-contest-switch button.active {
   background: #fffdf8;
   box-shadow: 0 2px 8px rgb(31 43 39 / 8%);
   color: var(--ink);
 }
-.map-leading {
-  align-items: end;
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  margin-top: 20px;
-  padding: 17px 0;
-}
-.map-leading > span {
-  color: var(--muted);
-  font-size: 9px;
-  grid-column: 1 / 2;
-}
-.map-leading > strong {
-  font-size: 15px;
-  grid-column: 1 / 2;
-  margin-top: 4px;
-}
-.map-leading > b {
-  font-family: Georgia, serif;
-  font-size: 37px;
-  font-weight: 500;
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
-}
-.map-result-list {
-  display: grid;
-  gap: 15px;
-  margin: 21px 0;
-}
-.map-result-list > div {
+.map-my-forecast {
   align-items: center;
-  display: grid;
-  gap: 6px 10px;
-  grid-template-columns: 1fr auto auto;
-}
-.map-result-list > div > span {
-  align-items: center;
+  background: #e9f1ec;
+  border: 1px solid #bdd6c9;
+  border-radius: 15px;
   display: flex;
-  font-size: 10px;
-  font-weight: 750;
-  gap: 7px;
+  gap: 11px;
+  margin: 16px 22px 0;
+  padding: 13px 15px;
 }
-.map-result-list > div > span i {
+.map-my-forecast > i {
+  align-items: center;
+  background: var(--green);
   border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  flex: none;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+.map-my-forecast > i .icon {
+  stroke-width: 2.6;
+  width: 14px;
+}
+.map-my-forecast > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.map-my-forecast strong {
+  font-size: 14px;
+}
+.map-my-forecast small {
+  color: #4c6459;
+  font-size: 12px;
+  margin-top: 3px;
+}
+/* 份數太少時不放大領先者，免得十來份預測被當成民調讀。 */
+.map-low-sample {
+  align-items: flex-start;
+  background: #f3f0e7;
+  border-radius: 15px;
+  display: flex;
+  gap: 11px;
+  margin: 18px 22px 0;
+  padding: 14px 15px;
+}
+.map-low-sample > i {
+  background: #c59146;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgb(197 145 70 / 15%);
+  flex: none;
   height: 8px;
+  margin-top: 5px;
   width: 8px;
 }
-.map-result-list > div > div {
-  background: #e7e5df;
-  border-radius: 99px;
-  grid-column: 1 / 2;
-  height: 6px;
-  overflow: hidden;
+.map-low-sample > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-.map-result-list > div > div i {
-  border-radius: inherit;
+.map-low-sample strong {
+  font-size: 14px;
+}
+.map-low-sample small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.map-share-head {
+  margin: 20px 22px 0;
+}
+/* 四條各自從左邊起跑的長條比不出高下，改成一條 100% 堆疊長條。 */
+.map-share-bar {
+  display: flex;
+  gap: 3px;
+  height: 15px;
+  margin: 12px 22px 0;
+}
+.map-share-bar.faint {
+  opacity: 0.45;
+}
+.map-share-bar i {
+  border-radius: 4px;
   display: block;
   height: 100%;
 }
-.map-result-list > div > strong {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 600;
+.map-inspector-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 22px;
+}
+/* 領先者那一列自己就是標題，所以整個面板只留一個大數字。 */
+.map-leader {
+  align-items: center;
+  display: grid;
+  gap: 4px 14px;
+  grid-template-columns: 1fr auto;
+  margin-top: 20px;
+}
+.map-leader > span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 19px;
+  font-weight: 700;
+  gap: 9px;
+  grid-column: 1 / 2;
+}
+.map-leader > span i {
+  border-radius: 50%;
+  flex: none;
+  height: 11px;
+  width: 11px;
+}
+.map-leader > b {
+  font-family: Georgia, serif;
+  font-size: 42px;
+  font-weight: 500;
   grid-column: 2 / 3;
   grid-row: 1 / 3;
+  line-height: 1;
 }
-.map-result-list > div > strong small {
-  font-size: 7px;
+.map-leader > small {
+  color: var(--muted);
+  font-size: 12.5px;
+  grid-column: 1 / 2;
+  padding-left: 20px;
+}
+.map-result-list {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 13px;
+  margin-top: 20px;
+  padding-top: 18px;
+}
+.map-result-list > div {
+  align-items: baseline;
+  display: grid;
+  gap: 3px 14px;
+  grid-template-columns: 1fr auto;
+}
+.map-result-list > div > span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 14.5px;
+  font-weight: 650;
+  gap: 9px;
+  grid-column: 1 / 2;
+}
+.map-result-list > div > span i {
+  border-radius: 50%;
+  flex: none;
+  height: 9px;
+  width: 9px;
 }
 .map-result-list > div > b {
   font-family: Georgia, serif;
-  font-size: 17px;
+  font-size: 21px;
   font-weight: 500;
-  grid-column: 3 / 4;
+  grid-column: 2 / 3;
   grid-row: 1 / 3;
-  min-width: 40px;
-  text-align: right;
+}
+.map-result-list > div > small {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1 / 2;
+  padding-left: 18px;
 }
 .map-inspector-total {
-  align-items: baseline;
-  background: #f0eee7;
-  border-radius: 12px;
-  display: flex;
-  margin: 0 0 17px;
-  padding: 12px;
-}
-.map-inspector-total span {
+  border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 9px;
-  margin-right: 7px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 22px 0 0;
+  padding-top: 16px;
 }
 .map-inspector-total strong {
-  font-family: Georgia, serif;
-  font-size: 20px;
-}
-.map-inspector-total small {
-  color: var(--muted);
-  font-size: 8px;
-  margin-left: auto;
+  color: var(--ink);
 }
 .map-inspector-links {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 9px;
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin: 14px 0 20px;
 }
 .map-inspector-links button {
   background: transparent;
-  border: 1px solid #d3d4cf;
-  border-radius: 999px;
+  border: 0;
+  color: #4c5853;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 13.5px;
   font-weight: 700;
-  padding: 9px;
+  padding: 6px 2px;
+  text-decoration: underline;
+  text-decoration-color: rgb(31 43 39 / 22%);
+  text-underline-offset: 4px;
+}
+.map-inspector-links > i {
+  background: #c4c8c2;
+  border-radius: 50%;
+  flex: none;
+  height: 3px;
+  width: 3px;
+}
+.map-inspector-footer {
+  border-top: 1px solid var(--line);
+  padding: 16px 22px 20px;
 }
 
 @media (max-width: 1000px) {
@@ -2715,7 +2824,8 @@ a:focus-visible {
     margin-top: auto;
     max-height: 90vh;
     min-width: 0;
-    padding: 13px 17px calc(18px + env(safe-area-inset-bottom));
+    /* 底部留白交給 .forecast-footer，這裡再加一次 safe-area 會變兩倍。 */
+    padding: 13px 17px 0;
     width: 100%;
   }
   @keyframes sheet-up {
@@ -2739,24 +2849,12 @@ a:focus-visible {
   .sheet-header h2 {
     font-size: 23px;
   }
-  .sheet-status {
-    margin: 17px 0;
+  .forecast-body {
+    padding-top: 18px;
   }
-  .candidate-grid {
-    grid-template-columns: 1fr;
-  }
-  .sheet-footer {
-    background: var(--card);
-    bottom: -18px;
-    margin: 18px -17px -18px;
+  .forecast-sheet .forecast-footer {
+    margin: 0 -17px;
     padding: 14px 17px calc(18px + env(safe-area-inset-bottom));
-    position: sticky;
-  }
-  .sheet-footer p {
-    display: none;
-  }
-  .sheet-footer .button {
-    width: 100%;
   }
   .anonymous-id {
     margin-top: 17px;
@@ -2854,32 +2952,51 @@ a:focus-visible {
     left: 11px;
     top: 92px;
   }
+  /* 手機的面板是底部抽屜，要滑上來，不是憑空出現在地圖上。
+     不共用 sheet-up：那個是側欄用的短距離淡入，抽屜要整片從畫面外推上來。 */
+  @keyframes drawer-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
   .map-inspector {
+    animation: drawer-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
     border: 0;
     border-radius: 22px 22px 0 0;
     bottom: 0;
     box-shadow: 0 -18px 50px rgb(31 43 39 / 17%);
-    height: 124px;
-    overflow: hidden;
-    padding: 9px 17px calc(16px + env(safe-area-inset-bottom));
+    /* 收合高度：手把 22 ＋ 標題列 50 ＋ 摘要 34 ＋ 長條 22 ＋ 排名列 114 ＋ 按鈕列 78。
+       safe-area 要另外加，否則 iPhone 上按鈕會被首頁指示器蓋掉。估太少不會裁到
+       按鈕——.map-inspector-scroll 是 flex: 1 且自己會捲，頁尾永遠留在畫面上。 */
+    height: calc(330px + env(safe-area-inset-bottom));
     right: 0;
     top: auto;
     transition: height 0.25s ease;
     width: 100%;
   }
+  /* 有多場選舉時切換器也要留在收合狀態，高度補上它的 44px ＋ 上下留白。 */
+  .map-inspector.has-switch:not(.expanded) {
+    height: calc(398px + env(safe-area-inset-bottom));
+  }
   .map-inspector.expanded {
-    height: min(76dvh, 650px);
-    overflow-y: auto;
+    height: min(78dvh, 680px);
+  }
+  .map-inspector.forecasting {
+    height: min(88dvh, 760px);
   }
   .map-sheet-handle {
     background: transparent;
     border: 0;
     cursor: pointer;
     display: block;
-    height: 20px;
-    margin: 0 auto 1px;
-    padding: 7px 0;
-    width: 70px;
+    flex: none;
+    height: 22px;
+    margin: 0 auto;
+    padding: 9px 0 0;
+    width: 84px;
   }
   .map-sheet-handle i {
     background: #c7c9c5;
@@ -2887,45 +3004,88 @@ a:focus-visible {
     display: block;
     height: 4px;
     margin: auto;
-    width: 42px;
+    width: 44px;
+  }
+  .map-inspector > header {
+    padding: 6px 18px 14px;
   }
   .map-inspector > header h2 {
-    font-size: 21px;
-    margin: 2px 0;
+    font-size: 22px;
   }
-  .map-inspector > header small,
-  .map-inspector > header span {
-    font-size: 8px;
+  .map-inspector-back {
+    padding: 6px 16px 14px;
   }
+  .map-inspector-back .map-round-button,
   .map-inspector > header .map-round-button {
-    height: 32px;
-    width: 32px;
+    height: 44px;
+    width: 44px;
   }
-  .map-inspector:not(.expanded) .map-leading {
-    border: 0;
-    margin: -36px 42px 0 auto;
-    padding: 0;
-    width: 125px;
+  .map-contest-switch,
+  .map-my-forecast,
+  .map-low-sample,
+  .map-share-head,
+  .map-share-bar {
+    margin-left: 18px;
+    margin-right: 18px;
   }
-  .map-inspector:not(.expanded) .map-leading > span,
-  .map-inspector:not(.expanded) .map-leading > strong {
-    display: none;
+  .map-contest-switch button {
+    min-height: 44px;
   }
-  .map-inspector:not(.expanded) .map-leading > b {
-    font-size: 28px;
+  .map-inspector-scroll,
+  .map-inspector-footer,
+  .map-inspector .forecast-body,
+  .map-inspector .forecast-footer {
+    padding-left: 18px;
+    padding-right: 18px;
   }
-  .map-inspector:not(.expanded) .map-result-list,
+  .map-inspector-footer,
+  .map-inspector .forecast-footer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .map-inspector-links button {
+    min-height: 44px;
+  }
+  /* 收合時只留「一眼看完 + 一鍵送出」：摘要、分布長條、主要按鈕。
+     舊版在這個高度什麼都按不了，還要靠負 margin 把百分比浮到標題上。 */
+  .map-inspector:not(.expanded) .map-peek {
+    display: grid;
+  }
+  .map-inspector:not(.expanded) > header {
+    padding-bottom: 0;
+  }
+  .map-inspector:not(.expanded) > header small,
+  .map-inspector:not(.expanded) > header > div > span,
+  .map-inspector:not(.expanded) .map-my-forecast,
+  .map-inspector:not(.expanded) .map-low-sample,
+  .map-inspector:not(.expanded) .map-share-head,
+  .map-inspector:not(.expanded) .map-leader,
   .map-inspector:not(.expanded) .map-inspector-total,
-  .map-inspector:not(.expanded) .map-contest-switch,
-  .map-inspector:not(.expanded) > .button,
-  .map-inspector:not(.expanded) .map-inspector-links {
+  .map-inspector:not(.expanded) .map-inspector-links,
+  .map-inspector:not(.expanded) .map-result-list > div > small {
     display: none;
   }
-  .map-inspector.expanded .map-leading {
-    margin-top: 17px;
+  .map-inspector:not(.expanded) .map-contest-switch {
+    margin-top: 12px;
   }
-  .map-inspector.expanded .map-result-list {
-    margin: 17px 0;
+  .map-inspector:not(.expanded) .map-peek {
+    padding-top: 14px;
+  }
+  .map-inspector:not(.expanded) .map-share-bar {
+    height: 10px;
+    margin-top: 12px;
+  }
+  /* 收合時排名列壓成單行（收掉份數），第 2 名之後的 % 才讀得到；
+     長條本身沒有數字，只留它等於什麼都沒說。 */
+  .map-inspector:not(.expanded) .map-result-list {
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+  .map-inspector:not(.expanded) .map-result-list > div > b {
+    font-size: 18px;
+  }
+  .map-inspector:not(.expanded) .map-inspector-footer {
+    border-top: 0;
+    margin-top: auto;
   }
 }
 

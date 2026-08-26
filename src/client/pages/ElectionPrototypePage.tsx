@@ -50,7 +50,7 @@ function usePrototype() {
 function Icon({
   name,
 }: {
-  name: 'map' | 'search' | 'user' | 'spark' | 'chevron' | 'close' | 'vote';
+  name: 'map' | 'search' | 'user' | 'spark' | 'chevron' | 'close' | 'vote' | 'check' | 'back';
 }) {
   const paths = {
     map: <path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2V6Zm5-2v13m8-10v13" />,
@@ -62,6 +62,8 @@ function Icon({
     chevron: <path d="m9 18 6-6-6-6" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     vote: <path d="M5 10h14l2 4v7H3v-7l2-4Zm2-7h10v7H7V3Zm2 3 2 2 4-4" />,
+    check: <path d="m4 12 5 5L20 6" />,
+    back: <path d="m15 18-6-6 6-6" />,
   };
   return (
     <svg
@@ -608,29 +610,71 @@ function MapBrand() {
   );
 }
 
+// 模擬資料的預測份數落在 80–799（見 getShapeResult），門檻設在這個區間的低段，
+// 讓「樣本太少」這個狀態在原型裡真的走得到。正式版應該改成依選區規模決定。
+const lowSampleThreshold = 150;
+
 function MapInspector({
   contest,
   contestOptions,
   jurisdiction,
   expanded,
+  myForecast,
+  showForm,
   onClose,
   onContestChange,
   onExpandedChange,
   onForecast,
+  onBackToResult,
+  onSubmitted,
 }: {
   contest: Contest;
   contestOptions: Contest[];
   jurisdiction: Jurisdiction;
   expanded: boolean;
+  myForecast?: string;
+  showForm: boolean;
   onClose: () => void;
   onContestChange: (contest: Contest) => void;
   onExpandedChange: (expanded: boolean) => void;
   onForecast: () => void;
+  onBackToResult: () => void;
+  onSubmitted: (picked: string[]) => void;
 }) {
   const { phase } = usePrototype();
   const rows = getResultRows(contest, phase);
+  const leader = rows[0];
+  // 份數太少時不放大領先者，避免十來份預測被讀成民調。
+  const lowSample = contest.forecasts < lowSampleThreshold;
+  const countOf = (value: number) => Math.round((contest.forecasts * value) / 100).toLocaleString();
+
+  if (showForm)
+    return (
+      <aside className="map-inspector expanded forecasting">
+        <header className="map-inspector-back">
+          <button
+            aria-label="返回預測結果"
+            className="map-round-button"
+            onClick={onBackToResult}
+            type="button"
+          >
+            <Icon name="back" />
+          </button>
+          <span>
+            <strong>{contest.name}</strong>
+            <small>{contest.area}</small>
+          </span>
+        </header>
+        <ForecastForm contest={contest} onSubmitted={onSubmitted} />
+      </aside>
+    );
+
   return (
-    <aside className={`map-inspector ${expanded ? 'expanded' : ''}`}>
+    <aside
+      className={`map-inspector ${expanded ? 'expanded' : ''} ${
+        contestOptions.length > 1 ? 'has-switch' : ''
+      }`}
+    >
       <button
         aria-label={expanded ? '收合資訊' : '展開資訊'}
         className="map-sheet-handle"
@@ -643,7 +687,9 @@ function MapInspector({
         <div>
           <span>{jurisdiction.name}</span>
           <h2>{contest.name}</h2>
-          <small>{contest.area}</small>
+          <small>
+            {contest.area} · 應選 {contest.seatCount} 席
+          </small>
         </div>
         <button
           aria-label="關閉選區資訊"
@@ -654,6 +700,8 @@ function MapInspector({
           <Icon name="close" />
         </button>
       </header>
+      {/* 切換器要排在摘要前面：手機收合時「投的是哪一場」必須跟送出按鈕一起看得到，
+          不然像宜蘭第九選區有議員／鄉鎮市長／代表三場時，只能投到當下那一場。 */}
       {contestOptions.length > 1 && (
         <div className="map-contest-switch" role="tablist" aria-label="此區域的選舉">
           {contestOptions.map((option) => (
@@ -670,44 +718,89 @@ function MapInspector({
           ))}
         </div>
       )}
-      <div className="map-leading">
-        <span>目前預測</span>
-        <strong style={{ color: getParty(contest.leader).color }}>
-          {getParty(contest.leader).shortName}領先
-        </strong>
-        <b>{contest.percentage}%</b>
+      {/* 收合的手機抽屜專用摘要，桌機與展開後都不顯示。 */}
+      <div className={`map-peek ${lowSample ? 'low' : ''}`}>
+        <span>
+          <i style={{ background: leader.color }} />
+          {lowSample ? '預測份數還很少' : `${leader.label}領先`}
+        </span>
+        <b style={lowSample ? undefined : { color: leader.color }}>
+          {lowSample ? `${contest.forecasts.toLocaleString()} 份` : `${leader.value}%`}
+        </b>
       </div>
-      <div className="map-result-list">
+      {myForecast && (
+        <div className="map-my-forecast">
+          <i>
+            <Icon name="check" />
+          </i>
+          <span>
+            <strong>你預測 {myForecast} 勝出</strong>
+            <small>剛剛送出 · 可隨時修改</small>
+          </span>
+        </div>
+      )}
+      {lowSample ? (
+        <div className="map-low-sample">
+          <i />
+          <span>
+            <strong>目前只有 {contest.forecasts.toLocaleString()} 份預測</strong>
+            <small>份數太少，分布容易被少數人左右，先當作參考就好。</small>
+          </span>
+        </div>
+      ) : (
+        <span className="eyebrow map-share-head">目前預測分布</span>
+      )}
+      <div className={`map-share-bar ${lowSample ? 'faint' : ''}`}>
         {rows.map((row) => (
-          <div key={row.id}>
-            <span>
-              <i style={{ background: row.color }} />
-              {row.label}
-            </span>
-            <div>
-              <i style={{ background: row.color, width: `${row.value}%` }} />
-            </div>
-            <strong>
-              {Math.round((contest.forecasts * row.value) / 100).toLocaleString()}
-              <small> 份</small>
-            </strong>
-            <b>{row.value}%</b>
-          </div>
+          <i key={row.id} style={{ background: row.color, width: `${row.value}%` }} />
         ))}
       </div>
-      <div className="map-inspector-total">
-        <span>有效預測</span>
-        <strong>{contest.forecasts.toLocaleString()}</strong>
-        <small>最後更新：2 分鐘前</small>
+      <div className="map-inspector-scroll">
+        {!lowSample && (
+          <div className="map-leader">
+            <span>
+              <i style={{ background: leader.color }} />
+              {leader.label}
+            </span>
+            <b style={{ color: leader.color }}>{leader.value}%</b>
+            <small>目前領先 · {countOf(leader.value)} 份</small>
+          </div>
+        )}
+        <div className="map-result-list">
+          {(lowSample ? rows : rows.slice(1)).map((row) => (
+            <div key={row.id}>
+              <span>
+                <i style={{ background: row.color }} />
+                {row.label}
+              </span>
+              <b>{lowSample ? countOf(row.value) : `${row.value}%`}</b>
+              <small>{lowSample ? `${row.value}%` : `${countOf(row.value)} 份`}</small>
+            </div>
+          ))}
+        </div>
+        <p className="map-inspector-total">
+          共 <strong>{contest.forecasts.toLocaleString()}</strong> 份有效預測 · 2 分鐘前更新
+        </p>
+        <div className="map-inspector-links">
+          <button type="button">查看趨勢</button>
+          <i />
+          <button type="button">留言 36</button>
+        </div>
       </div>
-      <button className="button button-accent button-wide" onClick={onForecast} type="button">
-        <Icon name="vote" />
-        送出我的預測
-      </button>
-      <div className="map-inspector-links">
-        <button type="button">查看趨勢</button>
-        <button type="button">留言 36</button>
-      </div>
+      <footer className="map-inspector-footer">
+        <button
+          className={`button button-wide ${myForecast ? 'button-ghost' : 'button-accent'}`}
+          onClick={onForecast}
+          type="button"
+        >
+          {!myForecast && <Icon name="vote" />}
+          {myForecast
+            ? '修改我的預測'
+            : lowSample
+              ? `成為第 ${(contest.forecasts + 1).toLocaleString()} 份預測`
+              : '送出我的預測'}
+        </button>
+      </footer>
     </aside>
   );
 }
@@ -718,6 +811,8 @@ export function ElectionHomePage() {
   const [detailMode, setDetailMode] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
+  // 這一版先記在記憶體裡，正式版會綁到匿名身份。key 是 contest.id。
+  const [myForecasts, setMyForecasts] = useState<Record<string, string>>({});
   const [viewBox, setViewBox] = useState(initialMapViewBox);
   const [selectedTownshipId, setSelectedTownshipId] = useState<string | null>(null);
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
@@ -1586,19 +1681,26 @@ export function ElectionHomePage() {
             contestOptions={activeContestOptions}
             expanded={inspectorExpanded}
             jurisdiction={selectedJurisdiction}
-            onClose={() => resetMap()}
-            onContestChange={setSelectedContest}
+            myForecast={myForecasts[activeContest.id]}
+            onBackToResult={() => setForecastOpen(false)}
+            onClose={() => {
+              setForecastOpen(false);
+              resetMap();
+            }}
+            onContestChange={(contest) => {
+              setForecastOpen(false);
+              setSelectedContest(contest);
+            }}
             onExpandedChange={setInspectorExpanded}
             onForecast={() => setForecastOpen(true)}
+            onSubmitted={(picked) => {
+              setMyForecasts((current) => ({ ...current, [activeContest.id]: picked.join('、') }));
+              setForecastOpen(false);
+              setInspectorExpanded(true);
+            }}
+            showForm={forecastOpen}
           />
         )}
-      {forecastOpen && activeContest && (
-        <ForecastSheet
-          contest={activeContest}
-          onClose={() => setForecastOpen(false)}
-          onSubmitted={() => setForecastOpen(false)}
-        />
-      )}
     </main>
   );
 }
@@ -2055,13 +2157,6 @@ export function ContestPage() {
   );
 }
 
-function initialAllocation(seats: number) {
-  const first = Math.ceil(seats * 0.4);
-  const second = Math.floor(seats * 0.3);
-  const third = Math.floor(seats * 0.15);
-  return { KMT: first, DPP: second, TPP: third, IND: seats - first - second - third };
-}
-
 function ForecastSheet({
   contest,
   onClose,
@@ -2071,17 +2166,6 @@ function ForecastSheet({
   onClose: () => void;
   onSubmitted: (summary: string) => void;
 }) {
-  const { phase } = usePrototype();
-  const singleSeat = contest.seatCount === 1;
-  const usesPlaceholderCandidates = usesPreAnnouncementCandidateSelection(contest);
-  const inputMode = getForecastInputMode(contest, phase);
-  const candidates = getMockCandidates(contest);
-  const [selectedTarget, setSelectedTarget] = useState('');
-  const [candidateIds, setCandidateIds] = useState<string[]>([]);
-  const [allocation, setAllocation] = useState<Record<string, number>>(() =>
-    initialAllocation(contest.seatCount),
-  );
-
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -2093,35 +2177,6 @@ function ForecastSheet({
       document.body.classList.remove('sheet-open');
     };
   }, [onClose]);
-
-  const allocatedSeats = Object.values(allocation).reduce((total, value) => total + value, 0);
-  const isValid =
-    inputMode === 'party'
-      ? singleSeat
-        ? Boolean(selectedTarget)
-        : allocatedSeats === contest.seatCount
-      : singleSeat
-        ? Boolean(selectedTarget)
-        : candidateIds.length === contest.seatCount;
-
-  function updateSeats(partyId: string, delta: number) {
-    setAllocation((current) => ({ ...current, [partyId]: Math.max(0, current[partyId] + delta) }));
-  }
-
-  function toggleCandidate(candidateId: string) {
-    setCandidateIds((current) =>
-      current.includes(candidateId)
-        ? current.filter((id) => id !== candidateId)
-        : current.length < contest.seatCount
-          ? [...current, candidateId]
-          : current,
-    );
-  }
-
-  function submit() {
-    if (!isValid) return;
-    onSubmitted(`已更新「${contest.name}」的示意預測。正式版將同步寫入你的匿名身份。`);
-  }
 
   return (
     <div className="sheet-backdrop" onMouseDown={onClose} role="presentation">
@@ -2143,134 +2198,171 @@ function ForecastSheet({
             <Icon name="close" />
           </button>
         </header>
-        <div className="sheet-status">
-          <i />
-          <span>
-            <strong>
-              {usesPlaceholderCandidates
-                ? '正式候選人名單尚待公告'
-                : inputMode === 'party'
-                  ? '候選人名單尚未公布'
-                  : '官方候選人名單已匯入'}
-            </strong>
-            {usesPlaceholderCandidates
-              ? '目前以黨籍示意候選人進行預測'
-              : inputMode === 'party'
-                ? '目前以政黨或席次進行預測'
-                : '目前以候選人進行預測'}
-          </span>
-        </div>
-
-        <div className="sheet-body">
-          <div className="sheet-instruction">
-            <h3>{singleSeat ? '你認為誰會勝出？' : `預測 ${contest.seatCount} 個當選席次`}</h3>
-            <span>
-              {inputMode === 'party' && !singleSeat
-                ? `已分配 ${allocatedSeats} / ${contest.seatCount} 席`
-                : inputMode === 'candidate' && !singleSeat
-                  ? `已選 ${candidateIds.length} / ${contest.seatCount} 位`
-                  : '請選擇一個項目'}
-            </span>
-          </div>
-
-          {inputMode === 'party' && singleSeat && (
-            <div className="choice-list">
-              {parties.map((party) => (
-                <label className={selectedTarget === party.id ? 'selected' : ''} key={party.id}>
-                  <input
-                    checked={selectedTarget === party.id}
-                    name="party"
-                    onChange={() => setSelectedTarget(party.id)}
-                    type="radio"
-                  />
-                  <i style={{ background: party.color }} />
-                  <span>
-                    <strong>{party.shortName}</strong>
-                    <small>{party.name}</small>
-                  </span>
-                  <b>✓</b>
-                </label>
-              ))}
-            </div>
-          )}
-
-          {inputMode === 'party' && !singleSeat && (
-            <div className="seat-allocation">
-              {parties.map((party) => (
-                <div key={party.id}>
-                  <span>
-                    <i style={{ background: party.color }} />
-                    <strong>{party.shortName}</strong>
-                  </span>
-                  <div>
-                    <button
-                      aria-label={`減少${party.shortName}席次`}
-                      onClick={() => updateSeats(party.id, -1)}
-                      type="button"
-                    >
-                      −
-                    </button>
-                    <b>{allocation[party.id]}</b>
-                    <button
-                      aria-label={`增加${party.shortName}席次`}
-                      disabled={allocatedSeats >= contest.seatCount}
-                      onClick={() => updateSeats(party.id, 1)}
-                      type="button"
-                    >
-                      ＋
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {inputMode === 'candidate' && (
-            <div className="candidate-grid">
-              {candidates.map((candidate) => {
-                const party = getParty(candidate.partyId);
-                const selected = singleSeat
-                  ? selectedTarget === candidate.id
-                  : candidateIds.includes(candidate.id);
-                return (
-                  <label className={selected ? 'selected' : ''} key={candidate.id}>
-                    <input
-                      checked={selected}
-                      name={singleSeat ? 'candidate' : undefined}
-                      onChange={() =>
-                        singleSeat ? setSelectedTarget(candidate.id) : toggleCandidate(candidate.id)
-                      }
-                      type={singleSeat ? 'radio' : 'checkbox'}
-                    />
-                    <span className="candidate-number">{candidate.number}</span>
-                    <span>
-                      <strong>{candidate.name}</strong>
-                      <small>
-                        <i style={{ background: party.color }} />
-                        {party.shortName}
-                      </small>
-                    </span>
-                    <b>✓</b>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <footer className="sheet-footer">
-          <p>再次送出只會更新原預測，不會重複計票。</p>
-          <button
-            className="button button-accent"
-            disabled={!isValid}
-            onClick={submit}
-            type="button"
-          >
-            確認送出 <Icon name="chevron" />
-          </button>
-        </footer>
+        <ForecastForm
+          contest={contest}
+          onSubmitted={() =>
+            onSubmitted(`已更新「${contest.name}」的示意預測。正式版將同步寫入你的匿名身份。`)
+          }
+        />
       </section>
     </div>
+  );
+}
+
+type ForecastOption = {
+  id: string;
+  label: string;
+  sub: string;
+  color: string;
+  number: number | null;
+};
+
+// 政黨與候選人兩種輸入模式攤平成同一份選項，選擇 UI 就只要寫一次。
+function getForecastOptions(contest: Contest, phase: CandidatePhase): ForecastOption[] {
+  if (getForecastInputMode(contest, phase) === 'party')
+    return parties.map((party) => ({
+      id: party.id,
+      label: party.shortName,
+      sub: party.name,
+      color: party.color,
+      number: null,
+    }));
+  return getMockCandidates(contest).map((candidate) => {
+    const party = getParty(candidate.partyId);
+    return {
+      id: candidate.id,
+      label: candidate.name,
+      sub: party.shortName,
+      color: party.color,
+      number: candidate.number,
+    };
+  });
+}
+
+// 選取狀態直接用政黨色淡化當底，讓表單和地圖講同一套顏色語言。
+function tintChoice(hex: string) {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map((index) => Number.parseInt(value.slice(index, index + 2), 16));
+  return `rgb(${channels.map((channel) => Math.round(250 + (channel - 250) * 0.09)).join(' ')})`;
+}
+
+// 地圖面板與獨立表單共用這份選擇 UI，兩邊只差外框與標題。
+function ForecastForm({
+  contest,
+  onSubmitted,
+}: {
+  contest: Contest;
+  onSubmitted: (picked: string[]) => void;
+}) {
+  const { phase } = usePrototype();
+  const options = getForecastOptions(contest, phase);
+  const byNumber = getForecastInputMode(contest, phase) === 'candidate';
+  const singleSeat = contest.seatCount === 1;
+  const [picks, setPicks] = useState<string[]>([]);
+  const isValid = picks.length === contest.seatCount;
+
+  function toggle(id: string) {
+    setPicks((current) =>
+      singleSeat
+        ? [id]
+        : current.includes(id)
+          ? current.filter((pick) => pick !== id)
+          : current.length < contest.seatCount
+            ? [...current, id]
+            : current,
+    );
+  }
+
+  function submit() {
+    if (!isValid) return;
+    onSubmitted(
+      picks.map((id) => options.find((option) => option.id === id)?.label ?? '').filter(Boolean),
+    );
+  }
+
+  return (
+    <>
+      <div className="forecast-body">
+        <h3>{singleSeat ? '你認為誰會勝出？' : `預測 ${contest.seatCount} 個當選席次`}</h3>
+        <p className={`forecast-counter ${isValid ? 'done' : ''}`}>
+          {isValid && <Icon name="check" />}
+          {singleSeat
+            ? isValid
+              ? '已選好'
+              : '請選擇一項'
+            : `${picks.length} / ${contest.seatCount} 席`}
+        </p>
+        <p className="forecast-notice">
+          <i />
+          {usesPreAnnouncementCandidateSelection(contest)
+            ? '正式候選人名單尚未公告，以下為黨籍示意候選人。'
+            : byNumber
+              ? '官方候選人名單已匯入。'
+              : '候選人名單尚未公布，目前以政黨進行預測。'}
+        </p>
+        <div className="forecast-options">
+          {options.map((option) => {
+            const selected = picks.includes(option.id);
+            return (
+              <label
+                className={selected ? 'selected' : ''}
+                key={option.id}
+                style={
+                  selected
+                    ? { background: tintChoice(option.color), borderColor: option.color }
+                    : undefined
+                }
+              >
+                <input
+                  checked={selected}
+                  name={singleSeat ? `forecast-${contest.id}` : undefined}
+                  onChange={() => toggle(option.id)}
+                  type={singleSeat ? 'radio' : 'checkbox'}
+                />
+                <span
+                  className="forecast-mark"
+                  style={
+                    byNumber
+                      ? selected
+                        ? { borderColor: option.color }
+                        : undefined
+                      : { background: option.color, borderColor: option.color, color: '#fffdf8' }
+                  }
+                >
+                  {option.number}
+                </span>
+                <span className="forecast-option-text">
+                  <strong>{option.label}</strong>
+                  <small>
+                    {byNumber && <i style={{ background: option.color }} />}
+                    {option.sub}
+                  </small>
+                </span>
+                <b className="forecast-tick" style={{ background: option.color }}>
+                  <Icon name="check" />
+                </b>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+      <footer className="forecast-footer">
+        <p>再次送出只會更新原預測，不會重複計票。</p>
+        <button
+          className="button button-accent button-wide"
+          disabled={!isValid}
+          onClick={submit}
+          type="button"
+        >
+          {isValid
+            ? '確認送出'
+            : singleSeat
+              ? '請先選擇一項'
+              : `還要再選 ${contest.seatCount - picks.length} 位`}
+          {isValid && <Icon name="chevron" />}
+        </button>
+      </footer>
+    </>
   );
 }
 
