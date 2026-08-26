@@ -262,6 +262,8 @@ type MapPanState = MapBounds & {
   screenY: number;
   moved: boolean;
 };
+// Safari 專屬的手勢事件，TypeScript 的 DOM 型別沒有定義。
+type GestureLikeEvent = Event & { clientX?: number; clientY?: number; scale?: number };
 type MapPinchState = {
   anchor: { x: number; y: number };
   bounds: MapBounds;
@@ -288,14 +290,20 @@ const jurisdictionToMapLocation: Record<string, string> = Object.fromEntries(
   ]),
 );
 
-const initialMapViewBox = '205 10 590 1080';
-const initialMapBounds = parseMapBounds(initialMapViewBox);
-const mapCanvasBounds = { x: 0, y: 0, width: 860, height: 1100 };
+// 開場就把整張畫布放進來：臺灣本島在 x 184–836，澎湖、金門、馬祖在圖資裡是
+// 投影在左側 x 18–158 那一欄，寬度要涵蓋兩邊才會一起出現。
+const initialMapViewBox = '0 10 860 1080';
+// 可平移／縮放的範圍，四邊都比畫布（860×1100）留出空白，臺灣才能移開浮動 UI。
+// 寬度必須大於 maximumZoomWidth：相等的話 clampToWorld 夾出來的區間會縮成單一
+// 點，縮到最小時水平就完全鎖死。
+const mapWorldBounds = { x: -90, y: -140, width: 1145, height: 1400 };
 const townshipZoomWidth = 320;
 // 一單位約 360 公尺，所以 90 單位大約是 32 公里寬——縣市已填滿畫面、村里
 // 也大到看得出形狀的時候，就換成村里圖層。
 const villageZoomWidth = 90;
 const minimumZoomWidth = 14;
+// 比開場視野（860）再往外一級。必須大於開場寬度，否則第一次滾動就會被夾回來。
+const maximumZoomWidth = 965;
 const mainMapBounds = { x: 184, y: 20, width: 652, height: 1060 };
 const islandInsets = [
   {
@@ -337,7 +345,7 @@ function scaleMapBounds(
   anchor: { x: number; y: number },
 ): MapBounds {
   const width = Math.min(
-    initialMapBounds.width,
+    maximumZoomWidth,
     Math.max(minimumZoomWidth, bounds.width * requestedScale),
   );
   const scale = width / bounds.width;
@@ -352,9 +360,17 @@ function scaleMapBounds(
 function constrainMapBounds(bounds: MapBounds): MapBounds {
   return {
     ...bounds,
-    x: Math.min(mapCanvasBounds.width - bounds.width, Math.max(mapCanvasBounds.x, bounds.x)),
-    y: Math.min(mapCanvasBounds.height - bounds.height, Math.max(mapCanvasBounds.y, bounds.y)),
+    x: clampToWorld(bounds.x, mapWorldBounds.x, mapWorldBounds.width, bounds.width),
+    y: clampToWorld(bounds.y, mapWorldBounds.y, mapWorldBounds.height, bounds.height),
   };
+}
+
+// 視野比可平移範圍還大的時候（縮到最小的一段）夾不出區間，改成置中，
+// 不然會被釘在某一角。
+function clampToWorld(value: number, start: number, span: number, size: number) {
+  const end = start + span - size;
+  if (start > end) return (start + end) / 2;
+  return Math.min(end, Math.max(start, value));
 }
 
 async function loadMapPaths(url: string, selector: string) {
@@ -469,11 +485,16 @@ function getVillageContest(
   };
 }
 
-function tint(hex: string, percentage: number) {
+// selected 的加深直接算進 fill，不用 CSS filter：Safari（含 iOS）對 inline SVG
+// 子元素的 filter 支援不穩，手機上會完全看不到選取效果。
+function tint(hex: string, percentage: number, selected = false) {
   const value = hex.replace('#', '');
   const strength = Math.min(0.94, Math.max(0.34, 0.34 + (percentage - 32) * 0.028));
   const channels = [0, 2, 4].map((index) => Number.parseInt(value.slice(index, index + 2), 16));
-  return `rgb(${channels.map((channel) => Math.round(248 + (channel - 248) * strength)).join(' ')})`;
+  const shade = selected ? 0.56 : 1;
+  return `rgb(${channels
+    .map((channel) => Math.round((248 + (channel - 248) * strength) * shade))
+    .join(' ')})`;
 }
 
 function MapBrand() {
@@ -654,16 +675,24 @@ export function ElectionHomePage() {
   const [townshipLayer, setTownshipLayer] = useState<CountyLayer<TownshipShape> | null>(null);
   const [villageLayer, setVillageLayer] = useState<CountyLayer<VillageShape> | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<{
-    x: number;
-    y: number;
-    jurisdiction: Jurisdiction;
-  } | null>(null);
+  const [insetAnchors, setInsetAnchors] = useState<Record<string, { left: number; top: number }>>(
+    {},
+  );
   const pathRefs = useRef<Record<string, SVGPathElement | null>>({});
   const mapStageRef = useRef<HTMLElement | null>(null);
+  const mapSvgRef = useRef<SVGSVGElement | null>(null);
   const panRef = useRef<MapPanState | null>(null);
   const pinchRef = useRef<MapPinchState | null>(null);
+  const trackpadGestureRef = useRef<{ anchor: DOMPoint; bounds: MapBounds } | null>(null);
+  // 原生監聽器只掛一次，透過這個 ref 取得每次 render 後最新的處理函式。
+  const mapGestureRef = useRef({
+    onGestureChange: (_event: Event) => {},
+    onGestureEnd: (_event: Event) => {},
+    onGestureStart: (_event: Event) => {},
+    onWheel: (_event: WheelEvent) => {},
+  });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const multiTouchRef = useRef(false);
   const suppressClickRef = useRef(false);
 
   const selectedLocationId = selectedJurisdiction
@@ -683,6 +712,69 @@ export function ElectionHomePage() {
       });
     return () => {
       active = false;
+    };
+  }, []);
+
+  // 離島標籤要跟著地圖跑：把每個離島框右緣的畫布座標換算成畫面座標，標籤就
+  // 貼在該島旁邊，縮放平移都不會跑掉。detail mode 不顯示標籤，就不用算。
+  useEffect(() => {
+    if (detailMode) return;
+
+    function updateAnchors() {
+      const svg = mapSvgRef.current;
+      const stage = mapStageRef.current;
+      const matrix = svg?.getScreenCTM();
+      if (!svg || !stage || !matrix) return;
+
+      const stageRect = stage.getBoundingClientRect();
+      setInsetAnchors(
+        Object.fromEntries(
+          islandInsets.map((inset) => {
+            const point = new DOMPoint(
+              inset.bounds.x + inset.bounds.width,
+              inset.bounds.y + inset.bounds.height / 2,
+            ).matrixTransform(matrix);
+            return [
+              inset.locationId,
+              { left: point.x - stageRect.left, top: point.y - stageRect.top },
+            ];
+          }),
+        ),
+      );
+    }
+
+    updateAnchors();
+    window.addEventListener('resize', updateAnchors);
+    return () => window.removeEventListener('resize', updateAnchors);
+  }, [detailMode, viewBox]);
+
+  // 所有縮放手勢都要用 passive: false 的原生監聽器：React 的 onWheel／onTouchMove
+  // 是 passive 的，裡面的 preventDefault() 沒有效果，瀏覽器會照樣縮放整個頁面。
+  // 監聽器只掛在地圖區塊，頁面其他地方仍可正常縮放。
+  useEffect(() => {
+    const stage = mapStageRef.current;
+    if (!stage) return;
+
+    const options = { passive: false };
+    const onWheel = (event: WheelEvent) => mapGestureRef.current.onWheel(event);
+    const onGestureStart = (event: Event) => mapGestureRef.current.onGestureStart(event);
+    const onGestureChange = (event: Event) => mapGestureRef.current.onGestureChange(event);
+    const onGestureEnd = (event: Event) => mapGestureRef.current.onGestureEnd(event);
+    const preventMultiTouch = (event: TouchEvent) => {
+      if (event.touches.length > 1) event.preventDefault();
+    };
+
+    stage.addEventListener('wheel', onWheel, options);
+    stage.addEventListener('gesturestart', onGestureStart, options);
+    stage.addEventListener('gesturechange', onGestureChange, options);
+    stage.addEventListener('gestureend', onGestureEnd, options);
+    stage.addEventListener('touchmove', preventMultiTouch, options);
+    return () => {
+      stage.removeEventListener('wheel', onWheel);
+      stage.removeEventListener('gesturestart', onGestureStart);
+      stage.removeEventListener('gesturechange', onGestureChange);
+      stage.removeEventListener('gestureend', onGestureEnd);
+      stage.removeEventListener('touchmove', preventMultiTouch);
     };
   }, []);
 
@@ -770,13 +862,52 @@ export function ElectionHomePage() {
     clearTownshipFocus();
   }
 
+  // 跟縣市層同一套規則：往內縮放時，游標下的那一區就是聚焦目標，其餘淡化。
+  // 縣市層沒有大小門檻（滑到哪個縣市就選哪個），這裡也刻意不加。
+  function focusTownshipUnder(target: EventTarget) {
+    const path = target instanceof Element ? target.closest('[data-town-code]') : null;
+    const townCode = path?.getAttribute('data-town-code');
+    if (townCode) setFocusedTownCode(townCode);
+  }
+
+  function clearTownshipFocus() {
+    setFocusedTownCode(null);
+  }
+
+  // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
+  function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
+    const next = constrainMapBounds(bounds);
+    const element = target instanceof Element ? target.closest('[data-jurisdiction-id]') : null;
+    const targetId = element?.getAttribute('data-jurisdiction-id');
+    const targetJurisdiction = targetId
+      ? jurisdictions.find((jurisdiction) => jurisdiction.id === targetId)
+      : null;
+
+    setViewBox(formatMapBounds(next));
+
+    // 聚焦／淡化只存在於村里層。還沒放大到村里之前，整個縣市的鄉鎮市區維持
+    // 全部上色；縮回鄉鎮層時也要立刻還原，不然會退不回「每一區都有顏色」。
+    if (next.width > villageZoomWidth) clearTownshipFocus();
+    else if (target) focusTownshipUnder(target);
+
+    if (zoomingIn && next.width <= townshipZoomWidth) {
+      if (targetJurisdiction && targetJurisdiction.id !== selectedJurisdiction?.id) {
+        selectJurisdiction(targetJurisdiction);
+      }
+      if (targetJurisdiction || selectedJurisdiction) setDetailMode(true);
+    } else if (!zoomingIn && next.width > townshipZoomWidth * 1.25 && detailMode) {
+      setDetailMode(false);
+      setSelectedTownshipId(null);
+      setSelectedVillageId(null);
+      setSelectedContest(null);
+      clearTownshipFocus();
+    }
+  }
+
   // 進入縣市後，＋／− 以畫面中心為準逐級縮放，讓不用滾輪的人也能到村里層。
   function zoomBy(factor: number) {
     const current = parseMapBounds(viewBox);
-    const width = Math.min(
-      initialMapBounds.width,
-      Math.max(minimumZoomWidth, current.width * factor),
-    );
+    const width = Math.min(maximumZoomWidth, Math.max(minimumZoomWidth, current.width * factor));
     if (detailMode && width > townshipZoomWidth * 1.25) {
       resetMap(false);
       return;
@@ -805,66 +936,81 @@ export function ElectionHomePage() {
     return { x, y, width: right - x, height: bottom - y };
   }
 
-  function handleMapWheel(event: React.WheelEvent<SVGSVGElement>) {
+  function toCanvasPoint(clientX: number, clientY: number) {
+    const matrix = mapSvgRef.current?.getScreenCTM();
+    return matrix ? new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse()) : null;
+  }
+
+  function handleMapWheel(event: WheelEvent) {
     event.preventDefault();
-    const matrix = event.currentTarget.getScreenCTM();
-    if (!matrix) return;
+    const anchor = toCanvasPoint(event.clientX, event.clientY);
+    if (!anchor) return;
 
-    const current = parseMapBounds(viewBox);
-    const anchor = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-    const requestedScale = Math.exp(event.deltaY * 0.0015);
-    applyZoom(scaleMapBounds(current, requestedScale, anchor), requestedScale < 1, event.target);
+    // Chrome、Edge、Firefox 把觸控板的雙指縮放送成 ctrl+wheel，deltaY 比滾輪
+    // 小很多，係數要放大才跟得上手指。
+    const intensity = event.ctrlKey ? 0.012 : 0.0015;
+    const requestedScale = Math.exp(event.deltaY * intensity);
+    applyZoom(
+      scaleMapBounds(parseMapBounds(viewBox), requestedScale, anchor),
+      requestedScale < 1,
+      event.target,
+    );
   }
 
-  // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
-  function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
-    const next = constrainMapBounds(bounds);
-    setViewBox(formatMapBounds(next));
-
-    // 聚焦／淡化只存在於村里層。還沒放大到村里之前，整個縣市的鄉鎮市區維持
-    // 全部上色；縮回鄉鎮層時也要立刻還原，不然會退不回「每一區都有顏色」。
-    if (next.width > villageZoomWidth) clearTownshipFocus();
-    else if (target) focusTownshipUnder(target);
-
-    const element = target instanceof Element ? target.closest('[data-jurisdiction-id]') : null;
-    const targetId = element?.getAttribute('data-jurisdiction-id');
-    const targetJurisdiction = targetId
-      ? jurisdictions.find((jurisdiction) => jurisdiction.id === targetId)
-      : null;
-    if (zoomingIn && next.width <= townshipZoomWidth) {
-      if (targetJurisdiction && targetJurisdiction.id !== selectedJurisdiction?.id) {
-        selectJurisdiction(targetJurisdiction);
-      }
-      if (targetJurisdiction || selectedJurisdiction) setDetailMode(true);
-    } else if (!zoomingIn && next.width > townshipZoomWidth * 1.25 && detailMode) {
-      setDetailMode(false);
-      setSelectedTownshipId(null);
-      setSelectedVillageId(null);
-      setSelectedContest(null);
-      clearTownshipFocus();
-    }
+  // Safari（桌機與 iOS）的雙指縮放另外送非標準的 gesture* 事件。桌機沒有
+  // pointer 可用，就靠這組驅動縮放；觸控裝置已經有 pointer 那條路，這裡只擋掉
+  // 瀏覽器自己的頁面縮放，不重複處理。
+  function handleGestureStart(event: Event) {
+    event.preventDefault();
+    if (pointersRef.current.size >= 2) return;
+    const gesture = event as GestureLikeEvent;
+    const anchor = toCanvasPoint(gesture.clientX ?? 0, gesture.clientY ?? 0);
+    if (!anchor) return;
+    trackpadGestureRef.current = { anchor, bounds: parseMapBounds(viewBox) };
   }
 
-  // 跟縣市層同一套規則：往內縮放時，游標下的那一區就是聚焦目標，其餘淡化。
-  // 縣市層沒有大小門檻（滑到哪個縣市就選哪個），這裡也刻意不加。
-  function focusTownshipUnder(target: EventTarget) {
-    const path = target instanceof Element ? target.closest('[data-town-code]') : null;
-    const townCode = path?.getAttribute('data-town-code');
-    if (townCode) setFocusedTownCode(townCode);
+  function handleGestureChange(event: Event) {
+    event.preventDefault();
+    const gesture = trackpadGestureRef.current;
+    if (!gesture || pointersRef.current.size >= 2) return;
+
+    const scale = (event as GestureLikeEvent).scale ?? 1;
+    const requestedScale = 1 / Math.max(0.05, scale);
+    const { clientX = 0, clientY = 0 } = event as GestureLikeEvent;
+    applyZoom(
+      scaleMapBounds(gesture.bounds, requestedScale, gesture.anchor),
+      requestedScale < 1,
+      document.elementFromPoint(clientX, clientY),
+    );
   }
 
-  function clearTownshipFocus() {
-    setFocusedTownCode(null);
+  function handleGestureEnd(event: Event) {
+    event.preventDefault();
+    trackpadGestureRef.current = null;
   }
+
+  // 監聽器本身只掛一次，每次 render 後把最新的處理函式塞進 ref。
+  useEffect(() => {
+    mapGestureRef.current = {
+      onGestureChange: handleGestureChange,
+      onGestureEnd: handleGestureEnd,
+      onGestureStart: handleGestureStart,
+      onWheel: handleMapWheel,
+    };
+  });
 
   function handleMapPointerDown(event: React.PointerEvent<SVGSVGElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    setTooltip(null);
 
     // 第二根手指落下就從拖曳切成雙指縮放，並記下起始的距離、中點與 viewBox；
     // 之後每次移動都以這組起始值換算，手指才會跟畫面貼合。
+    // 新的單指觸控序列開始，清掉上一輪的多指狀態，避免某根手指的 pointerup
+    // 沒送達時把點擊永久擋住。
+    if (pointersRef.current.size === 1) multiTouchRef.current = false;
+
     if (pointersRef.current.size === 2) {
+      multiTouchRef.current = true;
       const matrix = event.currentTarget.getScreenCTM();
       if (!matrix) return;
       const [first, second] = [...pointersRef.current.values()];
@@ -885,7 +1031,6 @@ export function ElectionHomePage() {
     if (pointersRef.current.size > 2) return;
 
     const bounds = parseMapBounds(viewBox);
-    if (bounds.width >= initialMapBounds.width - 0.5) return;
     const matrix = event.currentTarget.getScreenCTM();
     if (!matrix) return;
     panRef.current = {
@@ -896,8 +1041,8 @@ export function ElectionHomePage() {
       screenX: event.clientX,
       screenY: event.clientY,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.currentTarget.classList.add('panning');
+    // 指標捕捉留到真的拖動才啟用：一按下就捕捉的話，click 會改派給 SVG
+    // 本身，點縣市、鄉鎮市區、村里就都選不到了。
   }
 
   function handleMapPinch() {
@@ -920,7 +1065,6 @@ export function ElectionHomePage() {
 
     const midpoint = document.elementFromPoint((first.x + second.x) / 2, (first.y + second.y) / 2);
     applyZoom({ ...zoomed, x: zoomed.x - x, y: zoomed.y - y }, requestedScale < 1, midpoint);
-    suppressClickRef.current = true;
     return true;
   }
 
@@ -934,7 +1078,12 @@ export function ElectionHomePage() {
     if (!pan || pan.pointerId !== event.pointerId) return;
     const screenX = event.clientX - pan.screenX;
     const screenY = event.clientY - pan.screenY;
-    if (Math.hypot(screenX, screenY) > 3) pan.moved = true;
+    if (!pan.moved && Math.hypot(screenX, screenY) > 3) {
+      pan.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add('panning');
+    }
+    if (!pan.moved) return;
     const x = screenX * pan.inverseMatrix.a + screenY * pan.inverseMatrix.c;
     const y = screenX * pan.inverseMatrix.b + screenY * pan.inverseMatrix.d;
     setViewBox(
@@ -951,12 +1100,17 @@ export function ElectionHomePage() {
 
   function finishMapPan(event: React.PointerEvent<SVGSVGElement>) {
     pointersRef.current.delete(event.pointerId);
-    if (pinchRef.current && pointersRef.current.size < 2) {
-      pinchRef.current = null;
-      // 縮放結束時放開的那一下不要被當成點選。
+    if (pinchRef.current && pointersRef.current.size < 2) pinchRef.current = null;
+    // 縮放的第一根手指離開時還不能解除封鎖：瀏覽器的 click 是最後一根手指
+    // 放開才補送的，那時候縮放狀態早就清掉了，點擊就會打在底下的區塊上。
+    if (multiTouchRef.current && pointersRef.current.size === 0) {
+      multiTouchRef.current = false;
+      // 補送的 click 可能晚一個 tick 以上才到，用固定冷卻時間擋掉，
+      // 不依賴事件順序。
+      suppressClickRef.current = true;
       window.setTimeout(() => {
         suppressClickRef.current = false;
-      }, 0);
+      }, 350);
     }
 
     const pan = panRef.current;
@@ -974,8 +1128,22 @@ export function ElectionHomePage() {
     panRef.current = null;
   }
 
+  // 點在地圖空白處（海面、背景）取消選取。先關面板，再點一次才退回全臺，
+  // 免得在村里層誤觸就被丟回全國視野。
+  function handleMapBackgroundClick(event: React.MouseEvent<SVGSVGElement>) {
+    if (event.target !== event.currentTarget || !mapClickAllowed()) return;
+    if (selectedContest) {
+      setSelectedContest(null);
+      setSelectedTownshipId(null);
+      setSelectedVillageId(null);
+      setInspectorExpanded(false);
+      return;
+    }
+    if (selectedJurisdiction) resetMap(true);
+  }
+
   function mapClickAllowed() {
-    return !suppressClickRef.current;
+    return !suppressClickRef.current && !multiTouchRef.current;
   }
 
   function resetMap(clearSelection = false) {
@@ -986,15 +1154,6 @@ export function ElectionHomePage() {
     setSelectedContest(null);
     clearTownshipFocus();
     if (clearSelection) setSelectedJurisdiction(null);
-  }
-
-  function handlePointerMove(
-    event: React.PointerEvent<SVGPathElement>,
-    jurisdiction: Jurisdiction,
-  ) {
-    const bounds = mapStageRef.current?.getBoundingClientRect();
-    if (!bounds) return;
-    setTooltip({ x: event.clientX - bounds.left, y: event.clientY - bounds.top, jurisdiction });
   }
 
   return (
@@ -1052,12 +1211,13 @@ export function ElectionHomePage() {
         <svg
           aria-label="臺灣縣市預測地圖"
           className="taiwan-map-svg"
+          onClick={handleMapBackgroundClick}
           onDoubleClick={zoomIntoSelection}
           onPointerCancel={finishMapPan}
           onPointerDown={handleMapPointerDown}
           onPointerMove={handleMapPan}
           onPointerUp={finishMapPan}
-          onWheel={handleMapWheel}
+          ref={mapSvgRef}
           role="img"
           viewBox={viewBox}
         >
@@ -1073,18 +1233,16 @@ export function ElectionHomePage() {
                   className={`taiwan-county ${selected ? 'selected' : ''}`}
                   data-jurisdiction-id={jurisdiction.id}
                   d={location.path}
-                  fill={tint(party.color, contest.percentage)}
+                  fill={tint(party.color, contest.percentage, selected)}
                   key={location.id}
                   onClick={() => {
                     if (mapClickAllowed()) selectJurisdiction(jurisdiction);
                   }}
-                  onPointerLeave={() => setTooltip(null)}
-                  onPointerMove={(event) => handlePointerMove(event, jurisdiction)}
                   ref={(node) => {
                     pathRefs.current[jurisdiction.id] = node;
                   }}
                   role="button"
-                  stroke={selected ? party.color : '#fffdf8'}
+                  stroke="#fffdf8"
                   tabIndex={0}
                 />
               );
@@ -1095,14 +1253,15 @@ export function ElectionHomePage() {
             <g className="township-layer">
               {visibleTownships.map(({ contest, township }) => {
                 const party = getParty(contest.leader);
+                const selected = selectedTownshipId === township.id;
                 return (
                   <path
                     aria-label={`${township.countyName}${township.townName}，${party.shortName} ${contest.percentage}%`}
-                    className={`taiwan-township ${selectedTownshipId === township.id ? 'selected' : ''}`}
+                    className={`taiwan-township ${selected ? 'selected' : ''}`}
                     data-jurisdiction-id={selectedJurisdiction.id}
                     data-town-code={township.townCode}
                     d={township.path}
-                    fill={tint(party.color, contest.percentage)}
+                    fill={tint(party.color, contest.percentage, selected)}
                     key={township.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
@@ -1126,14 +1285,15 @@ export function ElectionHomePage() {
                 const party = getParty(contest.leader);
                 const name = village.villName || '未編定村里';
                 const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
+                const selected = selectedVillageId === village.id;
                 return (
                   <path
                     aria-label={`${village.countyName}${village.townName}${name}，${party.shortName} ${contest.percentage}%`}
-                    className={`taiwan-village ${selectedVillageId === village.id ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
+                    className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
                     data-jurisdiction-id={selectedJurisdiction.id}
                     data-town-code={village.townCode}
                     d={village.path}
-                    fill={tint(party.color, contest.percentage)}
+                    fill={tint(party.color, contest.percentage, selected)}
                     key={village.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
@@ -1162,8 +1322,9 @@ export function ElectionHomePage() {
         {!detailMode && (
           <div className="map-island-insets">
             {islandInsets.map((inset) => {
+              const anchor = insetAnchors[inset.locationId];
               const location = countyShapes.find((item) => item.id === inset.locationId);
-              if (!location) return null;
+              if (!anchor || !location) return null;
               const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
               const contest = getContests(jurisdiction, view)[0];
               const party = getParty(contest.leader);
@@ -1171,26 +1332,14 @@ export function ElectionHomePage() {
                 <button
                   key={inset.locationId}
                   onClick={() => selectJurisdiction(jurisdiction)}
+                  style={{ left: anchor.left, top: anchor.top }}
                   type="button"
                 >
-                  <svg aria-hidden="true" viewBox={inset.viewBox}>
-                    <path d={location.path} fill={tint(party.color, contest.percentage)} />
-                  </svg>
+                  <i style={{ background: party.color }} />
                   <span>{inset.label}</span>
                 </button>
               );
             })}
-          </div>
-        )}
-
-        {tooltip && !detailMode && (
-          <div className="map-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-            <strong>{tooltip.jurisdiction.name}</strong>
-            <span>
-              <i style={{ background: getParty(tooltip.jurisdiction.leader).color }} />
-              {getParty(tooltip.jurisdiction.leader).shortName} {tooltip.jurisdiction.percentage}%
-            </span>
-            <small>{tooltip.jurisdiction.forecasts.toLocaleString()} 份預測</small>
           </div>
         )}
 

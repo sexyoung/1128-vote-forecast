@@ -1990,27 +1990,29 @@ a:focus-visible {
   color: var(--muted);
   font-size: 9px;
 }
+/* 滿版鋪滿整個 map-stage。浮動 UI 都有 z-index 12，蓋在地圖上不受影響。 */
+/* width/height 一定要寫死 100%：<svg> 是 replaced element，只給 inset: 0 時
+   auto 尺寸會用 viewBox 的比例算出自己的高度（590×1080 會變成極高的元素），
+   超出去的部分被 overflow 裁掉，畫面上就只剩臺灣北半部。 */
 .taiwan-map-svg {
-  bottom: 1.5%;
   cursor: grab;
-  height: 94%;
-  left: 50%;
-  max-width: 920px;
+  display: block;
+  height: 100%;
+  inset: 0;
   overflow: hidden;
   position: absolute;
-  transform: translateX(-50%);
   transition: transform 0.35s ease;
   touch-action: none;
-  width: 68%;
+  width: 100%;
 }
 .taiwan-map-svg.panning {
   cursor: grabbing;
 }
+/* 標籤直接貼在地圖上對應的離島旁邊（位置由 JS 依 viewBox 換算），容器本身
+   不吃事件，只有標籤可以點。 */
 .map-island-insets {
-  bottom: 225px;
-  display: grid;
-  gap: 8px;
-  left: max(20px, calc(50% - 430px));
+  inset: 0;
+  pointer-events: none;
   position: absolute;
   z-index: 8;
 }
@@ -2018,54 +2020,58 @@ a:focus-visible {
   align-items: center;
   background: rgb(255 253 248 / 88%);
   border: 1px solid rgb(31 43 39 / 9%);
-  border-radius: 10px;
+  border-radius: 999px;
   cursor: pointer;
-  display: grid;
-  grid-template-columns: 42px auto;
-  height: 44px;
-  padding: 5px 10px 5px 5px;
+  display: flex;
+  gap: 5px;
+  margin-left: 7px;
+  padding: 3px 9px 3px 7px;
+  pointer-events: auto;
+  position: absolute;
+  transform: translateY(-50%);
+  transition: background 0.18s ease;
+  white-space: nowrap;
 }
 .map-island-insets button:hover {
   background: #fff;
 }
-.map-island-insets svg {
-  height: 33px;
-  overflow: visible;
-  width: 42px;
-}
-.map-island-insets path {
-  stroke: #fffdf8;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
+.map-island-insets button i {
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
 }
 .map-island-insets span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
 }
+/* 右側面板寬約 410px，地圖往左讓一半，讓剩下的空間仍然置中。 */
 .map-app.has-selection .taiwan-map-svg {
-  transform: translateX(-60%);
+  transform: translateX(-205px);
 }
 .taiwan-county {
   cursor: pointer;
   outline: none;
   stroke-linejoin: round;
-  stroke-width: 2.2;
+  stroke-width: 0.7;
   transition:
     fill 0.2s ease,
-    opacity 0.2s ease,
-    stroke 0.2s ease;
+    filter 0.2s ease,
+    opacity 0.2s ease;
   vector-effect: non-scaling-stroke;
 }
+/* hover 與選取都不加深色描邊，改成把顏色壓深。選取的深色算在 fill 裡
+   （見 tint()），這裡只留 hover。 */
 .taiwan-county:hover,
 .taiwan-county:focus-visible {
-  filter: brightness(0.94) saturate(1.12);
-  stroke: #23322c;
-  stroke-width: 3;
+  filter: brightness(0.88) saturate(1.2);
 }
-.taiwan-county.selected {
-  filter: saturate(1.14);
-  stroke-width: 5;
+/* 澎湖、金門、馬祖是由大量小島組成，每座島只有幾個像素寬，非縮放的白色描邊
+   會把島身整個吃掉，看起來只剩一片白點。這三個縣市不描邊，直接看色塊。 */
+.taiwan-county[data-jurisdiction-id='PEN'],
+.taiwan-county[data-jurisdiction-id='KIN'],
+.taiwan-county[data-jurisdiction-id='LIE'] {
+  stroke: none;
 }
 .map-app.detail-mode .taiwan-county:not(.selected) {
   opacity: 0.06;
@@ -2091,14 +2097,7 @@ a:focus-visible {
 }
 .taiwan-township:hover,
 .taiwan-township:focus-visible {
-  filter: brightness(0.92) saturate(1.15);
-  stroke: #203029;
-  stroke-width: 1.7;
-}
-.taiwan-township.selected {
-  filter: saturate(1.22);
-  stroke: #203029;
-  stroke-width: 2.2;
+  filter: brightness(0.88) saturate(1.2);
 }
 .taiwan-village {
   cursor: pointer;
@@ -2113,14 +2112,7 @@ a:focus-visible {
 }
 .taiwan-village:hover,
 .taiwan-village:focus-visible {
-  filter: brightness(0.92) saturate(1.15);
-  stroke: #203029;
-  stroke-width: 1.4;
-}
-.taiwan-village.selected {
-  filter: saturate(1.22);
-  stroke: #203029;
-  stroke-width: 2;
+  filter: brightness(0.88) saturate(1.2);
 }
 /* 淡化程度比照縣市層的 .taiwan-county（0.06），但保留 pointer-events，
    這樣滾輪滑過旁邊的區還能把聚焦換過去。只有村里層會淡化——鄉鎮層一律維持
@@ -2143,40 +2135,6 @@ a:focus-visible {
 }
 .map-data-message.error {
   color: #a24a3d;
-}
-.map-tooltip {
-  background: rgb(28 40 35 / 94%);
-  border-radius: 12px;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 145px;
-  padding: 11px 13px;
-  pointer-events: none;
-  position: absolute;
-  transform: translate(15px, -50%);
-  z-index: 15;
-}
-.map-tooltip strong {
-  font-size: 12px;
-}
-.map-tooltip span {
-  align-items: center;
-  color: #e4ebe7;
-  display: flex;
-  font-size: 10px;
-  gap: 6px;
-}
-.map-tooltip span i {
-  border: 1px solid rgb(255 255 255 / 45%);
-  border-radius: 50%;
-  height: 8px;
-  width: 8px;
-}
-.map-tooltip small {
-  color: #aebdb6;
-  font-size: 9px;
 }
 .map-legend-panel {
   background: rgb(255 253 248 / 93%);
@@ -2968,46 +2926,27 @@ a:focus-visible {
     top: 60px;
     width: calc(100vw - 20px);
   }
-  .taiwan-map-svg {
-    bottom: 12%;
-    height: 78%;
-    max-width: none;
-    width: 96%;
-  }
-  .map-island-insets {
-    bottom: 116px;
-    gap: 4px;
-    left: 10px;
-  }
   .map-island-insets button {
-    grid-template-columns: 30px auto;
-    height: 33px;
-    padding: 3px 7px 3px 3px;
+    gap: 4px;
+    margin-left: 5px;
+    padding: 2px 7px 2px 5px;
   }
-  .map-island-insets svg {
-    height: 26px;
-    width: 30px;
+  .map-island-insets button i {
+    height: 6px;
+    width: 6px;
   }
   .map-island-insets span {
-    font-size: 7px;
+    font-size: 9px;
   }
   .map-app.has-selection .map-island-insets {
     display: none;
   }
+  /* 手機的面板是底部抽屜，地圖不用讓位。 */
   .map-app.has-selection .taiwan-map-svg {
-    transform: translateX(-50%);
-  }
-  .map-app.has-selection:not(.detail-mode) .taiwan-map-svg {
-    bottom: 14%;
+    transform: none;
   }
   .taiwan-county {
-    stroke-width: 1.6;
-  }
-  .taiwan-county.selected {
-    stroke-width: 3;
-  }
-  .map-tooltip {
-    display: none;
+    stroke-width: 0.6;
   }
   .map-back-button {
     left: 11px;
