@@ -297,10 +297,23 @@ const initialMapViewBox = '0 10 860 1080';
 // 寬度必須大於 maximumZoomWidth：相等的話 clampToWorld 夾出來的區間會縮成單一
 // 點，縮到最小時水平就完全鎖死。
 const mapWorldBounds = { x: -90, y: -140, width: 1145, height: 1400 };
-const townshipZoomWidth = 320;
-// 一單位約 360 公尺，所以 90 單位大約是 32 公里寬——縣市已填滿畫面、村里
-// 也大到看得出形狀的時候，就換成村里圖層。
-const villageZoomWidth = 90;
+// 顯示鄉鎮市區的門檻依縣市大小而定：臺北市和花蓮縣差了五倍，用同一個絕對
+// 寬度的話，臺北市會在自己還很小的時候就切成區。門檻＝該縣市外框的兩倍，
+// 也就是它大約佔畫面一半寬時才切層；上下限用來避免臺東一開場就切層、
+// 嘉義市則要縮到比村里級距還小才切得動。
+const townshipZoomFactor = 2;
+const minTownshipZoomWidth = 130;
+const maxTownshipZoomWidth = 420;
+// 視野寬到這個程度就算「看得到所有縣市」，此時才取消縣市選取。
+const nationalViewWidth = 600;
+// 切成村里的門檻同樣依「目前這個鄉鎮市區有多大」而定：秀林鄉和吉安鄉差了
+// 六倍，用同一個絕對寬度的話，小的鄉鎮還沒放大就切成村里，大的鄉鎮已經滿出
+// 畫面卻還沒切。門檻＝該鄉鎮外框的 2.2 倍，大約是它佔畫面一半時切層。
+const villageZoomFactor = 2.2;
+const defaultVillageZoomWidth = 64;
+const minVillageZoomWidth = 20;
+// 上限壓住頭城鎮（含釣魚臺）、旗津區（含東沙南沙）這種外框橫跨整張畫布的區。
+const maxVillageZoomWidth = 160;
 const minimumZoomWidth = 14;
 // 比開場視野（860）再往外一級。必須大於開場寬度，否則第一次滾動就會被夾回來。
 const maximumZoomWidth = 965;
@@ -671,6 +684,8 @@ export function ElectionHomePage() {
   // 目前聚焦的鄉鎮市區：滑鼠滾輪放大時會自動跟著游標下的區切換，點選也會設定。
   // 只要它不是 null，同縣市其他鄉鎮市區與村里就淡化。
   const [focusedTownCode, setFocusedTownCode] = useState<string | null>(null);
+  // 依游標下的鄉鎮市區大小算出來的村里切層門檻，隨縮放更新。
+  const [villageZoomWidth, setVillageZoomWidth] = useState(defaultVillageZoomWidth);
   const [countyShapes, setCountyShapes] = useState<CountyShape[]>([]);
   const [townshipLayer, setTownshipLayer] = useState<CountyLayer<TownshipShape> | null>(null);
   const [villageLayer, setVillageLayer] = useState<CountyLayer<VillageShape> | null>(null);
@@ -818,15 +833,17 @@ export function ElectionHomePage() {
       township,
     }));
   }, [selectedJurisdiction, selectedLocationId, townshipLayer, view]);
+  // 村里圖層在接近村里級距時就先掛上（畫成透明），離開時也還留著，這樣兩層
+  // 才能靠 CSS 的 opacity transition 交叉淡入淡出，而不是瞬間切換。
   const visibleVillages = useMemo(() => {
-    if (!selectedJurisdiction || !villageZoom) return [];
+    if (!selectedJurisdiction || !villageNeeded) return [];
     if (villageLayer?.locationId !== selectedLocationId) return [];
     return villageLayer.shapes.map((village) => ({
       contest: getVillageContest(village, selectedJurisdiction, view),
       village,
     }));
-  }, [selectedJurisdiction, selectedLocationId, villageLayer, villageZoom, view]);
-  const villageMode = visibleVillages.length > 0;
+  }, [selectedJurisdiction, selectedLocationId, villageLayer, villageNeeded, view]);
+  const villageMode = villageZoom && visibleVillages.length > 0;
   // 村里還沒畫出來就不要淡化：不然會停在「縣市灰底＋單一區有顏色、卻沒有更
   // 細的東西可看」的中間狀態。
   const townshipFocus = villageMode ? focusedTownCode : null;
@@ -838,6 +855,7 @@ export function ElectionHomePage() {
     setSelectedTownshipId(null);
     setSelectedVillageId(null);
     clearTownshipFocus();
+    setVillageZoomWidth(defaultVillageZoomWidth);
     setInspectorExpanded(false);
   }
 
@@ -848,18 +866,40 @@ export function ElectionHomePage() {
     setSelectedVillageId(null);
   }
 
-  function zoomIntoSelection() {
-    if (!selectedJurisdiction) return;
-    const bounds = getSelectedMapBounds(selectedJurisdiction);
-    if (!bounds) return;
+  // 該縣市要切成鄉鎮市區層的 viewBox 寬度門檻。
+  function getTownshipZoomWidth(jurisdiction: Jurisdiction | null) {
+    const bounds = jurisdiction ? getSelectedMapBounds(jurisdiction) : null;
+    if (!bounds) return maxTownshipZoomWidth;
+    const extent = Math.max(bounds.width, bounds.height) * townshipZoomFactor;
+    return Math.min(maxTownshipZoomWidth, Math.max(minTownshipZoomWidth, extent));
+  }
+
+  // 剛好框住某個縣市的 viewBox（含四周留白）。
+  function getFittedBounds(jurisdiction: Jurisdiction): MapBounds | null {
+    const bounds = getSelectedMapBounds(jurisdiction);
+    if (!bounds) return null;
     const padding = Math.max(bounds.width, bounds.height) * 0.3;
-    setViewBox(
-      `${bounds.x - padding} ${bounds.y - padding} ${bounds.width + padding * 2} ${bounds.height + padding * 2}`,
-    );
+    return {
+      x: bounds.x - padding,
+      y: bounds.y - padding,
+      width: bounds.width + padding * 2,
+      height: bounds.height + padding * 2,
+    };
+  }
+
+  // 帶到某個縣市並切進鄉鎮層，只剩該縣市的區有顏色。
+  function focusOnJurisdiction(jurisdiction: Jurisdiction) {
+    const fitted = getFittedBounds(jurisdiction);
+    if (!fitted) return;
+    setViewBox(formatMapBounds(constrainMapBounds(fitted)));
     setDetailMode(true);
     setSelectedTownshipId(null);
     setSelectedVillageId(null);
     clearTownshipFocus();
+  }
+
+  function zoomIntoSelection() {
+    if (selectedJurisdiction) focusOnJurisdiction(selectedJurisdiction);
   }
 
   // 跟縣市層同一套規則：往內縮放時，游標下的那一區就是聚焦目標，其餘淡化。
@@ -874,6 +914,16 @@ export function ElectionHomePage() {
     setFocusedTownCode(null);
   }
 
+  // 用游標下那個鄉鎮市區的外框重算村里門檻。只在還沒進村里層時更新——進去之後
+  // 游標下的是村里，拿村里的外框算會讓門檻縮水，畫面會在兩層之間彈來彈去。
+  function updateVillageZoomWidth(target: EventTarget | null) {
+    const path = target instanceof Element ? target.closest('[data-town-code]') : null;
+    if (!(path instanceof SVGGraphicsElement)) return;
+    const box = path.getBBox();
+    const extent = Math.max(box.width, box.height) * villageZoomFactor;
+    setVillageZoomWidth(Math.min(maxVillageZoomWidth, Math.max(minVillageZoomWidth, extent)));
+  }
+
   // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
   function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
     const next = constrainMapBounds(bounds);
@@ -883,33 +933,48 @@ export function ElectionHomePage() {
       ? jurisdictions.find((jurisdiction) => jurisdiction.id === targetId)
       : null;
 
+    // 往內縮放跨進鄉鎮級距時只切層，不動 viewBox——使用者停在哪就留在哪。
+    // 已經選取的縣市優先：臺北市被新北市包住，游標稍微偏一點就會被判成新北市，
+    // 顯示的區就跑掉了。沒有選取時才看游標下方。
+    if (zoomingIn) {
+      const jurisdiction = selectedJurisdiction ?? targetJurisdiction;
+      if (jurisdiction && next.width <= getTownshipZoomWidth(jurisdiction)) {
+        if (jurisdiction.id !== selectedJurisdiction?.id) selectJurisdiction(jurisdiction);
+        setDetailMode(true);
+      }
+    }
+
     setViewBox(formatMapBounds(next));
 
     // 聚焦／淡化只存在於村里層。還沒放大到村里之前，整個縣市的鄉鎮市區維持
     // 全部上色；縮回鄉鎮層時也要立刻還原，不然會退不回「每一區都有顏色」。
+    if (!villageMode) updateVillageZoomWidth(target);
     if (next.width > villageZoomWidth) clearTownshipFocus();
     else if (target) focusTownshipUnder(target);
 
-    if (zoomingIn && next.width <= townshipZoomWidth) {
-      if (targetJurisdiction && targetJurisdiction.id !== selectedJurisdiction?.id) {
-        selectJurisdiction(targetJurisdiction);
-      }
-      if (targetJurisdiction || selectedJurisdiction) setDetailMode(true);
-    } else if (!zoomingIn && next.width > townshipZoomWidth * 1.25 && detailMode) {
+    if (
+      !zoomingIn &&
+      detailMode &&
+      next.width > getTownshipZoomWidth(selectedJurisdiction) * 1.25
+    ) {
       setDetailMode(false);
       setSelectedTownshipId(null);
       setSelectedVillageId(null);
       setSelectedContest(null);
       clearTownshipFocus();
     }
+
+    // 取消縣市選取要等真的縮回「看得到所有縣市」為止。門檻依縣市大小而定，
+    // 臺北市離開區級距時視野才 160 出頭，這時就清掉選取太早了。
+    if (!zoomingIn && next.width > nationalViewWidth) setSelectedJurisdiction(null);
   }
 
   // 進入縣市後，＋／− 以畫面中心為準逐級縮放，讓不用滾輪的人也能到村里層。
   function zoomBy(factor: number) {
     const current = parseMapBounds(viewBox);
     const width = Math.min(maximumZoomWidth, Math.max(minimumZoomWidth, current.width * factor));
-    if (detailMode && width > townshipZoomWidth * 1.25) {
-      resetMap(false);
+    if (detailMode && width > getTownshipZoomWidth(selectedJurisdiction) * 1.25) {
+      resetMap();
       return;
     }
 
@@ -1003,12 +1068,12 @@ export function ElectionHomePage() {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
-    // 第二根手指落下就從拖曳切成雙指縮放，並記下起始的距離、中點與 viewBox；
-    // 之後每次移動都以這組起始值換算，手指才會跟畫面貼合。
-    // 新的單指觸控序列開始，清掉上一輪的多指狀態，避免某根手指的 pointerup
-    // 沒送達時把點擊永久擋住。
+    // 新的單指序列開始，清掉上一輪的多指旗標。這是唯一的清除點，所以縮放
+    // 補送的 click 一定還被擋著，而真正的點擊一定已經解除。
     if (pointersRef.current.size === 1) multiTouchRef.current = false;
 
+    // 第二根手指落下就從拖曳切成雙指縮放，並記下起始的距離、中點與 viewBox；
+    // 之後每次移動都以這組起始值換算，手指才會跟畫面貼合。
     if (pointersRef.current.size === 2) {
       multiTouchRef.current = true;
       const matrix = event.currentTarget.getScreenCTM();
@@ -1101,17 +1166,10 @@ export function ElectionHomePage() {
   function finishMapPan(event: React.PointerEvent<SVGSVGElement>) {
     pointersRef.current.delete(event.pointerId);
     if (pinchRef.current && pointersRef.current.size < 2) pinchRef.current = null;
-    // 縮放的第一根手指離開時還不能解除封鎖：瀏覽器的 click 是最後一根手指
-    // 放開才補送的，那時候縮放狀態早就清掉了，點擊就會打在底下的區塊上。
-    if (multiTouchRef.current && pointersRef.current.size === 0) {
-      multiTouchRef.current = false;
-      // 補送的 click 可能晚一個 tick 以上才到，用固定冷卻時間擋掉，
-      // 不依賴事件順序。
-      suppressClickRef.current = true;
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 350);
-    }
+    // multiTouchRef 這裡刻意不重設：瀏覽器補送的 click 可能比手指放開晚上不只
+    // 一個 tick，用計時器擋會賭時間差。改成一直留著旗標，等下一次單指按下
+    // （handleMapPointerDown 裡 size === 1 時）才清掉——那一定發生在該次點擊的
+    // click 之前，所以真正的點擊不受影響，縮放補送的那一下必定被擋。
 
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
@@ -1139,21 +1197,22 @@ export function ElectionHomePage() {
       setInspectorExpanded(false);
       return;
     }
-    if (selectedJurisdiction) resetMap(true);
+    if (selectedJurisdiction) resetMap();
   }
 
   function mapClickAllowed() {
     return !suppressClickRef.current && !multiTouchRef.current;
   }
 
-  function resetMap(clearSelection = false) {
+  // 回到「看得到所有縣市」的視野就一併取消選取，不留著上一個縣市。
+  function resetMap() {
     setViewBox(initialMapViewBox);
     setDetailMode(false);
+    setSelectedJurisdiction(null);
     setSelectedTownshipId(null);
     setSelectedVillageId(null);
     setSelectedContest(null);
     clearTownshipFocus();
-    if (clearSelection) setSelectedJurisdiction(null);
   }
 
   return (
@@ -1203,7 +1262,7 @@ export function ElectionHomePage() {
         </div>
 
         {detailMode && selectedJurisdiction && (
-          <button className="map-back-button" onClick={() => resetMap(false)} type="button">
+          <button className="map-back-button" onClick={() => resetMap()} type="button">
             ‹ 回到全臺
           </button>
         )}
@@ -1236,7 +1295,14 @@ export function ElectionHomePage() {
                   fill={tint(party.color, contest.percentage, selected)}
                   key={location.id}
                   onClick={() => {
-                    if (mapClickAllowed()) selectJurisdiction(jurisdiction);
+                    if (!mapClickAllowed()) return;
+                    selectJurisdiction(jurisdiction);
+                    // 切層本來只發生在縮放事件裡，所以縮放深度已經夠、卻是用
+                    // 「點選」換縣市時，區不會出現，得再滾一下才有。這裡補上：
+                    // 目前視野已經到該縣市的區級距就直接切層，畫面不動。
+                    if (detailMode || mapWidth <= getTownshipZoomWidth(jurisdiction)) {
+                      setDetailMode(true);
+                    }
                   }}
                   ref={(node) => {
                     pathRefs.current[jurisdiction.id] = node;
@@ -1249,8 +1315,8 @@ export function ElectionHomePage() {
             })}
           </g>
 
-          {detailMode && selectedJurisdiction && !villageMode && (
-            <g className="township-layer">
+          {detailMode && selectedJurisdiction && (
+            <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
               {visibleTownships.map(({ contest, township }) => {
                 const party = getParty(contest.leader);
                 const selected = selectedTownshipId === township.id;
@@ -1279,8 +1345,8 @@ export function ElectionHomePage() {
             </g>
           )}
 
-          {villageMode && selectedJurisdiction && (
-            <g className="village-layer">
+          {visibleVillages.length > 0 && selectedJurisdiction && (
+            <g className={`village-layer ${villageMode ? '' : 'faded'}`}>
               {visibleVillages.map(({ contest, village }) => {
                 const party = getParty(contest.leader);
                 const name = village.villName || '未編定村里';
@@ -1361,7 +1427,7 @@ export function ElectionHomePage() {
           >
             −
           </button>
-          <button aria-label="回到全臺" onClick={() => resetMap(true)} type="button">
+          <button aria-label="回到全臺" onClick={() => resetMap()} type="button">
             <Icon name="map" />
           </button>
         </div>
@@ -1384,7 +1450,7 @@ export function ElectionHomePage() {
           contest={activeContest}
           expanded={inspectorExpanded}
           jurisdiction={selectedJurisdiction}
-          onClose={() => resetMap(true)}
+          onClose={() => resetMap()}
           onExpandedChange={setInspectorExpanded}
           onForecast={() => setForecastOpen(true)}
         />

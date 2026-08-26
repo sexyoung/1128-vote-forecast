@@ -30,6 +30,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: radial-gradient(circle at 15% 0%, #fffaf0 0, transparent 32rem), var(--paper);
+  /* 連帶關掉行動裝置的雙擊放大，只留捲動與點擊。 */
+  touch-action: manipulation;
 }
 body.sheet-open {
   overflow: hidden;
@@ -2062,7 +2064,6 @@ a:focus-visible {
 }
 /* hover 與選取都不加深色描邊，改成把顏色壓深。選取的深色算在 fill 裡
    （見 tint()），這裡只留 hover。 */
-.taiwan-county:hover,
 .taiwan-county:focus-visible {
   filter: brightness(0.88) saturate(1.2);
 }
@@ -2073,9 +2074,13 @@ a:focus-visible {
 .taiwan-county[data-jurisdiction-id='LIE'] {
   stroke: none;
 }
+/* 淡化但仍然可點：在鄉鎮／村里層直接點旁邊的縣市就換過去看它的區。淡化程度
+   要留得看得出形狀，不然沒辦法瞄準。 */
 .map-app.detail-mode .taiwan-county:not(.selected) {
-  opacity: 0.06;
-  pointer-events: none;
+  opacity: 0.2;
+}
+.map-app.detail-mode .taiwan-county:not(.selected):focus-visible {
+  opacity: 0.5;
 }
 /* 聚焦到某個鄉鎮市區時，底下的縣市整片藏起來。村里本來就鋪滿整個縣市，縣市
    的輪廓交給那些 6% 的村里去呈現就好；縣市自己再疊一層（不管是政黨色、中性
@@ -2083,6 +2088,16 @@ a:focus-visible {
    那樣隱約可見。 */
 .map-app.township-focus .taiwan-county.selected {
   opacity: 0;
+}
+/* 鄉鎮市區與村里兩層在村里級距前後交叉淡入淡出，不是瞬間換層。 */
+.township-layer,
+.village-layer {
+  transition: opacity 0.24s ease;
+}
+.township-layer.faded,
+.village-layer.faded {
+  opacity: 0;
+  pointer-events: none;
 }
 .taiwan-township {
   cursor: pointer;
@@ -2095,7 +2110,6 @@ a:focus-visible {
     stroke 0.18s ease;
   vector-effect: non-scaling-stroke;
 }
-.taiwan-township:hover,
 .taiwan-township:focus-visible {
   filter: brightness(0.88) saturate(1.2);
 }
@@ -2110,15 +2124,36 @@ a:focus-visible {
     stroke 0.18s ease;
   vector-effect: non-scaling-stroke;
 }
-.taiwan-village:hover,
 .taiwan-village:focus-visible {
   filter: brightness(0.88) saturate(1.2);
 }
 /* 淡化程度比照縣市層的 .taiwan-county（0.06），但保留 pointer-events，
    這樣滾輪滑過旁邊的區還能把聚焦換過去。只有村里層會淡化——鄉鎮層一律維持
    整個縣市都上色。 */
+/* hover 效果只給真的有游標的裝置。觸控上 :hover 會黏在最後碰到的元素，縮放時
+   手指壓過的縣市會一直維持加深，看起來像被選取了。 */
+@media (hover: hover) {
+  .taiwan-county:hover {
+    filter: brightness(0.88) saturate(1.2);
+  }
+  .map-app.detail-mode .taiwan-county:not(.selected):hover {
+    opacity: 0.5;
+  }
+  .taiwan-township:hover {
+    filter: brightness(0.88) saturate(1.2);
+  }
+  .taiwan-village:hover {
+    filter: brightness(0.88) saturate(1.2);
+  }
+  .taiwan-village.dimmed:hover {
+    opacity: 0.55;
+  }
+}
 .taiwan-village.dimmed {
-  opacity: 0.06;
+  opacity: 0.2;
+}
+.taiwan-village.dimmed:focus-visible {
+  opacity: 0.55;
 }
 .map-data-message {
   background: rgb(255 253 248 / 92%);
