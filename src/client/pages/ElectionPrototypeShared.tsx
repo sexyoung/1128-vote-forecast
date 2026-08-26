@@ -1,0 +1,260 @@
+import {
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  createContext,
+  useContext,
+  useState,
+} from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import {
+  type Contest,
+  type ElectionView,
+  type Jurisdiction,
+  electionViews,
+  getParty,
+  jurisdictions,
+} from '../mock-election';
+
+export type CandidatePhase = 'party' | 'candidate';
+
+type PrototypeContextValue = {
+  phase: CandidatePhase;
+  setPhase: (phase: CandidatePhase) => void;
+};
+
+const PrototypeContext = createContext<PrototypeContextValue | null>(null);
+
+export function PrototypeProvider({ children }: { children: ReactNode }) {
+  const [phase, setPhase] = useState<CandidatePhase>('party');
+  return (
+    <PrototypeContext.Provider value={{ phase, setPhase }}>{children}</PrototypeContext.Provider>
+  );
+}
+
+export function usePrototype() {
+  const value = useContext(PrototypeContext);
+  if (!value) throw new Error('PrototypeProvider is missing.');
+  return value;
+}
+
+export function Icon({
+  name,
+}: {
+  name: 'map' | 'search' | 'user' | 'spark' | 'chevron' | 'close' | 'vote' | 'check' | 'back';
+}) {
+  const paths = {
+    map: <path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2V6Zm5-2v13m8-10v13" />,
+    search: <path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />,
+    user: <path d="M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />,
+    spark: (
+      <path d="m12 2 1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6L12 2Zm7 13 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z" />
+    ),
+    chevron: <path d="m9 18 6-6-6-6" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    vote: <path d="M5 10h14l2 4v7H3v-7l2-4Zm2-7h10v7H7V3Zm2 3 2 2 4-4" />,
+    check: <path d="m4 12 5 5L20 6" />,
+    back: <path d="m15 18-6-6 6-6" />,
+  };
+  return (
+    <svg
+      aria-hidden="true"
+      className="icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+function AppHeader() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const matches = search.trim()
+    ? jurisdictions.filter((item) => item.name.includes(search.trim())).slice(0, 4)
+    : [];
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (matches[0]) void navigate(`/region/${matches[0].id}`);
+  }
+
+  return (
+    <header className="app-header">
+      <Link className="brand" to="/">
+        <span className="brand-mark">
+          <Icon name="spark" />
+        </span>
+        <span>
+          <strong>看選情</strong>
+          <small>2026 地方選舉預測</small>
+        </span>
+      </Link>
+
+      <form className="header-search" onSubmit={handleSearch}>
+        <Icon name="search" />
+        <input
+          aria-label="搜尋縣市或選區"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="搜尋縣市或選區"
+          value={search}
+        />
+        {matches.length > 0 && (
+          <div className="search-results">
+            {matches.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => void navigate(`/region/${item.id}`)}
+                type="button"
+              >
+                {item.name}
+                <span>查看選情</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </form>
+
+      <nav className="header-actions" aria-label="個人功能">
+        <Link className="text-action" to="/mine">
+          <Icon name="vote" />
+          我的預測
+        </Link>
+        <Link className="button button-dark button-small" to="/mine#account">
+          <Icon name="user" />
+          登入
+        </Link>
+      </nav>
+    </header>
+  );
+}
+
+function MobileNav() {
+  return (
+    <nav className="mobile-nav" aria-label="手機主選單">
+      <NavLink to="/">
+        <Icon name="map" />
+        <span>地圖</span>
+      </NavLink>
+      <NavLink to="/region/TPE">
+        <Icon name="search" />
+        <span>選區</span>
+      </NavLink>
+      <NavLink to="/mine">
+        <Icon name="vote" />
+        <span>我的</span>
+      </NavLink>
+      <NavLink to="/mine#account">
+        <Icon name="user" />
+        <span>帳號</span>
+      </NavLink>
+    </nav>
+  );
+}
+
+export function PageShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="app-shell">
+      <AppHeader />
+      {children}
+      <MobileNav />
+    </div>
+  );
+}
+
+export function PrototypeNotice() {
+  const { phase, setPhase } = usePrototype();
+  return (
+    <div className="prototype-notice">
+      <span>
+        <strong>介面原型</strong> 數字、候選人與部分選區名稱均為示意
+      </span>
+      <div className="phase-switch" aria-label="切換候選人公布階段">
+        <span>預覽狀態</span>
+        <button
+          className={phase === 'party' ? 'active' : ''}
+          onClick={() => setPhase('party')}
+          type="button"
+        >
+          名單公布前
+        </button>
+        <button
+          className={phase === 'candidate' ? 'active' : ''}
+          onClick={() => setPhase('candidate')}
+          type="button"
+        >
+          名單公布後
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function ElectionTabs({
+  value,
+  onChange,
+}: {
+  value: ElectionView;
+  onChange: (value: ElectionView) => void;
+}) {
+  return (
+    <div className="election-tabs" role="tablist" aria-label="選舉種類">
+      {electionViews.map((item) => (
+        <button
+          aria-selected={value === item.id}
+          className={value === item.id ? 'active' : ''}
+          key={item.id}
+          onClick={() => onChange(item.id)}
+          role="tab"
+          type="button"
+        >
+          {item.label}
+        </button>
+      ))}
+      <button className="indigenous-tab" type="button">
+        原住民選區 <span>獨立圖層</span>
+      </button>
+    </div>
+  );
+}
+
+export function Breadcrumbs({
+  jurisdiction,
+  contest,
+}: {
+  jurisdiction: Jurisdiction;
+  contest?: Contest;
+}) {
+  return (
+    <nav className="breadcrumbs" aria-label="麵包屑">
+      <Link to="/">全國</Link>
+      <span>/</span>
+      {contest ? (
+        <Link to={`/region/${jurisdiction.id}`}>{jurisdiction.name}</Link>
+      ) : (
+        <strong>{jurisdiction.name}</strong>
+      )}
+      {contest && (
+        <>
+          <span>/</span>
+          <strong>{contest.name}</strong>
+        </>
+      )}
+    </nav>
+  );
+}
+
+export function LeadingBadge({ contest }: { contest: Contest }) {
+  const party = getParty(contest.leader);
+  return (
+    <span className="leading-badge" style={{ '--party-color': party.color } as CSSProperties}>
+      <i />
+      {party.shortName}暫時領先
+    </span>
+  );
+}

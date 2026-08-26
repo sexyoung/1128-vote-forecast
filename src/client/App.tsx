@@ -1,11 +1,9 @@
 import { Route, Routes } from 'react-router-dom';
-import {
-  ContestPage,
-  ElectionHomePage,
-  JurisdictionPage,
-  MyPredictionsPage,
-  PrototypeProvider,
-} from './pages/ElectionPrototypePage';
+import { ContestPage } from './pages/ContestPage';
+import { ElectionHomePage } from './pages/ElectionHomePage';
+import { PrototypeProvider } from './pages/ElectionPrototypeShared';
+import { JurisdictionPage } from './pages/JurisdictionPage';
+import { MyPredictionsPage } from './pages/MyPredictionsPage';
 import { ToolsPage } from './pages/ToolsPage';
 
 export function App() {

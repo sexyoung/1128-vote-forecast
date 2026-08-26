@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vite-plus/test';
 import { getContests, getJurisdiction, getMockCandidates } from '../mock-election';
 import {
   getElectionViewsForMapLevel,
-  getForecastInputMode,
   getTownshipContestOptions,
   interpolateMapBounds,
   shouldImmediatelyFocusJurisdiction,
   shouldShowMapInspector,
   shouldShowTownshipBoundaryPreview,
   shouldShowVillageBoundaryPreview,
-} from './ElectionPrototypePage';
+} from './ElectionHomePage';
+import { getForecastInputMode } from './ForecastSheet';
 
-describe('map jurisdiction focus behavior', () => {
+describe('election home map behavior', () => {
   it.each(['PEN', 'KIN', 'LIE'])('immediately focuses offshore jurisdiction %s', (id) => {
     expect(shouldImmediatelyFocusJurisdiction(id)).toBe(true);
   });
@@ -148,7 +148,7 @@ describe('map jurisdiction focus behavior', () => {
   });
 
   it('omits the removed map chrome', async () => {
-    const source = await readFile(new URL('./ElectionPrototypePage.tsx', import.meta.url), 'utf8');
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
 
     for (const marker of [
       '<MapLegend',
