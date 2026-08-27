@@ -1070,7 +1070,15 @@ a:focus-visible {
   font-style: normal;
   font-weight: 500;
   justify-content: center;
+  /* 照片要被圓角裁掉 */
+  overflow: hidden;
   width: 104px;
+}
+.card-cover > i img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 .card-cover > div {
   display: flex;

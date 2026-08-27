@@ -262,18 +262,24 @@ export function CardCover({
   kicker,
   title,
   meta,
+  // 候選人照片，來自 public/avatars/。沒有就退回名字第一個字的色塊——名單要到
+  // 2026-11 中選會公告才會齊，在那之前絕大多數選區都不會有。
+  photo,
 }: {
   row: { label: string; color: string };
   kicker: string;
   title: string;
   meta: string;
+  photo?: string | null;
 }) {
   return (
     <div
       className="card-cover"
       style={{ '--cover': `color-mix(in srgb, ${row.color} 26%, #fff)` } as CSSProperties}
     >
-      <i style={{ color: row.color }}>{row.label.slice(0, 1)}</i>
+      <i style={{ color: row.color }}>
+        {photo ? <img alt="" src={photo} /> : row.label.slice(0, 1)}
+      </i>
       <div>
         <span>{kicker}</span>
         <strong>{title}</strong>
