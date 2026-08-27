@@ -1,68 +1,91 @@
-import { Icon, PageShell, PrototypeNotice } from './ElectionPrototypeShared';
+import { Link } from 'react-router-dom';
+import { type ElectionView, getContests, getJurisdiction } from '../mock-election';
+import { Icon, PageShell, SearchBox, usePrototype } from './ElectionPrototypeShared';
+import { getResultRows } from './ForecastSheet';
+
+// 這一頁是從地圖點進來的，所以頁首只留標題、預測者身份與一顆「回地圖」——品牌列、
+// 搜尋、原型的預覽狀態切換在這裡都只是干擾。
+function MineHeader() {
+  return (
+    <header className="app-header mine-header">
+      <h1>我的預測</h1>
+      <span className="forecaster-id">
+        <Icon name="user" />
+        預測者 #8F2A
+      </span>
+      <SearchBox className="mine-search" />
+      <Link aria-label="回到地圖" className="icon-button" to="/">
+        <Icon name="map" />
+      </Link>
+    </header>
+  );
+}
+
+// 示意用的三筆紀錄：選了哪一場、押在結果列的第幾位。
+const savedForecasts: {
+  jurisdictionId: string;
+  view: ElectionView;
+  contestIndex: number;
+  pickIndex: number;
+}[] = [
+  { jurisdictionId: 'TPE', view: 'EXECUTIVE', contestIndex: 0, pickIndex: 0 },
+  { jurisdictionId: 'NTP', view: 'COUNCIL', contestIndex: 1, pickIndex: 1 },
+  { jurisdictionId: 'HSZ', view: 'EXECUTIVE', contestIndex: 0, pickIndex: 2 },
+];
 
 export function MyPredictionsPage() {
-  const examples = [
-    {
-      jurisdiction: '臺北市',
-      contest: '臺北市長',
-      target: '民進黨',
-      color: '#2c8a64',
-      status: '目前領先',
-    },
-    {
-      jurisdiction: '新北市',
-      contest: '議員第 3 選舉區',
-      target: '國民黨 3 席、民進黨 2 席',
-      color: '#3f69b1',
-      status: '已送出',
-    },
-    {
-      jurisdiction: '新竹市',
-      contest: '新竹市長',
-      target: '民眾黨',
-      color: '#28a5a5',
-      status: '目前領先',
-    },
-  ];
+  const { phase } = usePrototype();
+  const items = savedForecasts.map(({ jurisdictionId, view, contestIndex, pickIndex }) => {
+    const jurisdiction = getJurisdiction(jurisdictionId);
+    const contest = getContests(jurisdiction, view)[contestIndex];
+    const rows = getResultRows(contest, phase);
+    return { contest, jurisdiction, mine: rows[pickIndex], rows };
+  });
+
   return (
-    <PageShell>
-      <PrototypeNotice />
+    <PageShell header={<MineHeader />}>
       <main className="page mine-page">
-        <section className="mine-heading">
-          <div>
-            <span className="eyebrow">MY FORECASTS</span>
-            <h1>我的預測</h1>
-            <p>匿名使用也能在這台裝置查看與修改紀錄。</p>
-          </div>
-          <div className="anonymous-id">
-            <Icon name="user" />
-            <span>
-              <strong>匿名身份 #8F2A</strong>
-              <small>已保護這台裝置上的預測</small>
-            </span>
-          </div>
-        </section>
         <div className="mine-layout">
           <section>
             <div className="section-heading">
-              <h2>已預測 3 個選區</h2>
+              <h2>已預測 {items.length} 個選區</h2>
               <span>最近更新：今天</span>
             </div>
             <div className="prediction-list">
-              {examples.map((item) => (
-                <article key={item.contest}>
-                  <i style={{ background: item.color }} />
-                  <div>
-                    <span>{item.jurisdiction}</span>
-                    <h3>{item.contest}</h3>
-                    <p>
-                      我的預測：<strong>{item.target}</strong>
-                    </p>
+              {items.map(({ contest, jurisdiction, mine, rows }) => (
+                <article key={contest.id}>
+                  <header>
+                    <span>{jurisdiction.name}</span>
+                    <h3>{contest.name}</h3>
+                    <small className={rows[0].id === mine.id ? 'leading' : ''}>
+                      {rows[0].id === mine.id ? '目前領先' : '目前落後'}
+                    </small>
+                  </header>
+                  <p>
+                    我的預測：
+                    <strong>
+                      <i style={{ background: mine.color }} />
+                      {mine.label}
+                    </strong>
+                    <b>{mine.value}%</b>
+                  </p>
+                  {/* 只寫自己押誰看不出局勢，所以整場的分布也一起放上來。 */}
+                  <div className="map-share-bar">
+                    {rows.map((row) => (
+                      <i key={row.id} style={{ background: row.color, width: `${row.value}%` }} />
+                    ))}
                   </div>
-                  <div>
-                    <small>{item.status}</small>
+                  <footer>
+                    <div className="prediction-legend">
+                      {rows.map((row) => (
+                        <span key={row.id}>
+                          <i style={{ background: row.color }} />
+                          {row.label} {row.value}%
+                        </span>
+                      ))}
+                    </div>
                     <button type="button">修改</button>
-                  </div>
+                  </footer>
                 </article>
               ))}
             </div>

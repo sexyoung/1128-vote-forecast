@@ -11,8 +11,8 @@ import {
   getParty,
   jurisdictions,
 } from '../mock-election';
-import { Icon, usePrototype } from './ElectionPrototypeShared';
-import { ForecastForm, getResultRows } from './ForecastSheet';
+import { ForecastButton, Icon, SearchBox, usePrototype } from './ElectionPrototypeShared';
+import { type ForecastPick, ForecastForm, getResultRows } from './ForecastSheet';
 
 const mapLocationToJurisdiction: Record<string, string> = {
   'changhua-county': 'CHA',
@@ -395,7 +395,7 @@ function MapBrand() {
       <span>
         <Icon name="spark" />
       </span>
-      <strong>看選情</strong>
+      <strong>看預測</strong>
     </Link>
   );
 }
@@ -422,14 +422,14 @@ function MapInspector({
   contestOptions: Contest[];
   jurisdiction: Jurisdiction;
   expanded: boolean;
-  myForecast?: string;
+  myForecast?: ForecastPick[];
   showForm: boolean;
   onClose: () => void;
   onContestChange: (contest: Contest) => void;
   onExpandedChange: (expanded: boolean) => void;
   onForecast: () => void;
   onBackToResult: () => void;
-  onSubmitted: (picked: string[]) => void;
+  onSubmitted: (picked: ForecastPick[]) => void;
 }) {
   const { phase } = usePrototype();
   const rows = getResultRows(contest, phase);
@@ -455,7 +455,13 @@ function MapInspector({
             <small>{contest.area}</small>
           </span>
         </header>
-        <ForecastForm contest={contest} onSubmitted={onSubmitted} />
+        {/* key 綁 contest：在表單開著的時候換場次，勾選狀態要跟著換掉。 */}
+        <ForecastForm
+          contest={contest}
+          key={contest.id}
+          onSubmitted={onSubmitted}
+          picked={myForecast}
+        />
       </aside>
     );
 
@@ -524,13 +530,13 @@ function MapInspector({
         </b>
         <em>看更多 ›</em>
       </button>
-      {myForecast && (
+      {myForecast && myForecast.length > 0 && (
         <div className="map-my-forecast">
           <i>
             <Icon name="check" />
           </i>
           <span>
-            <strong>你預測 {myForecast} 勝出</strong>
+            <strong>你預測 {myForecast.map(({ label }) => label).join('、')} 勝出</strong>
             <small>剛剛送出 · 可隨時修改</small>
           </span>
         </div>
@@ -575,27 +581,16 @@ function MapInspector({
           ))}
         </div>
         <p className="map-inspector-total">
-          共 <strong>{contest.forecasts.toLocaleString()}</strong> 份有效預測 · 2 分鐘前更新
+          共 <strong>{contest.forecasts.toLocaleString()}</strong> 份預測 · 2 分鐘前更新
         </p>
         <div className="map-inspector-links">
-          <button type="button">查看趨勢</button>
+          <Link to={`/contest/${contest.id}`}>查看趨勢</Link>
           <i />
-          <button type="button">留言 36</button>
+          <Link to={`/contest/${contest.id}`}>留言 36</Link>
         </div>
       </div>
       <footer className="map-inspector-footer">
-        <button
-          className={`button button-wide ${myForecast ? 'button-ghost' : 'button-accent'}`}
-          onClick={onForecast}
-          type="button"
-        >
-          {!myForecast && <Icon name="vote" />}
-          {myForecast
-            ? '修改我的預測'
-            : lowSample
-              ? `成為第 ${(contest.forecasts + 1).toLocaleString()} 份預測`
-              : '送出我的預測'}
-        </button>
+        <ForecastButton editing={Boolean(myForecast)} onClick={onForecast} />
       </footer>
     </aside>
   );
@@ -607,8 +602,9 @@ export function ElectionHomePage() {
   const [detailMode, setDetailMode] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   // 這一版先記在記憶體裡，正式版會綁到匿名身份。key 是 contest.id。
-  const [myForecasts, setMyForecasts] = useState<Record<string, string>>({});
+  const [myForecasts, setMyForecasts] = useState<Record<string, ForecastPick[]>>({});
   const [viewBox, setViewBox] = useState(initialMapViewBox);
   const [selectedTownshipId, setSelectedTownshipId] = useState<string | null>(null);
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
@@ -1271,11 +1267,23 @@ export function ElectionHomePage() {
           </div>
         </div>
 
+        {searchOpen && <SearchBox autoFocus className="map-search" />}
+
         <div className="map-floating-actions">
-          <Link aria-label="我的預測" className="map-round-button" to="/mine">
-            <Icon name="vote" />
+          {/* 地圖是首頁，卻沒有頁首，搜尋是這裡通往 /region 與 /contest 的唯一入口。 */}
+          <button
+            aria-label="搜尋縣市"
+            aria-expanded={searchOpen}
+            className="map-round-button"
+            onClick={() => setSearchOpen((open) => !open)}
+            type="button"
+          >
+            <Icon name={searchOpen ? 'close' : 'search'} />
+          </button>
+          <Link aria-label="選區列表" className="map-round-button stamp" to="/regions">
+            <Icon name="stamp" />
           </Link>
-          <Link aria-label="登入" className="map-round-button" to="/mine#account">
+          <Link aria-label="我的預測" className="map-round-button" to="/mine">
             <Icon name="user" />
           </Link>
         </div>
@@ -1505,7 +1513,7 @@ export function ElectionHomePage() {
             onExpandedChange={setInspectorExpanded}
             onForecast={() => setForecastOpen(true)}
             onSubmitted={(picked) => {
-              setMyForecasts((current) => ({ ...current, [activeContest.id]: picked.join('、') }));
+              setMyForecasts((current) => ({ ...current, [activeContest.id]: picked }));
               setForecastOpen(false);
               setInspectorExpanded(true);
             }}

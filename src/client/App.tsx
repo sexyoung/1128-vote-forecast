@@ -4,6 +4,7 @@ import { ElectionHomePage } from './pages/ElectionHomePage';
 import { PrototypeProvider } from './pages/ElectionPrototypeShared';
 import { JurisdictionPage } from './pages/JurisdictionPage';
 import { MyPredictionsPage } from './pages/MyPredictionsPage';
+import { RegionsPage } from './pages/RegionsPage';
 import { ToolsPage } from './pages/ToolsPage';
 
 export function App() {
@@ -11,6 +12,7 @@ export function App() {
     <PrototypeProvider>
       <Routes>
         <Route path="/" element={<ElectionHomePage />} />
+        <Route path="/regions" element={<RegionsPage />} />
         <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
         <Route path="/contest/:contestId" element={<ContestPage />} />
         <Route path="/mine" element={<MyPredictionsPage />} />

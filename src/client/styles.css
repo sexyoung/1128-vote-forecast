@@ -14,6 +14,8 @@
   --green: #173f33;
   --accent: #df6149;
   --accent-dark: #bc4935;
+  /* 圈選章的紅，只用在投票這件事上。 */
+  --stamp: #e4141e;
   --shadow: 0 22px 60px rgb(38 48 43 / 10%);
 }
 
@@ -90,19 +92,6 @@ a {
   display: inline-flex;
   gap: 12px;
   justify-self: start;
-}
-.brand-mark {
-  align-items: center;
-  background: var(--green);
-  border-radius: 50%;
-  color: #fff;
-  display: inline-flex;
-  height: 40px;
-  justify-content: center;
-  width: 40px;
-}
-.brand-mark .icon {
-  width: 21px;
 }
 .brand > span:last-child {
   display: flex;
@@ -256,46 +245,30 @@ a:focus-visible {
   background: transparent;
   border: 1px solid #cfd3ce;
 }
+/* 玻璃感：半透明白底＋細邊＋上緣一道高光，背後的內容會透出來。 */
+/* 白到淺灰的直向漸層＋上緣高光＋一圈比底色深一階的邊，是那種按下去會凹的
+   實體按鈕質感；純半透明白只是「淡」，不是玻璃。 */
+.button-glass {
+  background: linear-gradient(#fff, #ececea);
+  border: 1px solid #cfcfca;
+  border-bottom-color: #bcbcb6;
+  box-shadow:
+    0 1px 2px rgb(31 43 39 / 14%),
+    inset 0 1px 0 #fff;
+  color: #4a534f;
+  text-shadow: 0 1px 0 #fff;
+}
+.button-glass:hover {
+  background: linear-gradient(#fff, #f4f3f1);
+  border-color: #c2c2bc;
+}
+.button-glass:active {
+  background: linear-gradient(#e9e8e5, #f7f6f4);
+  box-shadow: inset 0 2px 4px rgb(31 43 39 / 16%);
+  transform: none;
+}
 .button-wide {
   width: 100%;
-}
-
-.prototype-notice {
-  align-items: center;
-  background: #1d2d27;
-  color: #dfe8e3;
-  display: flex;
-  font-size: 12px;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 6px max(24px, calc((100vw - 1360px) / 2));
-}
-.prototype-notice strong {
-  color: #fff;
-  margin-right: 8px;
-}
-.phase-switch {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-}
-.phase-switch > span {
-  color: #aebbb5;
-  margin-right: 7px;
-}
-.phase-switch button {
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: #bbc5c0;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 6px 10px;
-}
-.phase-switch button.active {
-  background: #f4f1e9;
-  color: var(--green);
-  font-weight: 800;
 }
 
 .page {
@@ -319,29 +292,42 @@ a:focus-visible {
   text-transform: uppercase;
 }
 .hero h1,
-.region-heading h1,
-.contest-hero h1,
-.mine-heading h1 {
+/* /mine 的頁首：左邊標題與預測者身份，右邊一顆回地圖；.app-header 的三欄 grid
+   在這裡用不到。 */
+.mine-header {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-start;
+}
+.mine-header h1 {
   font-family: Georgia, 'Noto Serif TC', serif;
-  font-size: clamp(38px, 5vw, 68px);
+  font-size: 22px;
   font-weight: 500;
-  letter-spacing: -0.045em;
-  line-height: 1.05;
+  letter-spacing: -0.02em;
   margin: 0;
 }
+.mine-search {
+  margin-left: auto;
+  width: min(300px, 34vw);
+}
+.forecaster-id {
+  align-items: center;
+  background: #e7ede9;
+  border: 1px solid #cfdbd5;
+  border-radius: 999px;
+  color: #46705d;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 6px 12px 6px 10px;
+}
+.forecaster-id .icon {
+  height: 15px;
+  width: 15px;
+}
 .hero h1 em,
-.region-heading h1 em {
-  color: var(--accent);
-  font-style: normal;
-}
 .hero p,
-.region-heading p,
-.mine-heading p {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.7;
-  margin: 19px 0 0;
-}
 .countdown {
   align-items: baseline;
   border-left: 1px solid #d5d3cc;
@@ -716,7 +702,7 @@ a:focus-visible {
   align-items: center;
   color: #8a918d;
   display: flex;
-  font-size: 12px;
+  font-size: 13px;
   gap: 9px;
   margin-bottom: 28px;
 }
@@ -726,40 +712,46 @@ a:focus-visible {
 .breadcrumbs strong {
   color: var(--ink);
 }
-.region-heading,
-.mine-heading {
-  align-items: flex-end;
+/* 頁面標題跟 /mine 的頁首同一個尺度：一行標題＋標籤＋右邊一句補充，不再是
+   佔掉半個畫面的大字。 */
+.page-heading {
+  align-items: baseline;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 22px;
 }
-.region-heading h1,
-.mine-heading h1 {
-  font-size: clamp(38px, 5vw, 60px);
-}
-.region-heading h1 em {
-  font-size: 0.46em;
-  letter-spacing: 0.02em;
-  margin-left: 15px;
-}
-.region-stat {
-  align-items: flex-end;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 4px;
-}
-.region-stat span {
-  color: var(--muted);
-  font-size: 11px;
-}
-.region-stat strong {
-  font-family: Georgia, serif;
-  font-size: 38px;
+.page-heading h1 {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 27px;
   font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
 }
-.region-stat small {
-  color: #2b8a64;
-  font-size: 10px;
+.page-tag {
+  background: linear-gradient(#fff, #ececea);
+  border: 1px solid #cfcfca;
+  border-bottom-color: #bcbcb6;
+  border-radius: 999px;
+  box-shadow:
+    0 1px 2px rgb(31 43 39 / 12%),
+    inset 0 1px 0 #fff;
+  color: #4a534f;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 11px;
+  text-shadow: 0 1px 0 #fff;
+}
+.page-stat {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-left: auto;
+}
+.page-stat strong {
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
 }
 .success-banner {
   align-items: center;
@@ -791,45 +783,39 @@ a:focus-visible {
   margin-left: auto;
   text-decoration: underline;
 }
-.mayor-feature {
+/* 跟 /mine 的卡片同一套：淺色卡、細邊框，不再是整塊深綠底加裝飾圓圈。 */
+.feature-card {
   align-items: center;
-  background: var(--green);
-  border-radius: 24px;
-  color: #fff;
-  display: grid;
-  gap: 28px;
-  grid-template-columns: minmax(210px, 1.2fr) auto auto auto;
-  margin-bottom: 25px;
-  overflow: hidden;
-  padding: 25px 28px;
-  position: relative;
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 18px;
 }
-.mayor-feature::after {
-  border: 42px solid rgb(255 255 255 / 4%);
-  border-radius: 50%;
-  content: '';
-  height: 160px;
-  position: absolute;
-  right: 180px;
-  top: -102px;
-  width: 160px;
+.feature-card > div:first-child {
+  margin-right: auto;
+  min-width: 0;
 }
-.feature-kicker {
-  color: #b7c9c1;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+.feature-card > div:first-child > span {
+  color: var(--muted);
+  font-size: 12px;
 }
-.mayor-feature h2 {
-  font-family: Georgia, 'Noto Serif TC', serif;
+.feature-card h2 {
+  font-size: 18px;
+  margin: 3px 0 0;
+}
+.feature-card p {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 4px 0 0;
+}
+.feature-score {
+  font-family: Georgia, serif;
   font-size: 28px;
   font-weight: 500;
-  margin: 5px 0;
-}
-.mayor-feature p {
-  color: #bdccc6;
-  font-size: 11px;
-  margin: 0;
 }
 .leading-badge {
   align-items: center;
@@ -837,7 +823,7 @@ a:focus-visible {
   border-radius: 999px;
   color: #fff;
   display: inline-flex;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 750;
   gap: 7px;
   padding: 8px 11px;
@@ -850,105 +836,6 @@ a:focus-visible {
   height: 10px;
   width: 10px;
 }
-.mayor-score {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-.mayor-score strong {
-  font-family: Georgia, serif;
-  font-size: 31px;
-  font-weight: 500;
-}
-.mayor-score span {
-  color: #b8c8c1;
-  font-size: 9px;
-}
-.mayor-feature .button {
-  position: relative;
-  z-index: 1;
-}
-.region-layout {
-  display: grid;
-  gap: 22px;
-  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.75fr);
-  margin-top: 22px;
-}
-.region-map {
-  align-items: center;
-  background: #e7e3d9;
-  border-radius: 22px;
-  display: flex;
-  flex-direction: column;
-  height: 580px;
-  justify-content: center;
-  overflow: hidden;
-  position: sticky;
-  top: 142px;
-}
-.region-map::before {
-  background-image: radial-gradient(#a9afa9 1px, transparent 1px);
-  background-size: 17px 17px;
-  content: '';
-  inset: 0;
-  opacity: 0.3;
-  position: absolute;
-}
-.region-map-label {
-  color: #777f7a;
-  font-size: 10px;
-  font-weight: 800;
-  left: 20px;
-  letter-spacing: 0.15em;
-  position: absolute;
-  top: 20px;
-}
-.region-shape {
-  background: #c9d8d0;
-  border: 2px solid #8ea79b;
-  border-radius: 43% 57% 48% 52% / 50% 40% 60% 50%;
-  display: grid;
-  gap: 5px;
-  grid-template-columns: 1fr 1fr;
-  height: 330px;
-  overflow: hidden;
-  padding: 13px;
-  position: relative;
-  transform: rotate(-4deg);
-  width: 250px;
-  z-index: 1;
-}
-.district-blob {
-  align-items: center;
-  background: #f8f6ef;
-  border: 1px solid #a9bbb2;
-  border-radius: 45% 55% 50% 50%;
-  display: flex;
-  justify-content: center;
-  transition: 0.18s ease;
-}
-.district-blob:hover {
-  background: var(--accent);
-  color: #fff;
-  transform: scale(1.04);
-}
-.district-blob span {
-  font-family: Georgia, serif;
-  font-size: 20px;
-  transform: rotate(4deg);
-}
-.region-map p {
-  bottom: 20px;
-  color: #747c77;
-  font-size: 10px;
-  margin: 0;
-  position: absolute;
-  z-index: 1;
-}
-.district-list-section {
-  min-width: 0;
-}
 .section-heading {
   align-items: flex-end;
   display: flex;
@@ -957,18 +844,20 @@ a:focus-visible {
 }
 .section-heading > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
+/* 一列幾張由寬度決定：auto-fill 讓寬螢幕自動多塞幾張，窄的自己掉成一欄。 */
 .contest-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(304px, 1fr));
 }
 .contest-card {
   background: var(--card);
   border: 1px solid rgb(31 43 39 / 8%);
   border-radius: 18px;
   padding: 18px;
+  position: relative;
   transition:
     border 0.18s ease,
     box-shadow 0.18s ease,
@@ -978,14 +867,6 @@ a:focus-visible {
   border-color: #b8beb9;
   box-shadow: 0 12px 26px rgb(31 43 39 / 8%);
   transform: translateY(-2px);
-}
-.contest-card-top {
-  color: var(--muted);
-  display: flex;
-  font-size: 9px;
-  font-weight: 650;
-  justify-content: space-between;
-  letter-spacing: 0.04em;
 }
 .contest-card h3 {
   font-size: 16px;
@@ -998,88 +879,177 @@ a:focus-visible {
   line-height: 1.4;
   margin: 0;
 }
-.contest-result {
-  align-items: center;
+/* /region 的選區卡片跟 /mine 的紀錄卡同一套骨架：一列標題、一條分布、一排圖例。 */
+.contest-card > header {
+  align-items: baseline;
   display: flex;
-  justify-content: space-between;
-  margin-top: 19px;
+  gap: 9px;
 }
-.contest-result span {
-  align-items: center;
-  display: flex;
-  font-size: 11px;
+.contest-card > header > span {
+  color: var(--muted);
+  font-size: 12.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contest-card h3 {
+  flex: none;
+  font-size: 15.5px;
+  margin: 0;
+}
+.contest-card > header > small {
+  color: var(--muted);
+  font-size: 11.5px;
   font-weight: 700;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.contest-card p {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 6px;
+  margin: 11px 0 0;
+}
+.contest-card p strong {
+  align-items: center;
+  color: var(--ink);
+  display: inline-flex;
   gap: 6px;
 }
-.contest-result span i {
+.contest-card p strong i {
+  border-radius: 50%;
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+.contest-card p b {
+  font-family: Georgia, serif;
+  font-weight: 500;
+  margin-left: auto;
+}
+.contest-card .map-share-bar {
+  margin: 10px 0 0;
+}
+/* 封面：左邊一塊正方形的大頭照位置（之後換成 <img>，現在放名字的第一個字），
+   行政區與選舉名排在右邊。 */
+.card-cover {
+  align-items: stretch;
+  display: flex;
+  gap: 12px;
+  margin: -18px -18px 0;
+  padding: 0 16px 0 0;
+}
+.card-cover > i {
+  align-items: center;
+  aspect-ratio: 1;
+  background: var(--cover);
+  border-radius: 16px 0 0;
+  display: flex;
+  font-family: Georgia, serif;
+  font-size: 40px;
+  font-style: normal;
+  font-weight: 500;
+  justify-content: center;
+  width: 104px;
+}
+.card-cover > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px 0;
+}
+.card-cover span {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-cover strong {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 21px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+.card-cover small {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+/* 候選人清單：一位一行，色點、名字、份數、佔比，下面各自一條長條。 */
+.candidate-list {
+  display: grid;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.candidate-list li {
+  align-items: baseline;
+  display: grid;
+  gap: 4px 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: 7px 0;
+}
+.candidate-list li > i {
   border-radius: 50%;
   height: 8px;
   width: 8px;
 }
-.contest-result strong {
+.candidate-list li > span {
+  font-size: 13.5px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-list li > small {
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.candidate-list li > b {
   font-family: Georgia, serif;
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 500;
 }
-.result-track {
+.candidate-list li > em {
   background: #e9e7e0;
   border-radius: 99px;
+  grid-column: 1 / -1;
   height: 5px;
-  margin: 8px 0 16px;
   overflow: hidden;
 }
-.result-track i {
-  border-radius: inherit;
+.candidate-list li > em > s {
   display: block;
   height: 100%;
 }
+/* 份數放卡片右上角，壓在封面右邊的空白上。 */
 .card-link {
   align-items: center;
   color: var(--muted);
-  display: flex;
-  font-size: 10px;
+  display: inline-flex;
+  font-size: 13px;
   font-weight: 700;
-  justify-content: flex-end;
+  gap: 2px;
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  white-space: nowrap;
+  z-index: 1;
 }
 .card-link .icon {
-  width: 13px;
+  width: 14px;
 }
 
 .contest-page {
   max-width: 1210px;
 }
-.contest-hero {
-  align-items: center;
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(280px, 1fr) auto auto;
-  padding: 8px 0 35px;
-}
-.contest-hero h1 {
-  font-size: clamp(34px, 4.5vw, 56px);
-}
-.contest-hero > div:first-child p {
-  align-items: center;
-  color: var(--muted);
-  display: flex;
-  font-size: 12px;
-  gap: 7px;
-  margin: 10px 0 0;
-}
-.contest-hero > div:first-child p .icon {
-  width: 16px;
-}
-.contest-hero-status {
-  align-items: flex-end;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.contest-hero-status > span {
-  color: var(--muted);
-  font-size: 10px;
-}
-.contest-hero-status .leading-badge {
+.feature-card .leading-badge {
   background: color-mix(in srgb, var(--party-color) 16%, white);
   color: var(--ink);
 }
@@ -1105,7 +1075,7 @@ a:focus-visible {
 .content-tabs button span {
   background: #deddd6;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   margin-left: 3px;
   padding: 2px 6px;
 }
@@ -1129,7 +1099,7 @@ a:focus-visible {
 }
 .results-total span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   margin-right: auto;
 }
 .results-total strong {
@@ -1139,56 +1109,14 @@ a:focus-visible {
 }
 .results-total small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12.5px;
   margin-left: 4px;
-}
-.result-bars {
-  display: grid;
-  gap: 21px;
-  margin-top: 27px;
-}
-.result-label {
-  align-items: center;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 20px 9px 1fr auto;
-}
-.result-label > i {
-  border-radius: 50%;
-  height: 9px;
-  width: 9px;
-}
-.result-label > span:nth-of-type(2) {
-  display: flex;
-  flex-direction: column;
-}
-.result-label strong {
-  font-size: 13px;
-}
-.result-label small {
-  color: var(--muted);
-  font-size: 9px;
-  margin-top: 2px;
-}
-.result-label b {
-  font-family: Georgia, serif;
-  font-size: 21px;
-  font-weight: 500;
-}
-.result-rank {
-  color: #a5aaa7;
-  font-family: Georgia, serif;
-  font-size: 11px;
-}
-.result-track.large {
-  height: 8px;
-  margin: 8px 0 0 39px;
 }
 .method-note {
   background: #f2f0e9;
   border-radius: 10px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12.5px;
   line-height: 1.5;
   margin: 26px 0 0;
   padding: 12px;
@@ -1206,7 +1134,7 @@ a:focus-visible {
 }
 .contest-aside > p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
   margin: 0 0 20px;
 }
@@ -1218,24 +1146,25 @@ a:focus-visible {
   padding-top: 17px;
 }
 .privacy-note span {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 750;
 }
 .privacy-note small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
   margin-top: 4px;
 }
 .trend-legend {
   display: flex;
-  gap: 15px;
+  flex-wrap: wrap;
+  gap: 8px 15px;
 }
 .trend-legend span {
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 10px;
+  font-size: 12.5px;
   gap: 6px;
 }
 .trend-legend i {
@@ -1243,15 +1172,9 @@ a:focus-visible {
   height: 7px;
   width: 7px;
 }
-.dot-green {
-  background: #2c8a64;
-}
-.dot-blue {
-  background: #3f69b1;
-}
 .trend-legend b {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12.5px;
   margin-left: auto;
 }
 .trend-chart {
@@ -1285,20 +1208,14 @@ a:focus-visible {
 .trend-chart path {
   fill: none;
   stroke-linecap: round;
-  stroke-width: 5;
+  stroke-width: 3;
   vector-effect: non-scaling-stroke;
-}
-.trend-a {
-  stroke: #2c8a64;
-}
-.trend-b {
-  stroke: #3f69b1;
 }
 .trend-axis {
   bottom: 22px;
   color: var(--muted);
   display: flex;
-  font-size: 9px;
+  font-size: 11.5px;
   justify-content: space-between;
   left: 0;
   position: absolute;
@@ -1319,10 +1236,10 @@ a:focus-visible {
 .trend-callout span {
   display: flex;
   flex-direction: column;
-  font-size: 10px;
+  font-size: 12.5px;
 }
 .trend-callout strong {
-  font-size: 11px;
+  font-size: 13px;
   margin-bottom: 3px;
 }
 .comment-compose {
@@ -1378,13 +1295,13 @@ a:focus-visible {
 .comment p {
   align-items: center;
   display: flex;
-  font-size: 11px;
+  font-size: 13.5px;
   gap: 8px;
   margin: 0 0 7px;
 }
 .comment time {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 .comment article > div {
   min-width: 0;
@@ -1392,7 +1309,7 @@ a:focus-visible {
 .comment div > span {
   color: #46514c;
   display: block;
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 .comment div > button {
@@ -1400,7 +1317,7 @@ a:focus-visible {
   border: 0;
   color: #7d8581;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 12.5px;
   margin-top: 8px;
   padding: 0;
 }
@@ -1620,7 +1537,7 @@ a:focus-visible {
   width: 64px;
 }
 .forecast-options label.selected .forecast-tick {
-  color: #e4141e;
+  color: var(--stamp);
 }
 /* 整列跟著彈一下：撐大一點點再立刻收回，像被章壓下去又回彈。 */
 @keyframes stamp-press {
@@ -1677,33 +1594,6 @@ a:focus-visible {
   text-align: center;
 }
 
-.mine-heading {
-  margin-top: 15px;
-}
-.anonymous-id {
-  align-items: center;
-  background: #e7ede9;
-  border: 1px solid #cfdbd5;
-  border-radius: 16px;
-  display: flex;
-  gap: 11px;
-  padding: 13px 16px;
-}
-.anonymous-id > .icon {
-  color: #46705d;
-}
-.anonymous-id span {
-  display: flex;
-  flex-direction: column;
-}
-.anonymous-id strong {
-  font-size: 11px;
-}
-.anonymous-id small {
-  color: var(--muted);
-  font-size: 9px;
-  margin-top: 3px;
-}
 .mine-layout {
   display: grid;
   gap: 24px;
@@ -1714,52 +1604,97 @@ a:focus-visible {
   gap: 10px;
 }
 .prediction-list article {
-  align-items: center;
   background: var(--card);
   border: 1px solid rgb(31 43 39 / 8%);
   border-radius: 17px;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 5px 1fr auto;
-  padding: 18px;
+  padding: 16px 18px;
 }
-.prediction-list article > i {
-  align-self: stretch;
-  border-radius: 99px;
-}
-.prediction-list article > div:nth-child(2) > span {
-  color: var(--muted);
-  font-size: 9px;
-}
-.prediction-list h3 {
-  font-size: 15px;
-  margin: 3px 0 7px;
-}
-.prediction-list p {
-  color: var(--muted);
-  font-size: 11px;
-  margin: 0;
-}
-.prediction-list p strong {
-  color: var(--ink);
-}
-.prediction-list article > div:last-child {
-  align-items: flex-end;
+/* 縣市與選舉名稱同一列，狀態靠右；原本拆成三排讀起來像三件事。 */
+.prediction-list article > header {
+  align-items: baseline;
   display: flex;
-  flex-direction: column;
   gap: 9px;
 }
-.prediction-list article > div:last-child small {
-  color: #2c8a64;
-  font-size: 9px;
+.prediction-list article > header > span {
+  color: var(--muted);
+  font-size: 12.5px;
 }
-.prediction-list article > div:last-child button {
+.prediction-list h3 {
+  font-size: 15.5px;
+  margin: 0;
+}
+.prediction-list article > header > small {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-left: auto;
+}
+.prediction-list article > header > small.leading {
+  color: #2c8a64;
+}
+.prediction-list p {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 6px;
+  margin: 11px 0 0;
+}
+.prediction-list p strong {
+  align-items: center;
+  color: var(--ink);
+  display: inline-flex;
+  gap: 6px;
+}
+.prediction-list p strong i {
+  border-radius: 50%;
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+.prediction-list p b {
+  font-family: Georgia, serif;
+  font-weight: 500;
+  margin-left: auto;
+}
+.prediction-list .map-share-bar {
+  margin: 10px 0 0;
+}
+.prediction-list article > footer {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+.prediction-legend {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.prediction-legend span {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  white-space: nowrap;
+}
+.prediction-legend i {
+  border-radius: 50%;
+  flex: none;
+  height: 7px;
+  width: 7px;
+}
+.prediction-list article > footer button {
   background: transparent;
   border: 1px solid #d0d2cd;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 10px;
-  padding: 7px 12px;
+  flex: none;
+  font-size: 12px;
+  margin-left: auto;
+  padding: 8px 14px;
 }
 .account-card {
   align-self: start;
@@ -1920,6 +1855,25 @@ a:focus-visible {
 }
 .map-round-button .icon {
   width: 19px;
+}
+/* 地圖沒有頁首，搜尋是點右上角的按鈕才展開，就掛在那排按鈕下面。 */
+.map-search {
+  background: rgb(255 253 248 / 95%);
+  box-shadow: 0 12px 30px rgb(31 43 39 / 16%);
+  position: absolute;
+  right: 22px;
+  top: 78px;
+  width: min(320px, calc(100vw - 44px));
+  z-index: 12;
+  backdrop-filter: blur(14px);
+}
+.map-round-button.stamp {
+  color: var(--stamp);
+}
+.map-round-button.stamp .icon {
+  height: 21px;
+  stroke-width: 2;
+  width: 21px;
 }
 /* 滿版鋪滿整個 map-stage。浮動 UI 都有 z-index 12，蓋在地圖上不受影響。 */
 /* width/height 一定要寫死 100%：<svg> 是 replaced element，只給 inset: 0 時
@@ -2497,6 +2451,7 @@ a:focus-visible {
   justify-content: center;
   margin: 14px 0 20px;
 }
+.map-inspector-links a,
 .map-inspector-links button {
   background: transparent;
   border: 0;
@@ -2542,24 +2497,6 @@ a:focus-visible {
   .summary-card > .button {
     margin-top: 10px;
   }
-  .region-layout {
-    grid-template-columns: 1fr;
-  }
-  .region-map {
-    height: 390px;
-    position: relative;
-    top: auto;
-  }
-  .region-shape {
-    height: 245px;
-    width: 320px;
-  }
-  .contest-hero {
-    grid-template-columns: 1fr auto;
-  }
-  .contest-hero-status {
-    display: none;
-  }
   .contest-content {
     grid-template-columns: 1fr;
   }
@@ -2575,10 +2512,6 @@ a:focus-visible {
   .app-header {
     height: 64px;
     padding: 0 15px;
-  }
-  .brand-mark {
-    height: 36px;
-    width: 36px;
   }
   .brand strong {
     font-size: 17px;
@@ -2635,27 +2568,6 @@ a:focus-visible {
   }
   .header-actions .button {
     font-size: 0;
-  }
-  .prototype-notice {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 7px;
-    padding: 8px 15px;
-  }
-  .prototype-notice > span {
-    display: none;
-  }
-  .phase-switch {
-    justify-content: space-between;
-    width: 100%;
-  }
-  .phase-switch > span {
-    font-size: 10px;
-  }
-  .phase-switch button {
-    background: rgb(255 255 255 / 8%);
-    flex: 1;
-    padding: 7px 8px;
   }
   .page {
     padding: 22px 15px 42px;
@@ -2788,93 +2700,26 @@ a:focus-visible {
   .breadcrumbs {
     margin-bottom: 20px;
   }
-  .region-heading,
-  .mine-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    margin-bottom: 22px;
+  .page-heading h1 {
+    font-size: 22px;
   }
-  .region-heading h1,
-  .mine-heading h1 {
-    font-size: 38px;
-  }
-  .region-heading h1 em {
-    display: block;
-    font-size: 16px;
-    margin: 5px 0 0;
-  }
-  .region-heading p,
-  .mine-heading p {
-    font-size: 12px;
-    margin-top: 10px;
-  }
-  .region-stat {
-    align-items: flex-start;
-    border-top: 1px solid var(--line);
-    margin-top: 18px;
-    padding-top: 13px;
+  .page-stat {
+    margin-left: 0;
     width: 100%;
   }
-  .region-stat strong {
-    font-size: 29px;
-  }
-  .mayor-feature {
-    align-items: flex-start;
-    gap: 16px;
-    grid-template-columns: 1fr auto;
-    padding: 20px;
-  }
-  .mayor-feature > div:first-child {
-    grid-column: 1 / 2;
-  }
-  .mayor-feature .leading-badge {
-    align-self: start;
-    grid-column: 2 / 3;
-  }
-  .mayor-score {
-    grid-column: 1 / 2;
-  }
-  .mayor-feature .button {
-    grid-column: 2 / 3;
+  .feature-card .button {
     min-height: 42px;
     padding: 0 15px;
-  }
-  .mayor-feature h2 {
-    font-size: 23px;
+    width: 100%;
   }
   .leading-badge {
     font-size: 9px;
-  }
-  .region-layout {
-    margin-top: 16px;
-  }
-  .region-map {
-    border-radius: 18px;
-    height: 320px;
-  }
-  .region-shape {
-    height: 205px;
-    width: 255px;
-  }
-  .contest-grid {
-    grid-template-columns: 1fr;
   }
   .contest-card {
     border-radius: 15px;
   }
   .section-heading h2 {
     font-size: 19px;
-  }
-  .contest-hero {
-    align-items: flex-start;
-    grid-template-columns: 1fr;
-    padding-bottom: 22px;
-  }
-  .contest-hero h1 {
-    font-size: 35px;
-  }
-  .contest-hero .button {
-    width: 100%;
   }
   .content-tabs {
     gap: 23px;
@@ -2893,9 +2738,6 @@ a:focus-visible {
   }
   .results-total strong {
     font-size: 27px;
-  }
-  .contest-aside {
-    display: none;
   }
   .trend-chart {
     height: 245px;
@@ -2939,21 +2781,30 @@ a:focus-visible {
     margin: 0 -17px;
     padding: 14px 17px calc(18px + env(safe-area-inset-bottom));
   }
-  .anonymous-id {
-    margin-top: 17px;
-    width: 100%;
-  }
   .mine-layout {
     grid-template-columns: 1fr;
   }
-  .prediction-list article {
-    grid-template-columns: 5px 1fr;
+  /* 窄畫面塞不下標題＋身份＋按鈕，身份掉到第二行。 */
+  .mine-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    height: auto;
+    padding: 12px 15px;
   }
-  .prediction-list article > div:last-child {
-    align-items: center;
-    flex-direction: row;
-    grid-column: 2;
-    justify-content: space-between;
+  .mine-header .icon-button {
+    order: -1;
+  }
+  .mine-header h1 {
+    font-size: 19px;
+    order: -2;
+  }
+  .mine-search {
+    margin-left: 0;
+    order: -1;
+    width: 40px;
+  }
+  .forecaster-id {
+    font-size: 11.5px;
   }
   .account-card {
     border-radius: 18px;
@@ -2981,7 +2832,7 @@ a:focus-visible {
     flex-wrap: wrap;
     gap: 7px;
     left: 11px;
-    max-width: calc(100vw - 108px);
+    max-width: calc(100vw - 152px);
     top: 10px;
   }
   .map-brand {
@@ -3017,8 +2868,15 @@ a:focus-visible {
     right: 10px;
     top: 10px;
   }
-  .map-floating-actions > .map-round-button:nth-last-child(1) {
-    display: none;
+  /* .header-search 在手機被壓成 40px 的透明圓鈕，地圖這顆是展開後的輸入框，
+     要把那組設定還原回來。 */
+  .map-search {
+    background: rgb(255 253 248 / 95%);
+    height: 44px;
+    padding: 0 14px;
+    right: 10px;
+    top: 60px;
+    width: calc(100vw - 20px);
   }
   .map-round-button {
     height: 42px;

@@ -89,7 +89,8 @@ export function Icon({
   );
 }
 
-function AppHeader() {
+// 縣市搜尋是通往 /region 與 /contest 的唯一入口，所以頁首、/mine 與地圖共用同一個。
+export function SearchBox({ autoFocus = false, className = '' }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const matches = search.trim()
@@ -102,47 +103,47 @@ function AppHeader() {
   }
 
   return (
+    <form className={`header-search ${className}`} onSubmit={handleSearch}>
+      <Icon name="search" />
+      <input
+        aria-label="搜尋縣市或選區"
+        autoFocus={autoFocus}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="搜尋縣市或選區"
+        value={search}
+      />
+      {matches.length > 0 && (
+        <div className="search-results">
+          {matches.map((item) => (
+            <button key={item.id} onClick={() => void navigate(`/region/${item.id}`)} type="button">
+              {item.name}
+              <span>查看預測</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </form>
+  );
+}
+
+function AppHeader() {
+  return (
     <header className="app-header">
       <Link className="brand" to="/">
-        <span className="brand-mark">
-          <Icon name="spark" />
-        </span>
         <span>
-          <strong>看選情</strong>
+          <strong>看預測</strong>
           <small>2026 地方選舉預測</small>
         </span>
       </Link>
 
-      <form className="header-search" onSubmit={handleSearch}>
-        <Icon name="search" />
-        <input
-          aria-label="搜尋縣市或選區"
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="搜尋縣市或選區"
-          value={search}
-        />
-        {matches.length > 0 && (
-          <div className="search-results">
-            {matches.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => void navigate(`/region/${item.id}`)}
-                type="button"
-              >
-                {item.name}
-                <span>查看選情</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </form>
+      <SearchBox />
 
       <nav className="header-actions" aria-label="個人功能">
         <Link className="text-action" to="/mine">
           <Icon name="vote" />
           我的預測
         </Link>
-        <Link className="button button-dark button-small" to="/mine#account">
+        <Link className="button button-glass button-small" to="/mine#account">
           <Icon name="user" />
           登入
         </Link>
@@ -158,8 +159,8 @@ function MobileNav() {
         <Icon name="map" />
         <span>地圖</span>
       </NavLink>
-      <NavLink to="/region/TPE">
-        <Icon name="search" />
+      <NavLink to="/regions">
+        <Icon name="stamp" />
         <span>選區</span>
       </NavLink>
       <NavLink to="/mine">
@@ -174,40 +175,12 @@ function MobileNav() {
   );
 }
 
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({ children, header }: { children: ReactNode; header?: ReactNode }) {
   return (
     <div className="app-shell">
-      <AppHeader />
+      {header ?? <AppHeader />}
       {children}
       <MobileNav />
-    </div>
-  );
-}
-
-export function PrototypeNotice() {
-  const { phase, setPhase } = usePrototype();
-  return (
-    <div className="prototype-notice">
-      <span>
-        <strong>介面原型</strong> 數字、候選人與部分選區名稱均為示意
-      </span>
-      <div className="phase-switch" aria-label="切換候選人公布階段">
-        <span>預覽狀態</span>
-        <button
-          className={phase === 'party' ? 'active' : ''}
-          onClick={() => setPhase('party')}
-          type="button"
-        >
-          名單公布前
-        </button>
-        <button
-          className={phase === 'candidate' ? 'active' : ''}
-          onClick={() => setPhase('candidate')}
-          type="button"
-        >
-          名單公布後
-        </button>
-      </div>
     </div>
   );
 }
@@ -249,7 +222,7 @@ export function Breadcrumbs({
 }) {
   return (
     <nav className="breadcrumbs" aria-label="麵包屑">
-      <Link to="/">全國</Link>
+      <Link to="/regions">全國</Link>
       <span>/</span>
       {contest ? (
         <Link to={`/region/${jurisdiction.id}`}>{jurisdiction.name}</Link>
@@ -263,6 +236,75 @@ export function Breadcrumbs({
         </>
       )}
     </nav>
+  );
+}
+
+// 卡片頂端的封面：滿寬的大頭照位置（正式版換成領先者的照片，現在先放名字的
+// 第一個字當底），行政區與選舉名稱直接壓在照片上。
+export function CardCover({
+  row,
+  kicker,
+  title,
+  meta,
+}: {
+  row: { label: string; color: string };
+  kicker: string;
+  title: string;
+  meta: string;
+}) {
+  return (
+    <div
+      className="card-cover"
+      style={{ '--cover': `color-mix(in srgb, ${row.color} 26%, #fff)` } as CSSProperties}
+    >
+      <i style={{ color: row.color }}>{row.label.slice(0, 1)}</i>
+      <div>
+        <span>{kicker}</span>
+        <strong>{title}</strong>
+        <small>{meta}</small>
+      </div>
+    </div>
+  );
+}
+
+// 卡片裡的候選人清單：一位一行，色點、名字、份數、佔比，底下各自一條長條。
+export function CandidateList({
+  rows,
+  forecasts,
+}: {
+  rows: { id: string; label: string; color: string; value: number }[];
+  forecasts: number;
+}) {
+  return (
+    <ul className="candidate-list">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <i style={{ background: row.color }} />
+          <span>{row.label}</span>
+          <small>{Math.round((forecasts * row.value) / 100).toLocaleString()} 份</small>
+          <b>{row.value}%</b>
+          <em>
+            <s style={{ background: row.color, width: `${row.value}%` }} />
+          </em>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// 送出／修改預測的按鈕，地圖抽屜與 /contest 共用同一顆，樣式與文案只有一份。
+export function ForecastButton({
+  editing = false,
+  onClick,
+}: {
+  editing?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className="button button-glass button-wide" onClick={onClick} type="button">
+      <Icon name="stamp" />
+      {editing ? '修改我的預測' : '送出我的預測'}
+    </button>
   );
 }
 

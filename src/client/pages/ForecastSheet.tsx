@@ -106,6 +106,10 @@ type ForecastOption = {
   number: number | null;
 };
 
+// 送出後留下來的預測。要記 id 才有辦法在「修改我的預測」時把原本那幾格勾回來，
+// 光留 label 對不回選項。
+export type ForecastPick = { id: string; label: string };
+
 function getForecastOptions(contest: Contest, phase: CandidatePhase): ForecastOption[] {
   if (getForecastInputMode(contest, phase) === 'party')
     return parties.map((party) => ({
@@ -135,10 +139,12 @@ function tintChoice(hex: string) {
 
 export function ForecastForm({
   contest,
+  picked,
   onSubmitted,
 }: {
   contest: Contest;
-  onSubmitted: (picked: string[]) => void;
+  picked?: ForecastPick[];
+  onSubmitted: (picked: ForecastPick[]) => void;
 }) {
   const { phase } = usePrototype();
   const options = getForecastOptions(contest, phase);
@@ -146,7 +152,8 @@ export function ForecastForm({
   const shares = new Map(getResultRows(contest, phase).map((row) => [row.id, row.value]));
   const byNumber = getForecastInputMode(contest, phase) === 'candidate';
   const singleSeat = contest.seatCount === 1;
-  const [picks, setPicks] = useState<string[]>([]);
+  // 修改預測時先勾回上次送出的那幾位。
+  const [picks, setPicks] = useState<string[]>(() => (picked ?? []).map(({ id }) => id));
   const isValid = picks.length === contest.seatCount;
 
   function toggle(id: string) {
@@ -164,7 +171,10 @@ export function ForecastForm({
   function submit() {
     if (!isValid) return;
     onSubmitted(
-      picks.map((id) => options.find((option) => option.id === id)?.label ?? '').filter(Boolean),
+      picks.flatMap((id) => {
+        const option = options.find((item) => item.id === id);
+        return option ? [{ id: option.id, label: option.label }] : [];
+      }),
     );
   }
 

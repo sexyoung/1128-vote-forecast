@@ -3,10 +3,10 @@ import { useParams } from 'react-router-dom';
 import { type Contest, findContest } from '../mock-election';
 import {
   Breadcrumbs,
+  CandidateList,
+  ForecastButton,
   Icon,
-  LeadingBadge,
   PageShell,
-  PrototypeNotice,
   usePrototype,
 } from './ElectionPrototypeShared';
 import { ForecastSheet, getResultRows } from './ForecastSheet';
@@ -17,45 +17,45 @@ function ResultsPanel({ contest }: { contest: Contest }) {
   return (
     <section className="results-panel">
       <div className="results-total">
-        <span>有效預測</span>
+        <span>預測</span>
         <strong>{contest.forecasts.toLocaleString()}</strong>
         <small>份</small>
       </div>
-      <div className="result-bars">
-        {rows.map((row, index) => (
-          <div className="result-row" key={row.id}>
-            <div className="result-label">
-              <span className="result-rank">{index + 1}</span>
-              <i style={{ background: row.color }} />
-              <span>
-                <strong>{row.label}</strong>
-                <small>{row.meta}</small>
-              </span>
-              <b>{row.value}%</b>
-            </div>
-            <div className="result-track large">
-              <i style={{ background: row.color, width: `${row.value}%` }} />
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="method-note">每個匿名身份在本選區只計一份有效預測。重複送出會覆蓋原紀錄。</p>
+      <CandidateList forecasts={contest.forecasts} rows={rows} />
+      <p className="method-note">每個匿名身份在本選區只計一份預測。重複送出會覆蓋原紀錄。</p>
     </section>
   );
 }
 
-function TrendPanel() {
+// 示意用的走勢：從 id 生出固定的擾動，越靠近今天越收斂到目前的百分比，所以
+// 線的終點就是清單上的數字。正式版會換成真的每日快照。
+function buildTrendPath(row: { id: string; value: number }, domain: number) {
+  let seed = 0;
+  for (let index = 0; index < row.id.length; index += 1) seed += row.id.charCodeAt(index);
+  const points = 7;
+  return Array.from({ length: points }, (_, index) => {
+    const progress = index / (points - 1);
+    const wobble = Math.sin(seed + index * 1.7) * (1 - progress) * row.value * 0.3;
+    const value = Math.max(0, row.value + wobble);
+    const x = progress * 600;
+    const y = 180 - (value / domain) * 172;
+    return `${index ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+}
+
+function TrendPanel({ contest }: { contest: Contest }) {
+  const { phase } = usePrototype();
+  const rows = getResultRows(contest, phase);
+  const domain = Math.max(...rows.map((row) => row.value)) * 1.35;
   return (
     <section className="trend-panel">
       <div className="trend-legend">
-        <span>
-          <i className="dot-green" />
-          領先者
-        </span>
-        <span>
-          <i className="dot-blue" />
-          第二名
-        </span>
+        {rows.map((row) => (
+          <span key={row.id}>
+            <i style={{ background: row.color }} />
+            {row.label}
+          </span>
+        ))}
         <b>近 30 日</b>
       </div>
       <div className="trend-chart" aria-label="近三十日預測趨勢示意圖">
@@ -63,14 +63,9 @@ function TrendPanel() {
         <div className="grid-line line-2" />
         <div className="grid-line line-3" />
         <svg preserveAspectRatio="none" viewBox="0 0 600 180">
-          <path
-            className="trend-a"
-            d="M0 135 C80 125 110 92 180 105 S290 65 360 82 S480 42 600 28"
-          />
-          <path
-            className="trend-b"
-            d="M0 80 C90 75 140 110 210 98 S310 120 390 105 S510 124 600 112"
-          />
+          {rows.map((row) => (
+            <path d={buildTrendPath(row, domain)} key={row.id} stroke={row.color} />
+          ))}
         </svg>
         <div className="trend-axis">
           <span>7/27</span>
@@ -82,7 +77,8 @@ function TrendPanel() {
       <div className="trend-callout">
         <Icon name="spark" />
         <span>
-          <strong>近 7 日變化</strong>領先者增加 4.8 個百分點
+          <strong>近 7 日變化</strong>
+          {rows[0].label}增加 4.8 個百分點
         </span>
       </div>
     </section>
@@ -131,13 +127,11 @@ function CommentsPanel() {
 export function ContestPage() {
   const { contestId } = useParams();
   const { contest, jurisdiction } = findContest(contestId);
-  const { phase } = usePrototype();
   const [activeTab, setActiveTab] = useState<'results' | 'trend' | 'comments'>('results');
   const [forecastOpen, setForecastOpen] = useState(false);
   const [message, setMessage] = useState('');
   return (
     <PageShell>
-      <PrototypeNotice />
       <main className="page contest-page">
         <Breadcrumbs contest={contest} jurisdiction={jurisdiction} />
         {message && (
@@ -149,31 +143,12 @@ export function ContestPage() {
             </button>
           </div>
         )}
-        <section className="contest-hero">
-          <div>
-            <span className="eyebrow">
-              {contest.seatCount === 1
-                ? 'SINGLE-SEAT CONTEST'
-                : `MULTI-MEMBER · ${contest.seatCount} SEATS`}
-            </span>
-            <h1>{contest.name}</h1>
-            <p>
-              <Icon name="map" />
-              {contest.area}
-            </p>
-          </div>
-          <div className="contest-hero-status">
-            <span>{phase === 'party' ? '正式名單尚未公布' : '正式候選人名單已匯入'}</span>
-            <LeadingBadge contest={contest} />
-          </div>
-          <button
-            className="button button-accent"
-            onClick={() => setForecastOpen(true)}
-            type="button"
-          >
-            <Icon name="vote" />
-            送出我的預測
-          </button>
+        <section className="page-heading">
+          <h1>{contest.name}</h1>
+          <span className="page-tag">
+            {contest.seatCount === 1 ? '單席' : `應選 ${contest.seatCount} 席`}
+          </span>
+          <span className="page-stat">{contest.area}</span>
         </section>
 
         <div className="content-tabs" role="tablist">
@@ -206,27 +181,20 @@ export function ContestPage() {
         <div className="contest-content">
           <div>
             {activeTab === 'results' && <ResultsPanel contest={contest} />}
-            {activeTab === 'trend' && <TrendPanel />}
+            {activeTab === 'trend' && <TrendPanel contest={contest} />}
             {activeTab === 'comments' && <CommentsPanel />}
           </div>
           <aside className="contest-aside">
-            <span className="eyebrow">YOUR FORECAST</span>
             <h3>你還沒有預測這一區</h3>
             <p>
               {contest.seatCount === 1
                 ? '選出你認為最可能勝出的政黨或候選人。'
                 : `預測 ${contest.seatCount} 席最終歸屬。`}
             </p>
-            <button
-              className="button button-dark button-wide"
-              onClick={() => setForecastOpen(true)}
-              type="button"
-            >
-              開始預測 <Icon name="chevron" />
-            </button>
+            <ForecastButton onClick={() => setForecastOpen(true)} />
             <div className="privacy-note">
               <span>匿名可參加</span>
-              <small>裝置只保留一份有效預測，可隨時修改。</small>
+              <small>裝置只保留一份預測，可隨時修改。</small>
             </div>
           </aside>
         </div>
