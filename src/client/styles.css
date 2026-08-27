@@ -100,7 +100,9 @@ a {
 }
 .brand strong {
   font-size: 19px;
-  letter-spacing: 0.08em;
+  /* 0.08em 是給三個字的標誌用的字距，十個字的句子用同一個值會鬆到散開，
+     也會把品牌欄（minmax(210px, …)）撐滿。 */
+  letter-spacing: 0.02em;
 }
 .brand small {
   color: var(--muted);
@@ -169,6 +171,56 @@ a {
 .search-results span {
   color: var(--muted);
   font-size: 12px;
+}
+/* 地圖是滿版的，頁首浮在上面而不是把地圖往下擠，而且不帶自己的底色與品牌，
+   免得在地圖上多一條橫帶。窄畫面則整個隱藏——那裡地圖用自己的浮動 UI。 */
+.app-header-overlay {
+  /* 不吃 .app-header 的 78px 固定高與垂直置中：這裡是浮在地圖上的一排浮動元件，
+     跟地圖其他浮動 UI 對齊在同一條 top: 20px 上，不是一條有高度的橫帶。 */
+  align-items: start;
+  background: transparent;
+  border-bottom: 0;
+  height: auto;
+  left: 0;
+  /* 也不吃那個把內容夾進置中 1360px 帶的邊距：選單要真的貼在視窗右上角，
+     跟地圖其他浮動 UI 同一個 22px，不然寬螢幕上會縮在中間。 */
+  padding: 20px 22px 0;
+  /* 透明也還是會擋住點擊。不放行的話地圖最上面 78px 拖不動，
+     只有兩個真的看得見的元件收事件。 */
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  backdrop-filter: none;
+}
+.app-header-overlay > * {
+  pointer-events: auto;
+}
+.app-header-overlay .brand {
+  display: none;
+}
+/* 沒有底色之後這兩個直接壓在地圖上，比照地圖其他浮動 UI 自己帶一層底，
+   免得深色的縣市底下讀不出來。 */
+.app-header-overlay .header-search,
+.app-header-overlay .header-nav {
+  background: rgb(255 253 248 / 94%);
+  border: 1px solid rgb(31 43 39 / 11%);
+  box-shadow: 0 9px 24px rgb(31 43 39 / 9%);
+  backdrop-filter: blur(14px);
+}
+/* 直接接手地圖原本那三顆圓鈕的位置（right 22 / top 20），而不是待在頁首格線的
+   第三欄裡垂直置中——那樣在寬螢幕上會離角落有一段距離。 */
+.app-header-overlay .header-nav {
+  border-radius: 999px;
+  padding: 4px;
+  position: absolute;
+  right: 22px;
+  top: 20px;
+}
+/* 選單絕對定位之後就不是 grid 項目了，而品牌是 display: none，在流裡的只剩
+   搜尋框一個，不指定欄位的話它會掉到第一欄去，不再置中。 */
+.app-header-overlay .header-search {
+  grid-column: 2;
 }
 /* 桌機主選單：地圖／選區／我的，跟手機底部選單同一組去處。
    窄畫面隱藏，交給 .mobile-nav。 */
@@ -309,28 +361,19 @@ a:focus-visible {
   text-transform: uppercase;
 }
 .hero h1,
-/* /mine 的頁首：左邊標題與預測者身份，右邊一顆回地圖；.app-header 的三欄 grid
-   在這裡用不到。 */
-.mine-header {
-  display: flex;
-  gap: 14px;
-  justify-content: flex-start;
-}
-.mine-header h1 {
-  font-family: Georgia, 'Noto Serif TC', serif;
-  font-size: 22px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-.mine-search {
-  margin-left: auto;
-  width: min(300px, 34vw);
+/* .page-heading 是 align-items: baseline，而這顆是 inline-flex 且第一個子元素是
+   <svg>——flex 容器的基線會取自它的底邊，跟著標題對齊就會被壓低半行。 */
+.page-heading .forecaster-id {
+  align-self: center;
 }
 .forecaster-id {
   align-items: center;
   background: #e7ede9;
   border: 1px solid #cfdbd5;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
   border-radius: 999px;
   color: #46705d;
   display: inline-flex;
@@ -342,6 +385,15 @@ a:focus-visible {
 .forecaster-id .icon {
   height: 15px;
   width: 15px;
+}
+.forecaster-id:hover {
+  background: #dde8e2;
+  border-color: #b6cbc2;
+}
+.forecaster-id.open {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
 }
 .hero h1 em,
 .hero p,
@@ -454,7 +506,6 @@ a:focus-visible {
 .trend-panel,
 .comments-panel,
 .contest-aside,
-.account-card,
 .identity-card {
   background: var(--card);
   border: 1px solid rgb(31 43 39 / 8%);
@@ -1101,6 +1152,17 @@ a:focus-visible {
   display: block;
   height: 100%;
 }
+/* /mine：自己押的那一列。只加重量與一圈光暈，不動格線——封面那行已經寫了
+   「我預測 ⋯」，這裡只要讓眼睛在清單裡找得到它。 */
+.candidate-list li.mine > i {
+  box-shadow: 0 0 0 3px rgb(31 43 39 / 13%);
+}
+.candidate-list li.mine > span {
+  font-weight: 800;
+}
+.candidate-list li.mine > b {
+  font-weight: 700;
+}
 /* 份數放卡片右上角，壓在封面右邊的空白上。 */
 .card-link {
   align-items: center;
@@ -1667,116 +1729,34 @@ a:focus-visible {
   text-align: center;
 }
 
-.mine-layout {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.65fr);
-}
-.prediction-list {
-  display: grid;
-  gap: 10px;
-}
-.prediction-list article {
-  background: var(--card);
-  border: 1px solid rgb(31 43 39 / 8%);
-  border-radius: 17px;
-  padding: 16px 18px;
-}
-/* 縣市與選舉名稱同一列，狀態靠右；原本拆成三排讀起來像三件事。 */
-.prediction-list article > header {
-  align-items: baseline;
-  display: flex;
-  gap: 9px;
-}
-.prediction-list article > header > span {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-.prediction-list h3 {
-  font-size: 15.5px;
-  margin: 0;
-}
-.prediction-list article > header > small {
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  margin-left: auto;
-}
-.prediction-list article > header > small.leading {
-  color: #2c8a64;
-}
-.prediction-list p {
+/* 改名是從標題旁的身份標籤點開的 modal。.sheet-backdrop 本身是為右側抽屜寫的
+   （靠右、撐滿高度），centered 這個變體把它改成置中的對話框。 */
+.sheet-backdrop.centered {
   align-items: center;
-  color: var(--muted);
-  display: flex;
-  font-size: 12.5px;
-  gap: 6px;
-  margin: 11px 0 0;
-}
-.prediction-list p strong {
-  align-items: center;
-  color: var(--ink);
-  display: inline-flex;
-  gap: 6px;
-}
-.prediction-list p strong i {
-  border-radius: 50%;
-  flex: none;
-  height: 8px;
-  width: 8px;
-}
-.prediction-list p b {
-  font-family: Georgia, serif;
-  font-weight: 500;
-  margin-left: auto;
-}
-.prediction-list .map-share-bar {
-  margin: 10px 0 0;
-}
-.prediction-list article > footer {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  margin-top: 10px;
-}
-.prediction-legend {
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 11.5px;
-  gap: 4px 12px;
-  min-width: 0;
-}
-.prediction-legend span {
-  align-items: center;
-  display: inline-flex;
-  gap: 5px;
-  white-space: nowrap;
-}
-.prediction-legend i {
-  border-radius: 50%;
-  flex: none;
-  height: 7px;
-  width: 7px;
-}
-.prediction-list article > footer button {
-  background: transparent;
-  border: 1px solid #d0d2cd;
-  border-radius: 999px;
-  cursor: pointer;
-  flex: none;
-  font-size: 12px;
-  margin-left: auto;
-  padding: 8px 14px;
-}
-/* 右欄現在是兩張卡疊著，所以多包一層讓它們自己排，.mine-layout 維持兩格。 */
-.mine-side {
-  align-content: start;
-  display: grid;
-  gap: 24px;
+  justify-content: center;
+  padding: 24px;
 }
 .identity-card {
+  animation: modal-in 0.2s ease-out;
+  box-shadow: 0 24px 60px rgb(16 25 21 / 28%);
   padding: 24px;
+  width: min(440px, 100%);
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.identity-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
 }
 .identity-card h2 {
   font-family: Georgia, 'Noto Serif TC', serif;
@@ -1835,43 +1815,6 @@ a:focus-visible {
   font-family: Georgia, serif;
   font-size: 15px;
 }
-.account-card {
-  align-self: start;
-  padding: 28px;
-  text-align: center;
-}
-.account-icon {
-  align-items: center;
-  background: #e4eee9;
-  border-radius: 50%;
-  color: var(--green);
-  display: inline-flex;
-  height: 54px;
-  justify-content: center;
-  width: 54px;
-}
-.account-card h2 {
-  font-family: Georgia, 'Noto Serif TC', serif;
-  font-size: 23px;
-  font-weight: 500;
-  line-height: 1.35;
-  margin: 17px 0 8px;
-}
-.account-card p {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.7;
-  margin: 0 0 20px;
-}
-.account-card .button + .button {
-  margin-top: 9px;
-}
-.account-card > small {
-  color: var(--muted);
-  display: block;
-  font-size: 9px;
-  margin-top: 15px;
-}
 .mobile-nav {
   display: none;
 }
@@ -1913,6 +1856,15 @@ a:focus-visible {
   gap: 9px;
   left: 22px;
   top: 20px;
+}
+/* 桌機掛了浮動頁首之後地圖上的品牌是重複的。搜尋／選區／我的那組圓鈕不在這裡
+   處理——它們在桌機是整組不 render 的，見 ElectionHomePage 的 useCompactChrome。
+   頁首不帶品牌，左欄是空的，所以「目前顯示哪一層」與「回上一層」維持原本的
+   位置就好，不必往下讓。 */
+@media (min-width: 1001px) {
+  .map-app .map-brand {
+    display: none;
+  }
 }
 .map-brand {
   align-items: center;
@@ -2627,6 +2579,10 @@ a:focus-visible {
   .header-nav {
     display: none;
   }
+  /* 窄畫面地圖用自己的浮動 UI（品牌、搜尋、選區、我的），頁首會跟它重複。 */
+  .app-header-overlay {
+    display: none;
+  }
   .home-grid {
     grid-template-columns: 1fr;
   }
@@ -2903,30 +2859,8 @@ a:focus-visible {
     margin: 0 -17px;
     padding: 14px 17px calc(18px + env(safe-area-inset-bottom));
   }
-  .mine-layout {
-    grid-template-columns: 1fr;
-  }
-  /* 窄畫面塞不下標題＋身份＋按鈕，身份掉到第二行。 */
-  .mine-header {
-    flex-wrap: wrap;
-    gap: 10px;
-    height: auto;
-    padding: 12px 15px;
-  }
-  .mine-header h1 {
-    font-size: 19px;
-    order: -2;
-  }
-  .mine-search {
-    margin-left: 0;
-    order: -1;
-    width: 40px;
-  }
   .forecaster-id {
     font-size: 11.5px;
-  }
-  .account-card {
-    border-radius: 18px;
   }
   .map-app {
     /* 收合抽屜的高度，同時給 .map-inspector 與「地圖讓位」用，只留一份數字。

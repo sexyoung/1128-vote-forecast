@@ -1,57 +1,76 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type ElectionView, getContests, getJurisdiction } from '../mock-election';
-import { HeaderNav, Icon, PageShell, SearchBox, usePrototype } from './ElectionPrototypeShared';
+import { Link } from 'react-router-dom';
+import { CandidateList, CardCover, Icon, PageShell, usePrototype } from './ElectionPrototypeShared';
 import { getResultRows } from './ForecastSheet';
 
 // 系統配發的編號，使用者改不了：它是匿名身份的實際識別碼，名字只是顯示用的外皮。
 const forecasterCode = '#8F2A';
 const defaultForecasterName = '預測者';
 
-// 這一頁是從地圖點進來的，所以頁首只留標題、預測者身份與一顆「回地圖」——品牌列、
-// 搜尋、原型的預覽狀態切換在這裡都只是干擾。
-function MineHeader({ name }: { name: string }) {
-  return (
-    <header className="app-header mine-header">
-      <h1>我的預測</h1>
-      <span className="forecaster-id">
-        <Icon name="user" />
-        {name} {forecasterCode}
-      </span>
-      <SearchBox className="mine-search" />
-      <HeaderNav />
-    </header>
-  );
-}
-
-function IdentityCard({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+function RenameDialog({
+  name,
+  onRename,
+  onClose,
+}: {
+  name: string;
+  onRename: (name: string) => void;
+  onClose: () => void;
+}) {
   const [draft, setDraft] = useState(name);
   const trimmed = draft.trim();
-  const saved = trimmed === name;
+
+  // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    document.body.classList.add('sheet-open');
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.body.classList.remove('sheet-open');
+    };
+  }, [onClose]);
 
   return (
-    <section className="identity-card">
-      <h2>顯示名稱</h2>
-      <p>留言與排行榜上其他人看到的名字。後面的編號是系統配發的，不會跟著改。</p>
-      <div className="identity-field">
-        <input
-          aria-label="顯示名稱"
-          maxLength={12}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={defaultForecasterName}
-          value={draft}
-        />
-        <span>{forecasterCode}</span>
-      </div>
-      <button
-        className="button button-dark button-wide"
-        disabled={!trimmed || saved}
-        onClick={() => onRename(trimmed)}
-        type="button"
+    <div className="sheet-backdrop centered" onMouseDown={onClose} role="presentation">
+      <section
+        aria-labelledby="rename-title"
+        aria-modal="true"
+        className="identity-card"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
       >
-        {saved ? '已儲存' : '儲存名稱'}
-      </button>
-      <small>編號不會變，換名字也不會影響已送出的預測。</small>
-    </section>
+        <header>
+          <h2 id="rename-title">顯示名稱</h2>
+          <button aria-label="關閉" className="icon-button" onClick={onClose} type="button">
+            <Icon name="close" />
+          </button>
+        </header>
+        <p>留言與排行榜上其他人看到的名字。後面的編號是系統配發的，不會跟著改。</p>
+        <div className="identity-field">
+          <input
+            aria-label="顯示名稱"
+            autoFocus
+            maxLength={12}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={defaultForecasterName}
+            value={draft}
+          />
+          <span>{forecasterCode}</span>
+        </div>
+        <button
+          className="button button-dark button-wide"
+          disabled={!trimmed || trimmed === name}
+          onClick={() => onRename(trimmed)}
+          type="button"
+        >
+          儲存名稱
+        </button>
+        <small>編號不會變，換名字也不會影響已送出的預測。</small>
+      </section>
+    </div>
   );
 }
 
@@ -71,6 +90,7 @@ export function MyPredictionsPage() {
   const { phase } = usePrototype();
   // 原型先記在記憶體，正式版會跟著匿名身份一起存。
   const [name, setName] = useState(defaultForecasterName);
+  const [renaming, setRenaming] = useState(false);
   const items = savedForecasts.map(({ jurisdictionId, view, contestIndex, pickIndex }) => {
     const jurisdiction = getJurisdiction(jurisdictionId);
     const contest = getContests(jurisdiction, view)[contestIndex];
@@ -79,70 +99,57 @@ export function MyPredictionsPage() {
   });
 
   return (
-    <PageShell header={<MineHeader name={name} />}>
+    <PageShell>
       <main className="page mine-page">
-        <div className="mine-layout">
-          <section>
-            <div className="section-heading">
-              <h2>已預測 {items.length} 個選區</h2>
-              <span>最近更新：今天</span>
-            </div>
-            <div className="prediction-list">
-              {items.map(({ contest, jurisdiction, mine, rows }) => (
-                <article key={contest.id}>
-                  <header>
-                    <span>{jurisdiction.name}</span>
-                    <h3>{contest.name}</h3>
-                    <small className={rows[0].id === mine.id ? 'leading' : ''}>
-                      {rows[0].id === mine.id ? '目前領先' : '目前落後'}
-                    </small>
-                  </header>
-                  <p>
-                    我的預測：
-                    <strong>
-                      <i style={{ background: mine.color }} />
-                      {mine.label}
-                    </strong>
-                    <b>{mine.value}%</b>
-                  </p>
-                  {/* 只寫自己押誰看不出局勢，所以整場的分布也一起放上來。 */}
-                  <div className="map-share-bar">
-                    {rows.map((row) => (
-                      <i key={row.id} style={{ background: row.color, width: `${row.value}%` }} />
-                    ))}
-                  </div>
-                  <footer>
-                    <div className="prediction-legend">
-                      {rows.map((row) => (
-                        <span key={row.id}>
-                          <i style={{ background: row.color }} />
-                          {row.label} {row.value}%
-                        </span>
-                      ))}
-                    </div>
-                    <button type="button">修改</button>
-                  </footer>
-                </article>
-              ))}
-            </div>
-          </section>
-          <div className="mine-side">
-            <IdentityCard name={name} onRename={setName} />
-            <aside className="account-card" id="account">
-              <span className="account-icon">
-                <Icon name="spark" />
+        <section className="page-heading">
+          <h1>我的預測</h1>
+          {/* 名字平常只是身份標籤，點了才展開表單——改名不是這一頁的主要目的。 */}
+          <button
+            aria-expanded={renaming}
+            className={`forecaster-id ${renaming ? 'open' : ''}`}
+            onClick={() => setRenaming((open) => !open)}
+            type="button"
+          >
+            <Icon name="user" />
+            {name} {forecasterCode}
+          </button>
+          <span className="page-stat">
+            已預測 <strong>{items.length}</strong> 個選區
+          </span>
+        </section>
+
+        {renaming && (
+          <RenameDialog
+            name={name}
+            onClose={() => setRenaming(false)}
+            onRename={(next) => {
+              setName(next);
+              setRenaming(false);
+            }}
+          />
+        )}
+
+        <div className="section-heading">
+          <h2>預測紀錄</h2>
+          <span>最近更新：今天</span>
+        </div>
+        {/* 跟 /regions、/region 同一組卡片：桌機多欄、手機自然收成單欄條列。
+            封面用自己押的那位當底色而不是領先者——這一頁的主角是我的預測。 */}
+        <div className="contest-grid">
+          {items.map(({ contest, jurisdiction, mine, rows }) => (
+            <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
+              <span className="card-link">
+                {contest.forecasts.toLocaleString()} 份 <Icon name="chevron" />
               </span>
-              <h2>建立帳號，帶著預測走</h2>
-              <p>註冊後可跨裝置保留預測，並在選區結果下留言。</p>
-              <button className="button button-dark button-wide" type="button">
-                建立免費帳號
-              </button>
-              <button className="button button-ghost button-wide" type="button">
-                我已經有帳號
-              </button>
-              <small>註冊不會增加預測權重。</small>
-            </aside>
-          </div>
+              <CardCover
+                kicker={jurisdiction.name}
+                meta={`我預測 ${mine.label} · ${rows[0].id === mine.id ? '目前領先' : '目前落後'}`}
+                row={mine}
+                title={contest.name}
+              />
+              <CandidateList forecasts={contest.forecasts} highlightId={mine.id} rows={rows} />
+            </Link>
+          ))}
         </div>
       </main>
     </PageShell>

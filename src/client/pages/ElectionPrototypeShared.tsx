@@ -126,13 +126,15 @@ export function SearchBox({ autoFocus = false, className = '' }) {
   );
 }
 
-function AppHeader() {
+// overlay：地圖是滿版的，頁首浮在上面而不是把地圖往下擠——使用者要的就是那個
+// 滿版的地圖。頁首本來就是半透明加毛玻璃，蓋上去看得到底下。
+export function AppHeader({ overlay = false }: { overlay?: boolean }) {
   return (
-    <header className="app-header">
+    <header className={`app-header ${overlay ? 'app-header-overlay' : ''}`}>
       <Link className="brand" to="/">
         <span>
-          <strong>看預測</strong>
-          <small>2026 地方選舉預測</small>
+          <strong>九合一選舉預測</strong>
+          <small>2026.11.28 投票</small>
         </span>
       </Link>
 
@@ -285,14 +287,18 @@ export function CardCover({
 export function CandidateList({
   rows,
   forecasts,
+  // /mine 用來標出自己押的那一列。純樣式，不多塞元素——這個 li 是四欄格線，
+  // 多一個子元素會把長條那一列擠掉。
+  highlightId,
 }: {
   rows: { id: string; label: string; color: string; value: number }[];
   forecasts: number;
+  highlightId?: string;
 }) {
   return (
     <ul className="candidate-list">
       {rows.map((row) => (
-        <li key={row.id}>
+        <li className={row.id === highlightId ? 'mine' : ''} key={row.id}>
           <i style={{ background: row.color }} />
           <span>{row.label}</span>
           <small>{Math.round((forecasts * row.value) / 100).toLocaleString()} 份</small>

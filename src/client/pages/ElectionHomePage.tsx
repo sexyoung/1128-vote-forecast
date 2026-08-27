@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
@@ -23,7 +23,13 @@ import {
   getParty,
   jurisdictions,
 } from '../mock-election';
-import { ForecastButton, Icon, SearchBox, usePrototype } from './ElectionPrototypeShared';
+import {
+  AppHeader,
+  ForecastButton,
+  Icon,
+  SearchBox,
+  usePrototype,
+} from './ElectionPrototypeShared';
 import { type ForecastPick, ForecastForm, getResultRows } from './ForecastSheet';
 
 type MapBounds = { x: number; y: number; width: number; height: number };
@@ -110,6 +116,27 @@ const drawerLayoutQuery = '(max-width: 720px)';
 
 function isDrawerLayout() {
   return typeof window !== 'undefined' && window.matchMedia(drawerLayoutQuery).matches;
+}
+
+// 與 .header-nav 的隱藏門檻同一個斷點：這個寬度以上有浮動頁首（搜尋＋主選單），
+// 地圖自己那組浮動圓鈕就是重複的，直接不 render——連帶讓只有那顆搜尋鈕會用到的
+// searchOpen 狀態在桌機不存在，而不是留一個永遠打不開的開關。
+const compactChromeQuery = '(max-width: 1000px)';
+
+function subscribeToCompactChrome(onChange: () => void) {
+  const query = window.matchMedia(compactChromeQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+function useCompactChrome() {
+  // useSyncExternalStore 而不是 useState + useEffect：後者要在 effect 裡同步
+  // setState 才能補上首次 render 的值，會被 React Compiler 擋下來。
+  return useSyncExternalStore(
+    subscribeToCompactChrome,
+    () => window.matchMedia(compactChromeQuery).matches,
+    () => true,
+  );
 }
 
 export function shouldShowTownshipBoundaryPreview(
@@ -266,7 +293,7 @@ function MapBrand() {
       <span>
         <Icon name="spark" />
       </span>
-      <strong>看預測</strong>
+      <strong>九合一選舉預測</strong>
     </Link>
   );
 }
@@ -474,6 +501,7 @@ export function ElectionHomePage() {
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const compactChrome = useCompactChrome();
   // 這一版先記在記憶體裡，正式版會綁到匿名身份。key 是 contest.id。
   const [myForecasts, setMyForecasts] = useState<Record<string, ForecastPick[]>>({});
   const [viewBox, setViewBox] = useState(initialMapViewBox);
@@ -1125,159 +1153,86 @@ export function ElectionHomePage() {
   }
 
   return (
-    <main
-      className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
-    >
-      <section className="map-stage" ref={mapStageRef}>
-        <div className="map-floating-top">
-          <MapBrand />
-          <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>
-            <Icon name="map" />
-            <span>{selectedJurisdiction ? `${selectedJurisdiction.name} ›` : '全臺 ›'}</span>
-            <strong>{mapLevelLabel}</strong>
+    <>
+      {/* 桌機才掛：窄畫面地圖用自己的浮動 UI，頁首會跟它重複，CSS 裡直接隱藏。 */}
+      <AppHeader overlay />
+      <main
+        className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
+      >
+        <section className="map-stage" ref={mapStageRef}>
+          <div className="map-floating-top">
+            <MapBrand />
+            <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>
+              <Icon name="map" />
+              <span>{selectedJurisdiction ? `${selectedJurisdiction.name} ›` : '全臺 ›'}</span>
+              <strong>{mapLevelLabel}</strong>
+            </div>
           </div>
-        </div>
 
-        {searchOpen && <SearchBox autoFocus className="map-search" />}
+          {/* 窄畫面才有：這個寬度以上，搜尋與主選單都在浮動頁首上，這一組是重複的。 */}
+          {compactChrome && searchOpen && <SearchBox autoFocus className="map-search" />}
 
-        <div className="map-floating-actions">
-          {/* 地圖是首頁，卻沒有頁首，搜尋是這裡通往 /region 與 /contest 的唯一入口。 */}
-          <button
-            aria-label="搜尋縣市"
-            aria-expanded={searchOpen}
-            className="map-round-button"
-            onClick={() => setSearchOpen((open) => !open)}
-            type="button"
-          >
-            <Icon name={searchOpen ? 'close' : 'search'} />
-          </button>
-          <Link aria-label="選區列表" className="map-round-button stamp" to="/regions">
-            <Icon name="stamp" />
-          </Link>
-          <Link aria-label="我的預測" className="map-round-button" to="/mine">
-            <Icon name="user" />
-          </Link>
-        </div>
+          {compactChrome && (
+            <div className="map-floating-actions">
+              <button
+                aria-label="搜尋縣市"
+                aria-expanded={searchOpen}
+                className="map-round-button"
+                onClick={() => setSearchOpen((open) => !open)}
+                type="button"
+              >
+                <Icon name={searchOpen ? 'close' : 'search'} />
+              </button>
+              <Link aria-label="選區列表" className="map-round-button stamp" to="/regions">
+                <Icon name="stamp" />
+              </Link>
+              <Link aria-label="我的預測" className="map-round-button" to="/mine">
+                <Icon name="user" />
+              </Link>
+            </div>
+          )}
 
-        {/* 取消選取後鏡頭還留在原地，這顆按鈕就是唯一的退路，所以條件看的是
+          {/* 取消選取後鏡頭還留在原地，這顆按鈕就是唯一的退路，所以條件看的是
             「視野還縮在全國視野之內」，不是有沒有選取縣市。 */}
-        {(mapWidth < nationalViewWidth || (detailMode && selectedJurisdiction)) && (
-          <button className="map-back-button" onClick={() => resetMap()} type="button">
-            ‹ 回到全臺
-          </button>
-        )}
-
-        <svg
-          aria-label="臺灣縣市預測地圖"
-          className="taiwan-map-svg"
-          onClick={handleMapBackgroundClick}
-          onDoubleClick={zoomIntoSelection}
-          onPointerCancel={finishMapPan}
-          onPointerDown={handleMapPointerDown}
-          onPointerMove={handleMapPan}
-          onPointerUp={finishMapPan}
-          ref={mapSvgRef}
-          role="img"
-          viewBox={viewBox}
-        >
-          <g className="county-layer">
-            {countyShapes.map((location) => {
-              const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
-              const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
-              const party = getParty(contest.leader);
-              const selected = selectedJurisdiction?.id === jurisdiction.id;
-              return (
-                <path
-                  aria-label={`${jurisdiction.name}，${party.shortName} ${contest.percentage}%`}
-                  className={`taiwan-county ${selected ? 'selected' : ''}`}
-                  data-jurisdiction-id={jurisdiction.id}
-                  d={location.path}
-                  fill={tint(party.color, contest.percentage, selected)}
-                  key={location.id}
-                  onClick={() => {
-                    if (!mapClickAllowed()) return;
-                    selectJurisdictionFromMap(jurisdiction, contest);
-                  }}
-                  ref={(node) => {
-                    pathRefs.current[jurisdiction.id] = node;
-                  }}
-                  role="button"
-                  stroke="#fffdf8"
-                  tabIndex={0}
-                />
-              );
-            })}
-          </g>
-
-          {shouldShowTownshipBoundaryPreview(selectedJurisdiction?.id ?? null, detailMode) && (
-            <g aria-hidden="true" className="township-boundary-preview">
-              {visibleTownships.map(({ township }) => (
-                <path className="taiwan-township-boundary" d={township.path} key={township.id} />
-              ))}
-            </g>
+          {(mapWidth < nationalViewWidth || (detailMode && selectedJurisdiction)) && (
+            <button className="map-back-button" onClick={() => resetMap()} type="button">
+              ‹ 回到全臺
+            </button>
           )}
 
-          {detailMode && selectedJurisdiction && (
-            <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
-              {visibleTownships.map(({ contest, township }) => {
-                const party = contest ? getParty(contest.leader) : null;
-                const selected =
-                  contest !== null &&
-                  (selectedTownshipId === township.id ||
-                    (contest.view === 'COUNCIL' && selectedContest?.id === contest.id));
-                return (
-                  <path
-                    aria-label={
-                      contest && party
-                        ? `${township.countyName}${township.townName}，${party.shortName} ${contest.percentage}%`
-                        : `${township.countyName}${township.townName}，請由村里界線選擇議員選區`
-                    }
-                    className={`taiwan-township ${selected ? 'selected' : ''} ${contest ? '' : 'unresolved'}`}
-                    data-jurisdiction-id={selectedJurisdiction.id}
-                    data-town-code={township.townCode}
-                    d={township.path}
-                    fill={
-                      contest && party ? tint(party.color, contest.percentage, selected) : '#e5e3dd'
-                    }
-                    key={township.id}
-                    onClick={() => {
-                      if (!mapClickAllowed() || !contest) return;
-                      setSelectedTownshipId(township.id);
-                      setSelectedVillageId(null);
-                      setFocusedTownCode(township.townCode);
-                      setSelectedContest(contest);
-                      setInspectorExpanded(false);
-                    }}
-                    role="button"
-                    stroke="#fffdf8"
-                    tabIndex={0}
-                  />
-                );
-              })}
-            </g>
-          )}
-
-          {visibleCouncilVillages.length > 0 && selectedJurisdiction && (
-            <g className={`council-village-layer ${villageMode ? 'faded' : ''}`}>
-              {visibleCouncilVillages.map(({ contest, village }) => {
+          <svg
+            aria-label="臺灣縣市預測地圖"
+            className="taiwan-map-svg"
+            onClick={handleMapBackgroundClick}
+            onDoubleClick={zoomIntoSelection}
+            onPointerCancel={finishMapPan}
+            onPointerDown={handleMapPointerDown}
+            onPointerMove={handleMapPan}
+            onPointerUp={finishMapPan}
+            ref={mapSvgRef}
+            role="img"
+            viewBox={viewBox}
+          >
+            <g className="county-layer">
+              {countyShapes.map((location) => {
+                const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
+                const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
                 const party = getParty(contest.leader);
-                const selected = selectedContest?.id === contest.id;
+                const selected = selectedJurisdiction?.id === jurisdiction.id;
                 return (
                   <path
-                    aria-label={`${village.countyName}${village.townName}${village.villName}，${contest.name}，${party.shortName} ${contest.percentage}%`}
-                    className={`taiwan-township council-village ${selected ? 'selected' : ''}`}
-                    data-council-village="true"
-                    data-jurisdiction-id={selectedJurisdiction.id}
-                    data-town-code={village.townCode}
-                    d={village.path}
+                    aria-label={`${jurisdiction.name}，${party.shortName} ${contest.percentage}%`}
+                    className={`taiwan-county ${selected ? 'selected' : ''}`}
+                    data-jurisdiction-id={jurisdiction.id}
+                    d={location.path}
                     fill={tint(party.color, contest.percentage, selected)}
-                    key={`council-${village.id}`}
+                    key={location.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
-                      setSelectedTownshipId(null);
-                      setSelectedVillageId(null);
-                      setSelectedContest(contest);
-                      setInspectorExpanded(false);
+                      selectJurisdictionFromMap(jurisdiction, contest);
+                    }}
+                    ref={(node) => {
+                      pathRefs.current[jurisdiction.id] = node;
                     }}
                     role="button"
                     stroke="#fffdf8"
@@ -1286,111 +1241,192 @@ export function ElectionHomePage() {
                 );
               })}
             </g>
-          )}
 
-          {shouldShowVillageBoundaryPreview(selectedTownshipId, villageMode) && (
-            <g aria-hidden="true" className="village-boundary-preview">
-              {visibleVillages
-                .filter(({ village }) => village.townCode === focusedTownCode)
-                .map(({ village }) => (
-                  <path className="taiwan-village-boundary" d={village.path} key={village.id} />
+            {shouldShowTownshipBoundaryPreview(selectedJurisdiction?.id ?? null, detailMode) && (
+              <g aria-hidden="true" className="township-boundary-preview">
+                {visibleTownships.map(({ township }) => (
+                  <path className="taiwan-township-boundary" d={township.path} key={township.id} />
                 ))}
-            </g>
+              </g>
+            )}
+
+            {detailMode && selectedJurisdiction && (
+              <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
+                {visibleTownships.map(({ contest, township }) => {
+                  const party = contest ? getParty(contest.leader) : null;
+                  const selected =
+                    contest !== null &&
+                    (selectedTownshipId === township.id ||
+                      (contest.view === 'COUNCIL' && selectedContest?.id === contest.id));
+                  return (
+                    <path
+                      aria-label={
+                        contest && party
+                          ? `${township.countyName}${township.townName}，${party.shortName} ${contest.percentage}%`
+                          : `${township.countyName}${township.townName}，請由村里界線選擇議員選區`
+                      }
+                      className={`taiwan-township ${selected ? 'selected' : ''} ${contest ? '' : 'unresolved'}`}
+                      data-jurisdiction-id={selectedJurisdiction.id}
+                      data-town-code={township.townCode}
+                      d={township.path}
+                      fill={
+                        contest && party
+                          ? tint(party.color, contest.percentage, selected)
+                          : '#e5e3dd'
+                      }
+                      key={township.id}
+                      onClick={() => {
+                        if (!mapClickAllowed() || !contest) return;
+                        setSelectedTownshipId(township.id);
+                        setSelectedVillageId(null);
+                        setFocusedTownCode(township.townCode);
+                        setSelectedContest(contest);
+                        setInspectorExpanded(false);
+                      }}
+                      role="button"
+                      stroke="#fffdf8"
+                      tabIndex={0}
+                    />
+                  );
+                })}
+              </g>
+            )}
+
+            {visibleCouncilVillages.length > 0 && selectedJurisdiction && (
+              <g className={`council-village-layer ${villageMode ? 'faded' : ''}`}>
+                {visibleCouncilVillages.map(({ contest, village }) => {
+                  const party = getParty(contest.leader);
+                  const selected = selectedContest?.id === contest.id;
+                  return (
+                    <path
+                      aria-label={`${village.countyName}${village.townName}${village.villName}，${contest.name}，${party.shortName} ${contest.percentage}%`}
+                      className={`taiwan-township council-village ${selected ? 'selected' : ''}`}
+                      data-council-village="true"
+                      data-jurisdiction-id={selectedJurisdiction.id}
+                      data-town-code={village.townCode}
+                      d={village.path}
+                      fill={tint(party.color, contest.percentage, selected)}
+                      key={`council-${village.id}`}
+                      onClick={() => {
+                        if (!mapClickAllowed()) return;
+                        setSelectedTownshipId(null);
+                        setSelectedVillageId(null);
+                        setSelectedContest(contest);
+                        setInspectorExpanded(false);
+                      }}
+                      role="button"
+                      stroke="#fffdf8"
+                      tabIndex={0}
+                    />
+                  );
+                })}
+              </g>
+            )}
+
+            {shouldShowVillageBoundaryPreview(selectedTownshipId, villageMode) && (
+              <g aria-hidden="true" className="village-boundary-preview">
+                {visibleVillages
+                  .filter(({ village }) => village.townCode === focusedTownCode)
+                  .map(({ village }) => (
+                    <path className="taiwan-village-boundary" d={village.path} key={village.id} />
+                  ))}
+              </g>
+            )}
+
+            {visibleVillages.length > 0 && selectedJurisdiction && (
+              <g className={`village-layer ${villageMode ? '' : 'faded'}`}>
+                {visibleVillages.map(({ contest, village }) => {
+                  const party = getParty(contest.leader);
+                  const name = village.villName || '未編定村里';
+                  const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
+                  const selected = selectedVillageId === village.id;
+                  return (
+                    <path
+                      aria-label={`${village.countyName}${village.townName}${name}，${party.shortName} ${contest.percentage}%`}
+                      className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
+                      data-jurisdiction-id={selectedJurisdiction.id}
+                      data-town-code={village.townCode}
+                      d={village.path}
+                      fill={tint(party.color, contest.percentage, selected)}
+                      key={village.id}
+                      onClick={() => {
+                        if (!mapClickAllowed()) return;
+                        setSelectedVillageId(village.id);
+                        setSelectedTownshipId(null);
+                        setFocusedTownCode(village.townCode);
+                        setSelectedContest(contest);
+                        setInspectorExpanded(false);
+                      }}
+                      role="button"
+                      stroke="#fffdf8"
+                      tabIndex={0}
+                    />
+                  );
+                })}
+              </g>
+            )}
+          </svg>
+
+          {countyShapes.length === 0 && (
+            <div className={`map-data-message ${mapError ? 'error' : ''}`}>
+              {mapError ?? '正在載入官方地圖…'}
+            </div>
           )}
 
-          {visibleVillages.length > 0 && selectedJurisdiction && (
-            <g className={`village-layer ${villageMode ? '' : 'faded'}`}>
-              {visibleVillages.map(({ contest, village }) => {
+          {!detailMode && (
+            <div className="map-island-insets">
+              {islandInsets.map((inset) => {
+                const anchor = insetAnchors[inset.locationId];
+                const location = countyShapes.find((item) => item.id === inset.locationId);
+                if (!anchor || !location) return null;
+                const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
+                const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
                 const party = getParty(contest.leader);
-                const name = village.villName || '未編定村里';
-                const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
-                const selected = selectedVillageId === village.id;
                 return (
-                  <path
-                    aria-label={`${village.countyName}${village.townName}${name}，${party.shortName} ${contest.percentage}%`}
-                    className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
-                    data-jurisdiction-id={selectedJurisdiction.id}
-                    data-town-code={village.townCode}
-                    d={village.path}
-                    fill={tint(party.color, contest.percentage, selected)}
-                    key={village.id}
-                    onClick={() => {
-                      if (!mapClickAllowed()) return;
-                      setSelectedVillageId(village.id);
-                      setSelectedTownshipId(null);
-                      setFocusedTownCode(village.townCode);
-                      setSelectedContest(contest);
-                      setInspectorExpanded(false);
-                    }}
-                    role="button"
-                    stroke="#fffdf8"
-                    tabIndex={0}
-                  />
+                  <button
+                    key={inset.locationId}
+                    onClick={() => selectJurisdictionFromMap(jurisdiction, contest)}
+                    style={{ left: anchor.left, top: anchor.top }}
+                    type="button"
+                  >
+                    <i style={{ background: party.color }} />
+                    <span>{inset.label}</span>
+                  </button>
                 );
               })}
-            </g>
+            </div>
           )}
-        </svg>
+        </section>
 
-        {countyShapes.length === 0 && (
-          <div className={`map-data-message ${mapError ? 'error' : ''}`}>
-            {mapError ?? '正在載入官方地圖…'}
-          </div>
-        )}
-
-        {!detailMode && (
-          <div className="map-island-insets">
-            {islandInsets.map((inset) => {
-              const anchor = insetAnchors[inset.locationId];
-              const location = countyShapes.find((item) => item.id === inset.locationId);
-              if (!anchor || !location) return null;
-              const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
-              const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
-              const party = getParty(contest.leader);
-              return (
-                <button
-                  key={inset.locationId}
-                  onClick={() => selectJurisdictionFromMap(jurisdiction, contest)}
-                  style={{ left: anchor.left, top: anchor.top }}
-                  type="button"
-                >
-                  <i style={{ background: party.color }} />
-                  <span>{inset.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {selectedJurisdiction &&
-        activeContest &&
-        shouldShowMapInspector(selectedJurisdiction.id, activeContest) && (
-          <MapInspector
-            contest={activeContest}
-            contestOptions={activeContestOptions}
-            expanded={inspectorExpanded}
-            jurisdiction={selectedJurisdiction}
-            myForecast={myForecasts[activeContest.id]}
-            onBackToResult={() => setForecastOpen(false)}
-            onClose={() => {
-              setForecastOpen(false);
-              resetMap();
-            }}
-            onContestChange={(contest) => {
-              setForecastOpen(false);
-              setSelectedContest(contest);
-            }}
-            onExpandedChange={setInspectorExpanded}
-            onForecast={() => setForecastOpen(true)}
-            onSubmitted={(picked) => {
-              setMyForecasts((current) => ({ ...current, [activeContest.id]: picked }));
-              setForecastOpen(false);
-              setInspectorExpanded(true);
-            }}
-            showForm={forecastOpen}
-          />
-        )}
-    </main>
+        {selectedJurisdiction &&
+          activeContest &&
+          shouldShowMapInspector(selectedJurisdiction.id, activeContest) && (
+            <MapInspector
+              contest={activeContest}
+              contestOptions={activeContestOptions}
+              expanded={inspectorExpanded}
+              jurisdiction={selectedJurisdiction}
+              myForecast={myForecasts[activeContest.id]}
+              onBackToResult={() => setForecastOpen(false)}
+              onClose={() => {
+                setForecastOpen(false);
+                resetMap();
+              }}
+              onContestChange={(contest) => {
+                setForecastOpen(false);
+                setSelectedContest(contest);
+              }}
+              onExpandedChange={setInspectorExpanded}
+              onForecast={() => setForecastOpen(true)}
+              onSubmitted={(picked) => {
+                setMyForecasts((current) => ({ ...current, [activeContest.id]: picked }));
+                setForecastOpen(false);
+                setInspectorExpanded(true);
+              }}
+              showForm={forecastOpen}
+            />
+          )}
+      </main>
+    </>
   );
 }
