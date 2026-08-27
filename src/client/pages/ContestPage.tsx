@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { type Contest, findContest } from '../mock-election';
+import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
+import { type Contest, type Jurisdiction, findContest } from '../mock-election';
+
+type ResolvedContest = { contest: Contest; jurisdiction: Jurisdiction };
 import {
   Breadcrumbs,
   CandidateList,
@@ -124,12 +127,48 @@ function CommentsPanel() {
   );
 }
 
+// 圖資產生的選舉（鄉鎮市長、村里長）id 長 town-10002010-TOWNSHIP，靜態清單裡
+// 沒有，要照 id 帶的縣市碼把該縣市的圖層載回來。其他選舉照舊同步解出來。
+function useResolvedContest(contestId?: string) {
+  const isShapeContest = !!contestId && !!parseShapeContestId(contestId);
+  const [loaded, setLoaded] = useState<{ id: string; resolved: ResolvedContest | null } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!contestId || !parseShapeContestId(contestId)) return;
+    let active = true;
+    void resolveShapeContest(contestId).then((resolved) => {
+      if (active) setLoaded({ id: contestId, resolved });
+    });
+    return () => {
+      active = false;
+    };
+  }, [contestId]);
+
+  if (!isShapeContest) return findContest(contestId);
+  // 比對 id 而不是在 effect 裡先清空：換選區的當下自然就是「載入中」。
+  return loaded?.id === contestId ? loaded.resolved : null;
+}
+
 export function ContestPage() {
   const { contestId } = useParams();
-  const { contest, jurisdiction } = findContest(contestId);
+  const resolved = useResolvedContest(contestId);
   const [activeTab, setActiveTab] = useState<'results' | 'trend' | 'comments'>('results');
   const [forecastOpen, setForecastOpen] = useState(false);
   const [message, setMessage] = useState('');
+
+  // 鄉鎮市長與村里長是從圖資產生的，不在 mock-election 的靜態清單裡，要先載回來。
+  if (!resolved)
+    return (
+      <PageShell>
+        <main className="page contest-page">
+          <p className="view-note">載入選區資料…</p>
+        </main>
+      </PageShell>
+    );
+
+  const { contest, jurisdiction } = resolved;
   return (
     <PageShell>
       <main className="page contest-page">

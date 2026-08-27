@@ -242,15 +242,6 @@ export const jurisdictions: Jurisdiction[] = [
   },
 ];
 
-const viewSettings: Record<
-  Exclude<ElectionView, 'EXECUTIVE' | 'COUNCIL'>,
-  { count: number; seats: number; noun: string }
-> = {
-  TOWNSHIP: { count: 5, seats: 1, noun: '鄉鎮市長' },
-  REPRESENTATIVE: { count: 5, seats: 5, noun: '代表' },
-  VILLAGE: { count: 8, seats: 1, noun: '村里長' },
-};
-
 export function getParty(id: PartyId) {
   return parties.find((party) => party.id === id) ?? parties[3];
 }
@@ -293,21 +284,11 @@ export function getContests(jurisdiction: Jurisdiction, view: ElectionView): Con
     });
   }
 
-  const setting = viewSettings[view];
-  return Array.from({ length: setting.count }, (_, index) => {
-    const party = parties[(jurisdictions.indexOf(jurisdiction) + index) % parties.length];
-    return {
-      id: `${jurisdiction.id}-${view}-${index + 1}`,
-      jurisdictionId: jurisdiction.id,
-      name: `${setting.noun}第 ${index + 1} 選舉區`,
-      area: `示意範圍 ${String.fromCharCode(65 + index)}、${String.fromCharCode(66 + index)}`,
-      seatCount: setting.seats === 1 ? 1 : Math.max(2, setting.seats + ((index % 3) - 1)),
-      view,
-      leader: party.id,
-      percentage: 34 + ((index * 3 + jurisdiction.forecasts) % 16),
-      forecasts: 186 + ((index * 137 + jurisdiction.forecasts) % 900),
-    };
-  });
+  // 鄉鎮市長、鄉鎮市民代表、村里長不在這裡：中選會的選舉區公告只到議員這一層
+  // （公職人員選舉罷免法第 38 條第 1 項第 1 款），這三者是從圖資產生的，
+  // 見 map-shapes.ts 的 buildTownshipContest／buildRepresentativeContest／
+  // buildVillageContest。這裡回空陣列，才不會有第二套假的選舉區流出去。
+  return [];
 }
 
 export function findContest(contestId?: string) {

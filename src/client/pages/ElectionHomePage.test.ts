@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vite-plus/test';
+import { buildRepresentativeContest } from '../map-shapes';
 import { getContests, getJurisdiction, getMockCandidates } from '../mock-election';
 import {
   getElectionViewsForMapLevel,
@@ -67,8 +68,8 @@ describe('election home map behavior', () => {
       townCode,
       townName,
     });
-    const neihu = getTownshipContestOptions(shape('neihu', '63000100', '內湖區'), taipei, 0)[0];
-    const nangang = getTownshipContestOptions(shape('nangang', '63000090', '南港區'), taipei, 1)[0];
+    const neihu = getTownshipContestOptions(shape('neihu', '63000100', '內湖區'), taipei)[0];
+    const nangang = getTownshipContestOptions(shape('nangang', '63000090', '南港區'), taipei)[0];
 
     expect(neihu.id).toBe(nangang.id);
     expect(neihu.view).toBe('COUNCIL');
@@ -92,12 +93,33 @@ describe('election home map behavior', () => {
   });
 
   it('uses the same candidate selection for township representative contests', () => {
-    const contest = getContests(getJurisdiction('NAN'), 'REPRESENTATIVE')[0];
+    // 代表改成從圖資產生（一鄉鎮市一筆），不再有 mock-election 的佔位選舉區。
+    const contest = buildRepresentativeContest(
+      {
+        id: 'town-10008010',
+        path: '',
+        townCode: '10008010',
+        townName: '南投市',
+        countyName: '南投縣',
+      },
+      getJurisdiction('NAN'),
+    );
     const candidates = getMockCandidates(contest);
 
+    expect(contest.name).toBe('南投市民代表');
+    expect(contest.area).toBe('南投縣南投市代表選區');
     expect(getForecastInputMode(contest, 'party')).toBe('candidate');
     expect(candidates.length).toBeGreaterThan(contest.seatCount);
   });
+
+  // 這三種選舉現在只從圖資產生。留著舊的佔位資料會變成第二套假的選舉區，
+  // 而且 findContest 會讓 /contest/ILA-VILLAGE-1 這種舊連結解出假頁面。
+  it.each(['TOWNSHIP', 'REPRESENTATIVE', 'VILLAGE'] as const)(
+    'no longer invents placeholder districts for %s',
+    (view) => {
+      expect(getContests(getJurisdiction('NAN'), view)).toEqual([]);
+    },
+  );
 
   it('names candidates for single-seat contests instead of bare parties', () => {
     const contest = getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0];
@@ -129,7 +151,7 @@ describe('election home map behavior', () => {
       townName,
     });
     const contestId = (townName: string) =>
-      getTownshipContestOptions(shape(townName), newTaipei, 0)[0]?.id;
+      getTownshipContestOptions(shape(townName), newTaipei)[0]?.id;
 
     expect([contestId('林口區'), contestId('五股區'), contestId('泰山區')]).toEqual([
       'NTP-COUNCIL-2',

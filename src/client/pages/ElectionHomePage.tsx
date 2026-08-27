@@ -2,6 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
+  type TownshipShape,
+  type VillageShape,
+  buildRepresentativeContest,
+  buildTownshipContest,
+  buildVillageContest,
+  jurisdictionToMapLocation,
+  loadMapPaths,
+  loadTownshipShapes,
+  loadVillageShapes,
+  mapLocationToJurisdiction,
+} from '../map-shapes';
+import {
   type Contest,
   type ElectionView,
   type Jurisdiction,
@@ -13,31 +25,6 @@ import {
 } from '../mock-election';
 import { ForecastButton, Icon, SearchBox, usePrototype } from './ElectionPrototypeShared';
 import { type ForecastPick, ForecastForm, getResultRows } from './ForecastSheet';
-
-const mapLocationToJurisdiction: Record<string, string> = {
-  'changhua-county': 'CHA',
-  'chiayi-city': 'CYI',
-  'chiayi-county': 'CYQ',
-  'hualien-county': 'HUA',
-  'hsinchu-city': 'HSZ',
-  'hsinchu-county': 'HSQ',
-  'kaohsiung-city': 'KHH',
-  'keelung-city': 'KEE',
-  'kinmen-county': 'KIN',
-  'lienchiang-county': 'LIE',
-  'miaoli-county': 'MIA',
-  'nantou-county': 'NAN',
-  'new-taipei-city': 'NTP',
-  'penghu-county': 'PEN',
-  'pingtung-county': 'PIF',
-  'taichung-city': 'TXG',
-  'tainan-city': 'TNN',
-  'taipei-city': 'TPE',
-  'taitung-county': 'TTT',
-  'taoyuan-city': 'TAO',
-  'yilan-county': 'ILA',
-  'yunlin-county': 'YUN',
-};
 
 type MapBounds = { x: number; y: number; width: number; height: number };
 type MapPanState = MapBounds & {
@@ -58,22 +45,7 @@ type MapPinchState = {
   screenY: number;
 };
 type CountyShape = { id: string; name: string; path: string };
-export type TownshipShape = {
-  id: string;
-  path: string;
-  townCode: string;
-  townName: string;
-  countyName: string;
-};
-export type VillageShape = TownshipShape & { villCode: string; villName: string };
 type CountyLayer<Shape> = { locationId: string; shapes: Shape[] };
-
-const jurisdictionToMapLocation: Record<string, string> = Object.fromEntries(
-  Object.entries(mapLocationToJurisdiction).map(([locationId, jurisdictionId]) => [
-    jurisdictionId,
-    locationId,
-  ]),
-);
 
 // 開場就把整張畫布放進來：臺灣本島在 x 184–836，澎湖、金門、馬祖在圖資裡是
 // 投影在左側 x 18–158 那一欄，寬度要涵蓋兩邊才會一起出現。
@@ -229,13 +201,6 @@ function clampToWorld(value: number, start: number, span: number, size: number) 
   return Math.min(end, Math.max(start, value));
 }
 
-async function loadMapPaths(url: string, selector: string) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('地圖資料載入失敗');
-  const document = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
-  return [...document.querySelectorAll<SVGPathElement>(selector)];
-}
-
 async function loadCountyShapes() {
   const paths = await loadMapPaths('/maps/taiwan-counties.svg', 'path.county');
   const counties = paths.map((path) => ({
@@ -245,68 +210,6 @@ async function loadCountyShapes() {
   }));
   if (counties.length !== 22) throw new Error('地圖資料不完整');
   return counties;
-}
-
-// 鄉鎮市區與村里都按縣市切檔，點到哪個縣市才載入哪一份；靜態圖資不會變動，
-// 所以用 module 層的 cache 保留已載入的 promise。
-const countyLayerCache = new Map<string, Promise<TownshipShape[] | VillageShape[]>>();
-
-function loadTownshipShapes(locationId: string): Promise<TownshipShape[]> {
-  const url = `/maps/townships/${locationId}.svg`;
-  const cached = countyLayerCache.get(url) as Promise<TownshipShape[]> | undefined;
-  if (cached) return cached;
-
-  const pending = loadMapPaths(url, 'path.township').then((paths) =>
-    paths.map((path) => ({
-      id: path.id,
-      path: path.getAttribute('d') ?? '',
-      townCode: path.dataset.townCode ?? '',
-      townName: path.dataset.townName ?? '',
-      countyName: path.dataset.countyName ?? '',
-    })),
-  );
-  pending.catch(() => countyLayerCache.delete(url));
-  countyLayerCache.set(url, pending);
-  return pending;
-}
-
-function loadVillageShapes(locationId: string): Promise<VillageShape[]> {
-  const url = `/maps/villages/${locationId}.svg`;
-  const cached = countyLayerCache.get(url) as Promise<VillageShape[]> | undefined;
-  if (cached) return cached;
-
-  const pending = loadMapPaths(url, 'path.village').then((paths) =>
-    paths.map((path) => ({
-      id: path.id,
-      path: path.getAttribute('d') ?? '',
-      townCode: path.dataset.townCode ?? '',
-      townName: path.dataset.townName ?? '',
-      countyName: path.dataset.countyName ?? '',
-      villCode: path.dataset.villCode ?? '',
-      villName: path.dataset.villName ?? '',
-    })),
-  );
-  pending.catch(() => countyLayerCache.delete(url));
-  countyLayerCache.set(url, pending);
-  return pending;
-}
-
-function getShapeSeed(value: string) {
-  return value
-    .split('')
-    .reduce(
-      (total, character) => total + (Number.isNaN(Number(character)) ? 7 : Number(character)),
-      0,
-    );
-}
-
-function getShapeResult(jurisdiction: Jurisdiction, seed: number) {
-  const challengers: Contest['leader'][] = ['KMT', 'DPP', 'TPP', 'IND'];
-  return {
-    forecasts: 80 + ((seed * 47) % 720),
-    leader: seed % 5 < 3 ? jurisdiction.leader : challengers[seed % challengers.length],
-    percentage: 36 + (seed % 18),
-  };
 }
 
 function getCouncilContestForTownship(
@@ -331,50 +234,18 @@ function getCouncilContestForVillage(village: VillageShape, jurisdiction: Jurisd
 function getTownshipContest(
   township: TownshipShape,
   jurisdiction: Jurisdiction,
-  index: number,
   view: ElectionView,
 ): Contest | null {
   if (view === 'COUNCIL') return getCouncilContestForTownship(township, jurisdiction);
-
-  const seed = getShapeSeed(township.townCode);
-  const result = getShapeResult(jurisdiction, seed);
-  const representative = view === 'REPRESENTATIVE';
-  const representativeContests = representative ? getContests(jurisdiction, 'REPRESENTATIVE') : [];
-  const representativeTemplate = representativeContests[index % representativeContests.length];
-  return {
-    id: `${township.id}-${view}`,
-    jurisdictionId: jurisdiction.id,
-    name: representative ? `${township.townName}民代表` : `${township.townName}長`,
-    area: `${jurisdiction.name}${township.townName}${representative ? '代表選區' : '全境'}`,
-    seatCount: representativeTemplate?.seatCount ?? 1,
-    view,
-    ...result,
-  };
+  // 鄉鎮市長、代表都跟 /region 列表頁共用同一份產生規則，兩邊名稱與 id 才一致。
+  if (view === 'TOWNSHIP') return buildTownshipContest(township, jurisdiction);
+  return buildRepresentativeContest(township, jurisdiction);
 }
 
-export function getTownshipContestOptions(
-  township: TownshipShape,
-  jurisdiction: Jurisdiction,
-  index: number,
-) {
+export function getTownshipContestOptions(township: TownshipShape, jurisdiction: Jurisdiction) {
   return getElectionViewsForMapLevel(jurisdiction, 'township')
-    .map((view) => getTownshipContest(township, jurisdiction, index, view))
+    .map((view) => getTownshipContest(township, jurisdiction, view))
     .filter((contest): contest is Contest => contest !== null);
-}
-
-function getVillageContest(village: VillageShape, jurisdiction: Jurisdiction): Contest {
-  // 未編定村里的 VILLCODE 夾雜英文字母（例如 09007010S31），非數字一律當 7。
-  const seed = getShapeSeed(village.villCode);
-  const name = village.villName || '未編定村里';
-  return {
-    id: `${village.id}-VILLAGE`,
-    jurisdictionId: jurisdiction.id,
-    name: `${village.townName}${name}長`,
-    area: `${jurisdiction.name}${village.townName}${name}全境`,
-    seatCount: 1,
-    view: 'VILLAGE',
-    ...getShapeResult(jurisdiction, seed),
-  };
 }
 
 // selected 的加深直接算進 fill，不用 CSS filter：Safari（含 iOS）對 inline SVG
@@ -787,8 +658,8 @@ export function ElectionHomePage() {
 
   const visibleTownships = useMemo(() => {
     if (!selectedJurisdiction || townshipLayer?.locationId !== selectedLocationId) return [];
-    return townshipLayer.shapes.map((township, index) => {
-      const options = getTownshipContestOptions(township, selectedJurisdiction, index);
+    return townshipLayer.shapes.map((township) => {
+      const options = getTownshipContestOptions(township, selectedJurisdiction);
       return {
         contest: options.find((contest) => contest.view === activeTownshipView) ?? null,
         options,
@@ -802,7 +673,7 @@ export function ElectionHomePage() {
     if (!selectedJurisdiction || !villageNeeded) return [];
     if (villageLayer?.locationId !== selectedLocationId) return [];
     return villageLayer.shapes.map((village) => ({
-      contest: getVillageContest(village, selectedJurisdiction),
+      contest: buildVillageContest(village, selectedJurisdiction),
       village,
     }));
   }, [selectedJurisdiction, selectedLocationId, villageLayer, villageNeeded]);

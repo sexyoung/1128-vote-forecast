@@ -71,7 +71,7 @@ export function RegionsPage() {
           <strong>全國</strong>
         </nav>
         <section className="page-heading">
-          <h1>全國選情</h1>
+          <h1>全國預測</h1>
           <span className="page-tag">{orderedJurisdictions.length} 個縣市</span>
           <span className="page-stat">
             <strong>{total.toLocaleString()}</strong> 份預測

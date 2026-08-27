@@ -138,24 +138,37 @@ function AppHeader() {
 
       <SearchBox />
 
-      <nav className="header-actions" aria-label="個人功能">
-        <Link className="text-action" to="/mine">
-          <Icon name="vote" />
-          我的預測
-        </Link>
-        <Link className="button button-glass button-small" to="/mine#account">
-          <Icon name="user" />
-          登入
-        </Link>
-      </nav>
+      {/* 登入／建立帳號集中在 /mine 的帳號卡，頁首只留去處，不放轉換動作。 */}
+      <HeaderNav />
     </header>
+  );
+}
+
+// 桌機的主選單，跟手機底部選單同一組去處。地圖頁自己有浮動按鈕，不吃這個頁首。
+export function HeaderNav() {
+  return (
+    <nav className="header-nav" aria-label="主選單">
+      <NavLink end to="/">
+        <Icon name="map" />
+        地圖
+      </NavLink>
+      <NavLink to="/regions">
+        <Icon name="stamp" />
+        選區
+      </NavLink>
+      <NavLink to="/mine">
+        <Icon name="vote" />
+        我的
+      </NavLink>
+    </nav>
   );
 }
 
 function MobileNav() {
   return (
     <nav className="mobile-nav" aria-label="手機主選單">
-      <NavLink to="/">
+      {/* end：沒有它的話 "/" 會匹配每一條路由，「地圖」就永遠是選取狀態。 */}
+      <NavLink end to="/">
         <Icon name="map" />
         <span>地圖</span>
       </NavLink>
@@ -166,10 +179,6 @@ function MobileNav() {
       <NavLink to="/mine">
         <Icon name="vote" />
         <span>我的</span>
-      </NavLink>
-      <NavLink to="/mine#account">
-        <Icon name="user" />
-        <span>帳號</span>
       </NavLink>
     </nav>
   );
@@ -188,24 +197,29 @@ export function PageShell({ children, header }: { children: ReactNode; header?: 
 export function ElectionTabs({
   value,
   onChange,
+  // 沒給就全部列出。直轄市與市沒有鄉鎮市長、代表選舉，那兩個分頁不該出現。
+  available = () => true,
 }: {
   value: ElectionView;
   onChange: (value: ElectionView) => void;
+  available?: (view: ElectionView) => boolean;
 }) {
   return (
     <div className="election-tabs" role="tablist" aria-label="選舉種類">
-      {electionViews.map((item) => (
-        <button
-          aria-selected={value === item.id}
-          className={value === item.id ? 'active' : ''}
-          key={item.id}
-          onClick={() => onChange(item.id)}
-          role="tab"
-          type="button"
-        >
-          {item.label}
-        </button>
-      ))}
+      {electionViews
+        .filter((item) => available(item.id))
+        .map((item) => (
+          <button
+            aria-selected={value === item.id}
+            className={value === item.id ? 'active' : ''}
+            key={item.id}
+            onClick={() => onChange(item.id)}
+            role="tab"
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
       <button className="indigenous-tab" type="button">
         原住民選區 <span>獨立圖層</span>
       </button>
