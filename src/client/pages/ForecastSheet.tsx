@@ -154,7 +154,7 @@ export function ForecastForm({
   const singleSeat = contest.seatCount === 1;
   // 修改預測時先勾回上次送出的那幾位。
   const [picks, setPicks] = useState<string[]>(() => (picked ?? []).map(({ id }) => id));
-  const isValid = picks.length === contest.seatCount;
+  const isValid = picks.length > 0;
 
   function toggle(id: string) {
     setPicks((current) =>
@@ -181,7 +181,7 @@ export function ForecastForm({
   return (
     <>
       <div className="forecast-body">
-        <h3>{singleSeat ? '你認為誰會勝出？' : `預測 ${contest.seatCount} 個當選席次`}</h3>
+        <h3>{singleSeat ? '你認為誰會勝出？' : `最多預測 ${contest.seatCount} 個當選席次`}</h3>
         <p className={`forecast-counter ${isValid ? 'done' : ''}`}>
           {isValid && <Icon name="check" />}
           {singleSeat
@@ -258,11 +258,7 @@ export function ForecastForm({
           onClick={submit}
           type="button"
         >
-          {isValid
-            ? '確認送出'
-            : singleSeat
-              ? '請先選擇一項'
-              : `還要再選 ${contest.seatCount - picks.length} 位`}
+          {isValid ? '確認送出' : singleSeat ? '請先選擇一項' : '請至少選擇一位'}
           {isValid && <Icon name="chevron" />}
         </button>
       </footer>
