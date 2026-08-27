@@ -10,7 +10,7 @@ import {
   shouldShowTownshipBoundaryPreview,
   shouldShowVillageBoundaryPreview,
 } from './ElectionHomePage';
-import { getForecastInputMode } from './ForecastSheet';
+import { getForecastInputMode, getResultRows } from './ForecastSheet';
 
 describe('election home map behavior', () => {
   it.each(['PEN', 'KIN', 'LIE'])('immediately focuses offshore jurisdiction %s', (id) => {
@@ -99,9 +99,24 @@ describe('election home map behavior', () => {
     expect(candidates.length).toBeGreaterThan(contest.seatCount);
   });
 
-  it('preserves party selection for single-seat contests without official candidates', () => {
+  it('names candidates for single-seat contests instead of bare parties', () => {
     const contest = getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0];
-    expect(getForecastInputMode(contest, 'party')).toBe('party');
+
+    expect(contest.seatCount).toBe(1);
+    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
+    expect(getResultRows(contest, 'party')[0].label).toBe('國民黨候選人');
+  });
+
+  it('fields exactly one candidate per party in single-seat contests', () => {
+    const candidates = getMockCandidates(getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0]);
+
+    expect(candidates.map(({ name }) => name)).toEqual([
+      '國民黨候選人',
+      '民進黨候選人',
+      '民眾黨候選人',
+      '無黨籍候選人',
+    ]);
+    expect(new Set(candidates.map(({ partyId }) => partyId)).size).toBe(candidates.length);
   });
 
   it('highlights only the official New Taipei district 2 membership', () => {

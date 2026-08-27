@@ -132,6 +132,14 @@ export function shouldImmediatelyFocusJurisdiction(jurisdictionId: string) {
   return islandInsets.some((inset) => inset.jurisdictionId === jurisdictionId);
 }
 
+// 與 styles.css 的 @media (max-width: 720px) 同一個斷點：這個寬度以下預測面板
+// 是底部抽屜，地圖只剩上半塊可用。
+const drawerLayoutQuery = '(max-width: 720px)';
+
+function isDrawerLayout() {
+  return typeof window !== 'undefined' && window.matchMedia(drawerLayoutQuery).matches;
+}
+
 export function shouldShowTownshipBoundaryPreview(
   jurisdictionId: string | null,
   detailMode: boolean,
@@ -452,20 +460,17 @@ function MapInspector({
     );
 
   return (
-    <aside
-      className={`map-inspector ${expanded ? 'expanded' : ''} ${
-        contestOptions.length > 1 ? 'has-switch' : ''
-      }`}
-    >
-      <button
-        aria-label={expanded ? '收合資訊' : '展開資訊'}
-        className="map-sheet-handle"
-        onClick={() => onExpandedChange(!expanded)}
-        type="button"
-      >
-        <i />
-      </button>
+    <aside className={`map-inspector ${expanded ? 'expanded' : ''}`}>
       <header>
+        {/* 手機展開後是滿版，地圖整個被蓋住，所以左上角要有退路。它只把面板收回
+            成一列，選取的區域與鏡頭都留著。桌機不顯示。 */}
+        <button
+          className="map-inspector-dismiss"
+          onClick={() => onExpandedChange(false)}
+          type="button"
+        >
+          ‹ 返回
+        </button>
         <div>
           <span>{jurisdiction.name}</span>
           <h2>{contest.name}</h2>
@@ -500,16 +505,25 @@ function MapInspector({
           ))}
         </div>
       )}
-      {/* 收合的手機抽屜專用摘要，桌機與展開後都不顯示。 */}
-      <div className={`map-peek ${lowSample ? 'low' : ''}`}>
+      {/* 收合的手機抽屜專用摘要：左邊職稱、右邊領先者與百分比，整列就是抽屜的
+          全部內容。整列都可按，但右端放一顆看得懂的「看更多」，讓人知道是用按的
+          ——手把那種橫條會讓人以為要用拖的。桌機與展開後都不顯示。 */}
+      <button
+        aria-expanded={expanded}
+        className={`map-peek ${lowSample ? 'low' : ''}`}
+        onClick={() => onExpandedChange(true)}
+        type="button"
+      >
+        <strong>{contest.name}</strong>
         <span>
           <i style={{ background: leader.color }} />
-          {lowSample ? '預測份數還很少' : `${leader.label}領先`}
+          {lowSample ? '預測份數還很少' : leader.label}
         </span>
         <b style={lowSample ? undefined : { color: leader.color }}>
           {lowSample ? `${contest.forecasts.toLocaleString()} 份` : `${leader.value}%`}
         </b>
-      </div>
+        <em>看更多 ›</em>
+      </button>
       {myForecast && (
         <div className="map-my-forecast">
           <i>
@@ -544,8 +558,8 @@ function MapInspector({
               <i style={{ background: leader.color }} />
               {leader.label}
             </span>
-            <b style={{ color: leader.color }}>{leader.value}%</b>
             <small>目前領先 · {countOf(leader.value)} 份</small>
+            <b style={{ color: leader.color }}>{leader.value}%</b>
           </div>
         )}
         <div className="map-result-list">
@@ -555,8 +569,8 @@ function MapInspector({
                 <i style={{ background: row.color }} />
                 {row.label}
               </span>
-              <b>{lowSample ? countOf(row.value) : `${row.value}%`}</b>
               <small>{lowSample ? `${row.value}%` : `${countOf(row.value)} 份`}</small>
+              <b>{lowSample ? countOf(row.value) : `${row.value}%`}</b>
             </div>
           ))}
         </div>
@@ -1204,6 +1218,12 @@ export function ElectionHomePage() {
   // 免得在村里層誤觸就被丟回全國視野。
   function handleMapBackgroundClick(event: React.MouseEvent<SVGSVGElement>) {
     if (event.target !== event.currentTarget || !mapClickAllowed()) return;
+    // 手機一次清乾淨，但鏡頭留在原地：放大到某個縣市是使用者花力氣做的，誤觸
+    // 海面不該把它丟掉。要退回全國視野走「‹ 回到全臺」按鈕，那是明確的操作。
+    if (isDrawerLayout()) {
+      if (selectedJurisdiction || selectedContest) clearMapSelection();
+      return;
+    }
     if (selectedContest) {
       setSelectedContest(null);
       setSelectedTownshipId(null);
@@ -1218,21 +1238,28 @@ export function ElectionHomePage() {
     return !suppressClickRef.current && !multiTouchRef.current;
   }
 
-  // 回到「看得到所有縣市」的視野就一併取消選取，不留著上一個縣市。
-  function resetMap() {
-    cancelMapFocusAnimation();
-    setViewBox(initialMapViewBox);
+  // 只清選取狀態，不動 viewBox。detailMode 一起關掉：鄉鎮市區層本來就要有選取
+  // 的縣市才畫得出來，留著只會是個沒有內容的層級。
+  function clearMapSelection() {
     setDetailMode(false);
     setSelectedJurisdiction(null);
     setSelectedTownshipId(null);
     setSelectedVillageId(null);
     setSelectedContest(null);
+    setInspectorExpanded(false);
     clearTownshipFocus();
+  }
+
+  // 回到「看得到所有縣市」的視野就一併取消選取，不留著上一個縣市。
+  function resetMap() {
+    cancelMapFocusAnimation();
+    setViewBox(initialMapViewBox);
+    clearMapSelection();
   }
 
   return (
     <main
-      className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''}`}
+      className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
     >
       <section className="map-stage" ref={mapStageRef}>
         <div className="map-floating-top">
@@ -1253,7 +1280,9 @@ export function ElectionHomePage() {
           </Link>
         </div>
 
-        {detailMode && selectedJurisdiction && (
+        {/* 取消選取後鏡頭還留在原地，這顆按鈕就是唯一的退路，所以條件看的是
+            「視野還縮在全國視野之內」，不是有沒有選取縣市。 */}
+        {(mapWidth < nationalViewWidth || (detailMode && selectedJurisdiction)) && (
           <button className="map-back-button" onClick={() => resetMap()} type="button">
             ‹ 回到全臺
           </button>

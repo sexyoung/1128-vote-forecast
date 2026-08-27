@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { type Contest, getMockCandidates, getParty, parties } from '../mock-election';
 import { type CandidatePhase, Icon, usePrototype } from './ElectionPrototypeShared';
 
+// 結果列跟表單用同一套判斷：面板寫著候選人、表單卻要人選政黨（或反過來）會很錯亂。
 export function getResultRows(contest: Contest, phase: CandidatePhase) {
   const orderedParties = [
     getParty(contest.leader),
@@ -10,7 +11,7 @@ export function getResultRows(contest: Contest, phase: CandidatePhase) {
   const remaining = 100 - contest.percentage;
   const values = [contest.percentage, Math.round(remaining * 0.48), Math.round(remaining * 0.32)];
   values.push(100 - values.reduce((total, value) => total + value, 0));
-  if (phase === 'party')
+  if (getForecastInputMode(contest, phase) === 'party')
     return orderedParties.map((party, index) => ({
       id: party.id,
       label: party.shortName,
@@ -32,8 +33,11 @@ export function getResultRows(contest: Contest, phase: CandidatePhase) {
     });
 }
 
+// 正式候選人名單公告前就先用（黨籍示意）候選人而不是政黨的選舉。
+// 只有一席的選舉（縣市長、鄉鎮市長、村里長）也算：那種選舉大家記得的是人，
+// 面板只寫「民進黨 52%」等於沒說到重點。
 function usesPreAnnouncementCandidateSelection(contest: Contest) {
-  return contest.view === 'COUNCIL' || contest.view === 'REPRESENTATIVE';
+  return contest.view === 'COUNCIL' || contest.view === 'REPRESENTATIVE' || contest.seatCount === 1;
 }
 
 export function getForecastInputMode(contest: Contest, phase: CandidatePhase) {
@@ -138,6 +142,8 @@ export function ForecastForm({
 }) {
   const { phase } = usePrototype();
   const options = getForecastOptions(contest, phase);
+  // 目前的預測佔比，鋪在每一列底下當淡淡的進度條。結果列只算前四名，其餘就是 0。
+  const shares = new Map(getResultRows(contest, phase).map((row) => [row.id, row.value]));
   const byNumber = getForecastInputMode(contest, phase) === 'candidate';
   const singleSeat = contest.seatCount === 1;
   const [picks, setPicks] = useState<string[]>([]);
@@ -176,7 +182,7 @@ export function ForecastForm({
         </p>
         <p className="forecast-notice">
           <i />
-          {usesPreAnnouncementCandidateSelection(contest)
+          {usesPreAnnouncementCandidateSelection(contest) && phase === 'party'
             ? '正式候選人名單尚未公告，以下為黨籍示意候選人。'
             : byNumber
               ? '官方候選人名單已匯入。'
@@ -190,9 +196,13 @@ export function ForecastForm({
                 className={selected ? 'selected' : ''}
                 key={option.id}
                 style={
-                  selected
-                    ? { background: tintChoice(option.color), borderColor: option.color }
-                    : undefined
+                  {
+                    ...(selected
+                      ? { background: tintChoice(option.color), borderColor: option.color }
+                      : null),
+                    '--share': `${shares.get(option.id) ?? 0}%`,
+                    '--share-color': option.color,
+                  } as CSSProperties
                 }
               >
                 <input
@@ -220,8 +230,10 @@ export function ForecastForm({
                     {option.sub}
                   </small>
                 </span>
-                <b className="forecast-tick" style={{ background: option.color }}>
-                  <Icon name="check" />
+                {/* 右邊的投票格：平常是空白的格子，選取後才蓋上圈選章。章一律紅色，
+                    真的選票就是這樣，不跟著黨色跑。 */}
+                <b className="forecast-tick">
+                  <Icon name="stamp" />
                 </b>
               </label>
             );

@@ -321,16 +321,20 @@ export function findContest(contestId?: string) {
 }
 
 export function getMockCandidates(contest: Contest) {
-  const candidateCount = Math.max(4, contest.seatCount + 4);
   const partyOrder: PartyId[] = ['KMT', 'DPP', 'TPP', 'IND'];
+  // 只有一席的選舉（縣市長、鄉鎮市長、村里長）每個政黨只會推一個人，名單就是
+  // 四個政黨各一位，也不必編號；多席次才會出現同黨多人。
+  const singleSeat = contest.seatCount === 1;
+  const candidateCount = singleSeat ? partyOrder.length : Math.max(4, contest.seatCount + 4);
   const partyCounts: Record<PartyId, number> = { KMT: 0, DPP: 0, TPP: 0, IND: 0 };
 
   return Array.from({ length: candidateCount }, (_, index) => {
     const partyId = partyOrder[index % partyOrder.length];
+    const shortName = getParty(partyId).shortName;
     partyCounts[partyId] += 1;
     return {
       id: `${contest.id}-CANDIDATE-${index + 1}`,
-      name: `${getParty(partyId).shortName}候選人 ${partyCounts[partyId]}`,
+      name: singleSeat ? `${shortName}候選人` : `${shortName}候選人 ${partyCounts[partyId]}`,
       partyId,
       number: index + 1,
     };

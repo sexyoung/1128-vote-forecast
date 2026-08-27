@@ -41,7 +41,17 @@ export function usePrototype() {
 export function Icon({
   name,
 }: {
-  name: 'map' | 'search' | 'user' | 'spark' | 'chevron' | 'close' | 'vote' | 'check' | 'back';
+  name:
+    | 'map'
+    | 'search'
+    | 'user'
+    | 'spark'
+    | 'chevron'
+    | 'close'
+    | 'vote'
+    | 'stamp'
+    | 'check'
+    | 'back';
 }) {
   const paths = {
     map: <path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2V6Zm5-2v13m8-10v13" />,
@@ -53,6 +63,13 @@ export function Icon({
     chevron: <path d="m9 18 6-6-6-6" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     vote: <path d="M5 10h14l2 4v7H3v-7l2-4Zm2-7h10v7H7V3Zm2 3 2 2 4-4" />,
+    // 圈選章蓋出來的記號：圓圈內一豎，再往左下拉一撇。
+    stamp: (
+      <>
+        <circle cx="12" cy="12" r="9.6" />
+        <path d="M12 2.4v19.2m0-9.6-6.8 6.8" />
+      </>
+    ),
     check: <path d="m4 12 5 5L20 6" />,
     back: <path d="m15 18-6-6 6-6" />,
   };

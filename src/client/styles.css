@@ -1524,13 +1524,35 @@ a:focus-visible {
   border-radius: 16px;
   cursor: pointer;
   display: grid;
-  gap: 13px;
+  /* 頭像那格切齊列的左緣，離文字比原本的圓形號次近，間距要再拉開一點。 */
+  gap: 16px;
   grid-template-columns: auto 1fr auto;
-  min-height: 60px;
-  padding: 12px 15px;
+  /* 列高寫死才算得出兩側正方形（頭像、投票格）的邊長：64 ＝ 68 減掉上下各 2 的
+     邊框。左右都不留 padding，兩個方格自己貼齊；文字靠 gap 推開。 */
+  height: 68px;
+  /* 讓 label 自己成為 stacking context，::before 的 z-index: -1 才會蓋在它的
+     底色之上；否則負 z-index 會掉到 label 背景後面，整條進度條看不見。 */
+  isolation: isolate;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
   transition:
     border-color 0.15s ease,
     background 0.15s ease;
+}
+/* 目前佔比鋪在整列底下：投的時候看得到大家押在哪，但要淡到不跟文字搶。
+   z-index: -1 讓它蓋在 label 的底色之上、文字之下——不加的話絕對定位的
+   ::before 會畫在文字上面。 */
+.forecast-options label::before {
+  background: var(--share-color, transparent);
+  content: '';
+  inset: 0 auto 0 0;
+  opacity: 0.16;
+  pointer-events: none;
+  position: absolute;
+  transition: width 0.2s ease;
+  width: var(--share, 0%);
+  z-index: -1;
 }
 .forecast-options label:hover {
   border-color: #c7cbc7;
@@ -1541,20 +1563,24 @@ a:focus-visible {
   position: absolute;
   width: 1px;
 }
-/* 政黨模式時整顆填成黨色，候選人模式時是白底的選票號次。 */
+/* 政黨模式時整塊填成黨色，候選人模式時是白底的選票號次。之後直接換成候選人
+   頭像，所以做成貼齊整列高度的正方形。寬度寫死而不用 aspect-ratio：grid 的
+   auto 欄位要先知道寬度才排得出來，靠高度換算會算成 0，方塊會整個消失。 */
 .forecast-mark {
   align-items: center;
+  align-self: stretch;
   background: #fffdf8;
-  border: 1px solid #dcd9d0;
-  border-radius: 50%;
+  border: 0;
+  border-radius: 14px 0 0 14px;
+  border-right: 1px solid #dcd9d0;
   color: var(--ink);
   display: inline-flex;
   flex: none;
   font-family: Georgia, serif;
   font-size: 14px;
-  height: 34px;
   justify-content: center;
-  width: 34px;
+  overflow: hidden;
+  width: 64px;
 }
 .forecast-option-text {
   display: flex;
@@ -1578,28 +1604,57 @@ a:focus-visible {
   height: 7px;
   width: 7px;
 }
+/* 投票格：跟頭像一樣切齊整列高度，格子一直在（像選票上的空格），圈選章用
+   color: transparent 藏著，選取後才由 label 上的 inline color 顯出黨色。 */
 .forecast-tick {
   align-items: center;
-  border-radius: 50%;
-  color: #fff;
+  align-self: stretch;
+  background: #fffdf8;
+  border: 0;
+  border-left: 1px solid #dcd9d0;
+  border-radius: 0 14px 14px 0;
+  color: transparent;
   display: inline-flex;
   flex: none;
-  height: 26px;
   justify-content: center;
-  opacity: 0;
-  transform: scale(0.7);
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-  width: 26px;
+  width: 64px;
 }
 .forecast-options label.selected .forecast-tick {
-  opacity: 1;
-  transform: scale(1);
+  color: #e4141e;
+}
+/* 整列跟著彈一下：撐大一點點再立刻收回，像被章壓下去又回彈。 */
+@keyframes stamp-press {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.forecast-options label.selected {
+  animation: stamp-press 0.26s ease-out;
+}
+/* 蓋章：章從比格子大一圈的地方壓下來，同時淡入，收到原尺寸就停。 */
+@keyframes stamp-down {
+  from {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.forecast-options label.selected .forecast-tick .icon {
+  animation: stamp-down 0.2s cubic-bezier(0.2, 0.85, 0.3, 1);
 }
 .forecast-tick .icon {
-  stroke-width: 2.6;
-  width: 14px;
+  height: 28px;
+  stroke-width: 2.1;
+  width: 28px;
 }
 .forecast-footer {
   border-top: 1px solid var(--line);
@@ -2105,8 +2160,8 @@ a:focus-visible {
   z-index: 30;
   backdrop-filter: blur(18px);
 }
-.map-sheet-handle,
-.map-peek {
+.map-peek,
+.map-inspector-dismiss {
   display: none;
 }
 .map-inspector > header {
@@ -2172,17 +2227,43 @@ a:focus-visible {
   font-size: 12px;
   margin-top: 3px;
 }
+/* 收合抽屜的整列摘要（只在手機出現）：左職稱、右領先者＋百分比。 */
 .map-peek {
   align-items: center;
-  grid-template-columns: 1fr auto;
-  padding: 2px 18px 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  text-align: left;
+  width: 100%;
+}
+/* 明確的「看更多」比手把好懂：橫條會讓人以為要用拖的。 */
+.map-peek > em {
+  background: rgb(31 43 39 / 6%);
+  border-radius: 999px;
+  color: var(--ink);
+  flex: none;
+  font-size: 12.5px;
+  font-style: normal;
+  font-weight: 750;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.map-peek > strong {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .map-peek > span {
   align-items: center;
   color: var(--muted);
   display: inline-flex;
   font-size: 13px;
-  gap: 8px;
+  gap: 6px;
+  white-space: nowrap;
 }
 .map-peek > span i {
   border-radius: 50%;
@@ -2192,14 +2273,14 @@ a:focus-visible {
 }
 .map-peek > b {
   font-family: Georgia, serif;
-  font-size: 32px;
+  font-size: 21px;
   font-weight: 500;
   line-height: 1;
 }
 /* 份數太少時摘要不放大百分比，跟展開後的處理一致。 */
 .map-peek.low > b {
   color: var(--muted);
-  font-size: 19px;
+  font-size: 15px;
 }
 .map-contest-switch {
   background: #f0eee7;
@@ -2301,17 +2382,18 @@ a:focus-visible {
   margin: 20px 22px 0;
 }
 /* 四條各自從左邊起跑的長條比不出高下，改成一條 100% 堆疊長條。 */
+/* 跟收合時那條同一個樣子，再矮一點：展開後每一列都寫了數字，長條只負責比例。 */
 .map-share-bar {
   display: flex;
-  gap: 3px;
-  height: 15px;
+  gap: 2px;
+  height: 6px;
   margin: 12px 22px 0;
 }
 .map-share-bar.faint {
   opacity: 0.45;
 }
 .map-share-bar i {
-  border-radius: 4px;
+  border-radius: 2px;
   display: block;
   height: 100%;
 }
@@ -2321,20 +2403,20 @@ a:focus-visible {
   padding: 0 22px;
 }
 /* 領先者那一列自己就是標題，所以整個面板只留一個大數字。 */
+/* 名字、份數、百分比排成一行：份數跟在名字後面，不用另外佔一排。 */
 .map-leader {
-  align-items: center;
-  display: grid;
-  gap: 4px 14px;
-  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
   margin-top: 20px;
 }
 .map-leader > span {
   align-items: center;
   display: inline-flex;
+  flex: none;
   font-size: 19px;
   font-weight: 700;
   gap: 9px;
-  grid-column: 1 / 2;
 }
 .map-leader > span i {
   border-radius: 50%;
@@ -2344,17 +2426,18 @@ a:focus-visible {
 }
 .map-leader > b {
   font-family: Georgia, serif;
-  font-size: 42px;
+  font-size: 34px;
   font-weight: 500;
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
   line-height: 1;
+  margin-left: auto;
 }
 .map-leader > small {
   color: var(--muted);
   font-size: 12.5px;
-  grid-column: 1 / 2;
-  padding-left: 20px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .map-result-list {
   border-top: 1px solid var(--line);
@@ -2365,17 +2448,16 @@ a:focus-visible {
 }
 .map-result-list > div {
   align-items: baseline;
-  display: grid;
-  gap: 3px 14px;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  gap: 9px;
 }
 .map-result-list > div > span {
   align-items: center;
   display: inline-flex;
+  flex: none;
   font-size: 14.5px;
   font-weight: 650;
   gap: 9px;
-  grid-column: 1 / 2;
 }
 .map-result-list > div > span i {
   border-radius: 50%;
@@ -2387,14 +2469,15 @@ a:focus-visible {
   font-family: Georgia, serif;
   font-size: 21px;
   font-weight: 500;
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
+  margin-left: auto;
 }
 .map-result-list > div > small {
   color: var(--muted);
   font-size: 12px;
-  grid-column: 1 / 2;
-  padding-left: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .map-inspector-total {
   border-top: 1px solid var(--line);
@@ -2876,7 +2959,22 @@ a:focus-visible {
     border-radius: 18px;
   }
   .map-app {
+    /* 收合抽屜的高度，同時給 .map-inspector 與「地圖讓位」用，只留一份數字。
+       收合時是摘要那一列（留白 11 ＋ 內容 34 ＋ 10）加底部 7px 的分布長條。
+       safe-area 要另外加，否則 iPhone 上長條會被首頁指示器蓋掉。地圖讓位一律用
+       收合高度：展開或填表時抽屜本來就佔掉大半畫面，跟著縮地圖只會讓它一直跳。 */
+    --map-drawer-height: calc(62px + env(safe-area-inset-bottom));
+    /* 浮在抽屜上方的切換器要另外算：它不是抽屜的一部分（算進 --map-drawer-height
+       的話抽屜本身會跟著變高），但地圖一樣要讓開。 */
+    --map-switch-height: 0px;
+    /* 浮動列（top 10 ＋ 高度 42）下緣再留一點空隙。 */
+    --map-top-inset: 62px;
+
     min-height: 0;
+  }
+  /* 多場選舉時切換器浮在抽屜上方，地圖要一併讓開它的 48px ＋ 10px 間距。 */
+  .map-app.has-switch {
+    --map-switch-height: 58px;
   }
   .map-floating-top {
     align-items: flex-start;
@@ -2941,9 +3039,18 @@ a:focus-visible {
   .map-app.has-selection .map-island-insets {
     display: none;
   }
-  /* 手機的面板是底部抽屜，地圖不用讓位。 */
+  /* 手機的面板是底部抽屜，地圖改成往上讓位：把 <svg> 的可視框縮到抽屜上緣與
+     浮動列下緣之間，preserveAspectRatio 的 meet 會自己把整張地圖縮到剛好塞滿
+     這塊區域，屏東就不會被抽屜蓋住。用 top ＋ height 而不是 bottom：<svg> 是
+     replaced element，height: auto 時瀏覽器會改用 viewBox 比例算高度並忽略
+     bottom，地圖又會被裁掉。 */
   .map-app.has-selection .taiwan-map-svg {
+    height: calc(100% - var(--map-top-inset) - var(--map-drawer-height) - var(--map-switch-height));
+    top: var(--map-top-inset);
     transform: none;
+    transition:
+      height 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+      top 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   }
   .taiwan-county {
     stroke-width: 0.6;
@@ -2968,43 +3075,43 @@ a:focus-visible {
     border-radius: 22px 22px 0 0;
     bottom: 0;
     box-shadow: 0 -18px 50px rgb(31 43 39 / 17%);
-    /* 收合高度：手把 22 ＋ 標題列 50 ＋ 摘要 34 ＋ 長條 22 ＋ 排名列 114 ＋ 按鈕列 78。
-       safe-area 要另外加，否則 iPhone 上按鈕會被首頁指示器蓋掉。估太少不會裁到
-       按鈕——.map-inspector-scroll 是 flex: 1 且自己會捲，頁尾永遠留在畫面上。 */
-    height: calc(330px + env(safe-area-inset-bottom));
+    height: var(--map-drawer-height);
     right: 0;
     top: auto;
     transition: height 0.25s ease;
     width: 100%;
   }
-  /* 有多場選舉時切換器也要留在收合狀態，高度補上它的 44px ＋ 上下留白。 */
-  .map-inspector.has-switch:not(.expanded) {
-    height: calc(398px + env(safe-area-inset-bottom));
-  }
+  /* 展開就是滿版：反正「看更多」之後地圖已經被蓋掉大半，留一條縫沒有意義。 */
   .map-inspector.expanded {
-    height: min(78dvh, 680px);
+    border-radius: 0;
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top);
   }
-  .map-inspector.forecasting {
-    height: min(88dvh, 760px);
+  /* 手機不放叉叉：關閉整個選取交給返回與點地圖空白處，不然滿版上會有兩顆
+     意思很接近的按鈕。表單頁的返回箭頭是另一個 header，不受影響。 */
+  .map-inspector > header:not(.map-inspector-back) .map-round-button {
+    display: none;
   }
-  .map-sheet-handle {
+  .map-inspector.expanded .map-inspector-dismiss {
+    align-items: center;
     background: transparent;
     border: 0;
+    color: var(--muted);
     cursor: pointer;
-    display: block;
+    display: inline-flex;
     flex: none;
-    height: 22px;
-    margin: 0 auto;
-    padding: 9px 0 0;
-    width: 84px;
+    font-size: 14px;
+    font-weight: 750;
+    margin-left: -6px;
+    min-height: 44px;
+    padding: 0 6px;
   }
-  .map-sheet-handle i {
-    background: #c7c9c5;
-    border-radius: 99px;
-    display: block;
-    height: 4px;
-    margin: auto;
-    width: 44px;
+  /* 返回自己佔一行，標題排在它下面，才是「左上角」。 */
+  .map-inspector.expanded > header:not(.map-inspector-back) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    justify-content: flex-start;
   }
   .map-inspector > header {
     padding: 6px 18px 14px;
@@ -3045,47 +3152,43 @@ a:focus-visible {
   .map-inspector-links button {
     min-height: 44px;
   }
-  /* 收合時只留「一眼看完 + 一鍵送出」：摘要、分布長條、主要按鈕。
-     舊版在這個高度什麼都按不了，還要靠負 margin 把百分比浮到標題上。 */
+  /* 收合時壓到只剩一列：左職稱、右領先者＋百分比。標題列、切換器、分布長條、
+     排名、送出按鈕都等使用者展開再出現——抽屜蓋掉的地圖越少越好。 */
   .map-inspector:not(.expanded) .map-peek {
     display: grid;
+    padding: 11px 14px 10px;
   }
-  .map-inspector:not(.expanded) > header {
-    padding-bottom: 0;
-  }
-  .map-inspector:not(.expanded) > header small,
-  .map-inspector:not(.expanded) > header > div > span,
+  .map-inspector:not(.expanded) > header,
   .map-inspector:not(.expanded) .map-my-forecast,
   .map-inspector:not(.expanded) .map-low-sample,
   .map-inspector:not(.expanded) .map-share-head,
-  .map-inspector:not(.expanded) .map-leader,
-  .map-inspector:not(.expanded) .map-inspector-total,
-  .map-inspector:not(.expanded) .map-inspector-links,
-  .map-inspector:not(.expanded) .map-result-list > div > small {
+  .map-inspector:not(.expanded) .map-inspector-scroll,
+  .map-inspector:not(.expanded) .map-inspector-footer {
     display: none;
   }
+  /* 切換器浮在抽屜上緣，不跟著收進去：一個區域同時有議員／鄉鎮市長／代表時，
+     不必先展開滿版才換得了場次。抽屜收合時要放行 overflow 才看得到它。 */
+  .map-inspector:not(.expanded) {
+    overflow: visible;
+  }
   .map-inspector:not(.expanded) .map-contest-switch {
-    margin-top: 12px;
+    border: 1px solid rgb(31 43 39 / 10%);
+    bottom: 100%;
+    box-shadow: 0 10px 26px rgb(31 43 39 / 16%);
+    left: 12px;
+    margin: 0 0 10px;
+    position: absolute;
+    right: 12px;
   }
-  .map-inspector:not(.expanded) .map-peek {
-    padding-top: 14px;
-  }
+  /* 收合時分布長條貼在抽屜最底下，壓成細的一條——那一列只有領先者，長條補上
+     其他人的比例。 */
   .map-inspector:not(.expanded) .map-share-bar {
-    height: 10px;
-    margin-top: 12px;
+    gap: 2px;
+    height: 7px;
+    margin: auto 0 env(safe-area-inset-bottom);
   }
-  /* 收合時排名列壓成單行（收掉份數），第 2 名之後的 % 才讀得到；
-     長條本身沒有數字，只留它等於什麼都沒說。 */
-  .map-inspector:not(.expanded) .map-result-list {
-    margin-top: 14px;
-    padding-top: 14px;
-  }
-  .map-inspector:not(.expanded) .map-result-list > div > b {
-    font-size: 18px;
-  }
-  .map-inspector:not(.expanded) .map-inspector-footer {
-    border-top: 0;
-    margin-top: auto;
+  .map-inspector:not(.expanded) .map-share-bar i {
+    border-radius: 0;
   }
 }
 
