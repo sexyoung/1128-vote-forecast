@@ -219,27 +219,34 @@ export function ElectionTabs({
   onChange,
   // 沒給就全部列出。直轄市與市沒有鄉鎮市長、代表選舉，那兩個分頁不該出現。
   available = () => true,
+  // 每個分頁底下有幾個選區。縣市長只有一場，回 null 就不顯示。
+  count = () => null,
 }: {
   value: ElectionView;
   onChange: (value: ElectionView) => void;
   available?: (view: ElectionView) => boolean;
+  count?: (view: ElectionView) => number | null;
 }) {
   return (
     <div className="election-tabs" role="tablist" aria-label="選舉種類">
       {electionViews
         .filter((item) => available(item.id))
-        .map((item) => (
-          <button
-            aria-selected={value === item.id}
-            className={value === item.id ? 'active' : ''}
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            role="tab"
-            type="button"
-          >
-            {item.label}
-          </button>
-        ))}
+        .map((item) => {
+          const total = count(item.id);
+          return (
+            <button
+              aria-selected={value === item.id}
+              className={value === item.id ? 'active' : ''}
+              key={item.id}
+              onClick={() => onChange(item.id)}
+              role="tab"
+              type="button"
+            >
+              {item.label}
+              {total !== null && <span>{total}</span>}
+            </button>
+          );
+        })}
       <button className="indigenous-tab" type="button">
         原住民選區 <span>獨立圖層</span>
       </button>

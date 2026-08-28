@@ -46,6 +46,27 @@ describe('contest card cover', () => {
   });
 });
 
+describe('contest list loading state', () => {
+  it('keeps the skeleton reveal and reduced-motion fallback', async () => {
+    const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+
+    expect(styles).toContain('.t-skel.is-revealed .t-skel-content');
+    expect(styles).toContain('.t-skel-skeleton.is-pulsing > *');
+    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+});
+
+describe('responsive council candidate rows', () => {
+  it('keeps four desktop rows and reveals every winner on mobile', async () => {
+    const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+
+    // 四列上限已放寬到所有卡片（/mine 也要），手機的當選者展開仍只在議員卡片。
+    expect(styles).toContain('.contest-card .candidate-list li:nth-child(n + 5)');
+    expect(styles).toContain('.council-contest-card .candidate-list li.winner');
+    expect(styles).toContain('.council-contest-card .candidate-list li:not(.winner)');
+  });
+});
+
 describe('area list shown on a contest card', () => {
   it('leaves a list that already fits alone', () => {
     expect(summariseArea('石門區、三芝區、淡水區、八里區')).toBe('石門區、三芝區、淡水區、八里區');

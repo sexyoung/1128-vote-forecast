@@ -25,6 +25,7 @@ import {
   PageShell,
   usePrototype,
 } from './ElectionPrototypeShared';
+import { regionCounts } from '../region-counts';
 import { getResultRows } from './ForecastSheet';
 
 // 最窄的卡片（.contest-grid 的 304px）文字欄約 170px，13px 中文一行約 13 字，
@@ -45,7 +46,8 @@ export function summariseArea(area: string) {
 
 function ContestCard({ contest }: { contest: Contest }) {
   const { phase } = usePrototype();
-  const rows = getResultRows(contest, phase).slice(0, 4);
+  const rowLimit = contest.view === 'COUNCIL' ? Math.max(4, contest.seatCount) : 4;
+  const rows = getResultRows(contest, phase).slice(0, rowLimit);
   // 代表的名額依地方制度法第 33 條按人口決定，公告還沒下來，標明是暫定值。
   const seats =
     contest.view === 'REPRESENTATIVE'
@@ -54,7 +56,10 @@ function ContestCard({ contest }: { contest: Contest }) {
         ? '單席'
         : `應選 ${contest.seatCount} 席`;
   return (
-    <Link className="contest-card" to={`/contest/${contest.id}`}>
+    <Link
+      className={`contest-card ${contest.view === 'COUNCIL' ? 'council-contest-card' : ''}`.trim()}
+      to={`/contest/${contest.id}`}
+    >
       <span className="card-link">
         {contest.forecasts.toLocaleString()} 份 <Icon name="chevron" />
       </span>
@@ -89,6 +94,38 @@ export function isViewAvailable(jurisdiction: Jurisdiction, view: ElectionView) 
 
 type ShapeContests = { contests: Contest[]; townNames: string[] };
 type ShapeLoad = { key: string; value: ShapeContests | 'error' };
+type SkeletonPhase = 'loading' | 'resetting' | 'revealed';
+
+function ContestGridSkeleton({ count, pulsing }: { count: number; pulsing: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`contest-grid t-skel-skeleton ${pulsing ? 'is-pulsing' : ''}`.trim()}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="contest-card skeleton-card" key={index}>
+          <div className="skeleton-card-cover">
+            <i />
+            <span>
+              <b />
+              <b />
+              <b />
+            </span>
+          </div>
+          {Array.from({ length: 4 }, (_, row) => (
+            <div className="skeleton-candidate" key={row}>
+              <i />
+              <span>
+                <b />
+                <b />
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function useShapeContests(jurisdiction: Jurisdiction, view: ElectionView) {
   const locationId = jurisdictionToMapLocation[jurisdiction.id];
@@ -130,6 +167,16 @@ function useShapeContests(jurisdiction: Jurisdiction, view: ElectionView) {
   };
 }
 
+// 每個分頁的選區數。縣市長只有一場，不標數字；鄉鎮市長與代表是一鄉鎮市區一場，
+// 村里長是一村里一場，數字來自 region-counts.ts（圖資太大，不能為了數字先載）。
+function countForView(jurisdiction: Jurisdiction, view: ElectionView) {
+  if (view === 'EXECUTIVE') return null;
+  if (view === 'COUNCIL') return getContests(jurisdiction, 'COUNCIL').length;
+  const counts = regionCounts[jurisdictionToMapLocation[jurisdiction.id] ?? ''];
+  if (!counts) return null;
+  return view === 'VILLAGE' ? counts.villages : counts.townships;
+}
+
 export function JurisdictionPage() {
   const { jurisdictionId } = useParams();
   const jurisdiction = getJurisdiction(jurisdictionId);
@@ -137,6 +184,9 @@ export function JurisdictionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseView(searchParams.get('view'));
   const { state, error, enabled } = useShapeContests(jurisdiction, view);
+  const [skeletonPhase, setSkeletonPhase] = useState<SkeletonPhase>('revealed');
+  const skeletonRef = useRef<HTMLDivElement>(null);
+  const resetFrameRef = useRef<number | null>(null);
 
   // 村里長一個縣市可以到一千多筆（新北 1,039 個里），攤平在一頁既慢又找不到東西，
   // 所以先選鄉鎮市區，只列那一區的里。鄉鎮市長最多 33 筆（屏東），不用分。
@@ -163,6 +213,23 @@ export function JurisdictionPage() {
     return () => cancelAnimationFrame(frame);
   }, [contests]);
 
+  useEffect(() => {
+    if (skeletonPhase !== 'loading' || (enabled && !state && !error)) return;
+    const root = skeletonRef.current;
+    const styles = getComputedStyle(root ?? document.documentElement);
+    const duration = Number.parseFloat(styles.getPropertyValue('--pulse-dur')) || 1000;
+    const count = Number.parseFloat(styles.getPropertyValue('--pulse-count')) || 1;
+    const timer = window.setTimeout(() => setSkeletonPhase('revealed'), duration * count);
+    return () => window.clearTimeout(timer);
+  }, [enabled, error, skeletonPhase, state]);
+
+  useEffect(
+    () => () => {
+      if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
+    },
+    [],
+  );
+
   function updateParams(update: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams);
     update(params);
@@ -171,6 +238,13 @@ export function JurisdictionPage() {
   }
 
   function selectView(next: ElectionView) {
+    if (next === view) return;
+    setSkeletonPhase('resetting');
+    if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
+    resetFrameRef.current = requestAnimationFrame(() => {
+      setSkeletonPhase('loading');
+      resetFrameRef.current = null;
+    });
     updateParams((params) => {
       // 預設分頁不留參數，/region/TPE 這種現成連結才不會變成兩種寫法。
       if (next === defaultView) params.delete('view');
@@ -181,6 +255,9 @@ export function JurisdictionPage() {
 
   const label = electionViews.find((item) => item.id === view)?.label;
   const unavailable = !isViewAvailable(jurisdiction, view);
+  const skeletonLoading = skeletonPhase !== 'revealed' || (enabled && !state && !error);
+  const skeletonSwapState =
+    skeletonPhase === 'resetting' ? 'is-resetting' : skeletonLoading ? '' : 'is-revealed';
 
   return (
     <PageShell>
@@ -196,33 +273,67 @@ export function JurisdictionPage() {
 
         <ElectionTabs
           available={(item) => isViewAvailable(jurisdiction, item)}
+          count={(item) => countForView(jurisdiction, item)}
           onChange={selectView}
           value={view}
         />
 
-        {needsTownPicker && (
-          <div className="town-picker" role="tablist" aria-label="鄉鎮市區">
-            {townNames.map((name) => (
-              <button
-                aria-selected={name === activeTown}
-                className={name === activeTown ? 'active' : ''}
-                key={name}
-                onClick={() => updateParams((params) => params.set('town', name))}
-                role="tab"
-                type="button"
-              >
-                {name}
-              </button>
-            ))}
+        {view === 'VILLAGE' && !unavailable && (
+          <div
+            aria-busy={skeletonLoading}
+            className={`t-skel town-picker-swap ${skeletonSwapState}`.trim()}
+          >
+            <div
+              aria-hidden="true"
+              className={`town-picker town-picker-skeleton t-skel-skeleton ${
+                skeletonLoading ? 'is-pulsing' : ''
+              }`.trim()}
+            >
+              {Array.from({ length: 8 }, (_, index) => (
+                <i key={index} />
+              ))}
+            </div>
+            <div aria-hidden={skeletonLoading} className="t-skel-content">
+              {needsTownPicker && (
+                <>
+                  {/* 手機用下拉選單：一個縣市可以有幾十個鄉鎮市區，攤平的膠囊會佔掉整個畫面。 */}
+                  <select
+                    aria-label="鄉鎮市區"
+                    className="town-select"
+                    onChange={(event) =>
+                      updateParams((params) => params.set('town', event.target.value))
+                    }
+                    value={activeTown}
+                  >
+                    {townNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="town-picker" role="tablist" aria-label="鄉鎮市區">
+                    {townNames.map((name) => (
+                      <button
+                        aria-selected={name === activeTown}
+                        className={name === activeTown ? 'active' : ''}
+                        key={name}
+                        onClick={() => updateParams((params) => params.set('town', name))}
+                        role="tab"
+                        type="button"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
         <div className="section-heading">
-          <h2>
-            {needsTownPicker ? activeTown : ''}
-            {label}選區
-          </h2>
-          <span>{enabled && !state ? '載入中…' : `${contests.length} 個選區`}</span>
+          <h2></h2>
+          <span>{skeletonLoading ? '載入中…' : `${contests.length} 個選區`}</span>
         </div>
 
         {unavailable ? (
@@ -233,16 +344,25 @@ export function JurisdictionPage() {
         ) : error ? (
           <p className="view-note">圖資載入失敗，重新整理再試一次。</p>
         ) : (
-          <div className="contest-grid t-stagger" ref={contestGridRef}>
-            {contests.map((contest, index) => (
-              <div
-                className="t-stagger-line"
-                key={contest.id}
-                style={{ '--stagger-delay': `${index * 20}ms` } as CSSProperties}
-              >
-                <ContestCard contest={contest} />
+          <div
+            aria-busy={skeletonLoading}
+            className={`t-skel region-contest-swap ${skeletonSwapState}`.trim()}
+            ref={skeletonRef}
+          >
+            <ContestGridSkeleton count={Math.max(1, contests.length)} pulsing={skeletonLoading} />
+            <div aria-hidden={skeletonLoading} className="t-skel-content">
+              <div className="contest-grid t-stagger" ref={contestGridRef}>
+                {contests.map((contest, index) => (
+                  <div
+                    className="t-stagger-line"
+                    key={contest.id}
+                    style={{ '--stagger-delay': `${index * 20}ms` } as CSSProperties}
+                  >
+                    <ContestCard contest={contest} />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         )}
 

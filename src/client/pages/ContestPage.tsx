@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
 import { type Contest, type Jurisdiction, findContest } from '../mock-election';
 
@@ -108,7 +108,10 @@ function CommentsPanel() {
         <div>
           <Icon name="user" />
         </div>
-        <button type="button">登入後參與討論</button>
+        <input aria-label="留言內容" placeholder="留下你的看法" type="text" />
+        <button className="button button-glass button-small" type="button">
+          送出
+        </button>
       </div>
       {comments.map((comment) => (
         <article className="comment" key={comment.name}>
@@ -151,10 +154,34 @@ function useResolvedContest(contestId?: string) {
   return loaded?.id === contestId ? loaded.resolved : null;
 }
 
+export type ContestTab = 'results' | 'trend' | 'comments';
+
+const contestTabs: { id: ContestTab; label: string; badge?: string }[] = [
+  { id: 'results', label: '預測結果' },
+  { id: 'trend', label: '趨勢' },
+  { id: 'comments', label: '留言', badge: '36' },
+];
+
+/** 分頁寫在網址的 ?tab=，地圖抽屜的「趨勢」「留言」才連得進來，也才分享得出去。 */
+export function parseContestTab(value: string | null): ContestTab {
+  const id = value?.toLowerCase();
+  return contestTabs.find((tab) => tab.id === id)?.id ?? 'results';
+}
+
 export function ContestPage() {
   const { contestId } = useParams();
   const resolved = useResolvedContest(contestId);
-  const [activeTab, setActiveTab] = useState<'results' | 'trend' | 'comments'>('results');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseContestTab(searchParams.get('tab'));
+  const setActiveTab = (tab: ContestTab) =>
+    setSearchParams(
+      (params) => {
+        if (tab === 'results') params.delete('tab');
+        else params.set('tab', tab);
+        return params;
+      },
+      { replace: true },
+    );
   const [forecastOpen, setForecastOpen] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -191,30 +218,19 @@ export function ContestPage() {
         </section>
 
         <div className="content-tabs" role="tablist">
-          <button
-            className={activeTab === 'results' ? 'active' : ''}
-            onClick={() => setActiveTab('results')}
-            role="tab"
-            type="button"
-          >
-            預測結果
-          </button>
-          <button
-            className={activeTab === 'trend' ? 'active' : ''}
-            onClick={() => setActiveTab('trend')}
-            role="tab"
-            type="button"
-          >
-            趨勢
-          </button>
-          <button
-            className={activeTab === 'comments' ? 'active' : ''}
-            onClick={() => setActiveTab('comments')}
-            role="tab"
-            type="button"
-          >
-            留言 <span>36</span>
-          </button>
+          {contestTabs.map((tab) => (
+            <button
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? 'active' : ''}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              role="tab"
+              type="button"
+            >
+              {tab.label}
+              {tab.badge && <span>{tab.badge}</span>}
+            </button>
+          ))}
         </div>
 
         <div className="contest-content">

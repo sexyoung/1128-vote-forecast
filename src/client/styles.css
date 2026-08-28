@@ -26,6 +26,13 @@
   --stagger-stagger: 20ms;
   --stagger-blur: 2px;
   --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* transitions.dev skeleton loader and reveal。 */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: 400ms;
+  --reveal-blur: 2px;
+  --reveal-ease: ease-in-out;
 }
 
 * {
@@ -403,6 +410,14 @@ a:focus-visible {
   gap: 6px;
   padding: 6px 12px 6px 10px;
 }
+.forecaster-id img {
+  border-radius: 50%;
+  flex: none;
+  height: 18px;
+  object-fit: cover;
+  object-position: top;
+  width: 18px;
+}
 .forecaster-id .icon {
   height: 15px;
   width: 15px;
@@ -477,6 +492,19 @@ a:focus-visible {
 .election-tabs button.active {
   border-bottom-color: var(--accent);
   color: var(--ink);
+}
+/* 分頁名稱後面的選區數。 */
+.election-tabs button > span {
+  background: #deddd6;
+  border-radius: 999px;
+  color: #6b736e;
+  font-size: 11px;
+  margin-left: 5px;
+  padding: 2px 7px;
+}
+.election-tabs button.active > span {
+  background: color-mix(in srgb, var(--accent) 18%, #fff);
+  color: var(--accent-dark);
 }
 .election-tabs .indigenous-tab {
   border: 1px solid #d3d4ce;
@@ -943,7 +971,10 @@ a:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin: 0 0 18px;
+  margin: 16px 0 18px;
+}
+.town-select {
+  display: none;
 }
 .town-picker button {
   background: #f0eee7;
@@ -983,9 +1014,171 @@ a:focus-visible {
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(304px, 1fr));
 }
+/* transitions.dev skeleton loader and reveal。 */
+.t-skel {
+  position: relative;
+}
+.t-skel-skeleton,
+.t-skel-content {
+  inset: 0;
+  position: absolute;
+}
+.t-skel-skeleton {
+  filter: blur(0);
+  opacity: 1;
+  transition:
+    opacity var(--reveal-dur) var(--reveal-ease),
+    filter var(--reveal-dur) var(--reveal-ease);
+  z-index: 1;
+}
+.t-skel-content {
+  filter: blur(var(--reveal-blur));
+  opacity: 0;
+  transition:
+    opacity var(--reveal-dur) var(--reveal-ease),
+    filter var(--reveal-dur) var(--reveal-ease);
+  z-index: 2;
+}
+.t-skel.is-revealed .t-skel-skeleton {
+  filter: blur(var(--reveal-blur));
+  opacity: 0;
+}
+.t-skel.is-revealed .t-skel-content {
+  filter: blur(0);
+  opacity: 1;
+}
+.t-skel.is-resetting .t-skel-skeleton,
+.t-skel.is-resetting .t-skel-content {
+  transition: none !important;
+}
+.t-skel:not(.is-revealed) .t-skel-content {
+  pointer-events: none;
+}
+.t-skel-skeleton.is-pulsing > * {
+  animation: t-skel-pulse var(--pulse-dur) ease-in-out var(--pulse-count);
+}
+@keyframes t-skel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: var(--pulse-min);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-skel-skeleton,
+  .t-skel-content {
+    transition: none !important;
+  }
+  .t-skel-skeleton.is-pulsing > * {
+    animation: none !important;
+  }
+}
+/* 兩層共用同一個 grid 儲存格，讓內容決定容器高度；切換時不會壓到下方說明。 */
+.region-contest-swap,
+.town-picker-swap {
+  display: grid;
+}
+.region-contest-swap > .t-skel-skeleton,
+.region-contest-swap > .t-skel-content,
+.town-picker-swap > .t-skel-skeleton,
+.town-picker-swap > .t-skel-content {
+  grid-area: 1 / 1;
+  inset: auto;
+  position: relative;
+}
+.region-contest-swap > .t-skel-skeleton,
+.town-picker-swap > .t-skel-skeleton {
+  pointer-events: none;
+}
+.town-picker-skeleton > i {
+  background: #e4e1da;
+  border-radius: 999px;
+  display: block;
+  height: 40px;
+  width: 74px;
+}
+.town-picker-skeleton > i:nth-child(3n + 2) {
+  width: 92px;
+}
+.town-picker-skeleton > i:nth-child(3n) {
+  width: 64px;
+}
+.skeleton-card {
+  min-height: 350px;
+  overflow: hidden;
+}
+.skeleton-card-cover {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 104px minmax(0, 1fr);
+  margin: -18px -18px 14px;
+}
+.skeleton-card-cover > i {
+  background: #e4e1da;
+  border-radius: 16px 0 0;
+  height: 104px;
+}
+.skeleton-card-cover > span {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  justify-content: center;
+  padding-right: 18px;
+}
+.skeleton-card-cover b,
+.skeleton-candidate b {
+  background: #e4e1da;
+  border-radius: 99px;
+  display: block;
+  height: 10px;
+}
+.skeleton-card-cover b:nth-child(1) {
+  width: 45%;
+}
+.skeleton-card-cover b:nth-child(2) {
+  height: 18px;
+  width: 72%;
+}
+.skeleton-card-cover b:nth-child(3) {
+  width: 88%;
+}
+.skeleton-candidate {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding: 7px 0;
+}
+.skeleton-candidate > i {
+  background: #e4e1da;
+  border-radius: 50%;
+  height: 44px;
+  width: 44px;
+}
+.skeleton-candidate > span {
+  display: grid;
+  gap: 8px;
+}
+.skeleton-candidate b:first-child {
+  width: 62%;
+}
+.skeleton-candidate b:last-child {
+  height: 5px;
+  width: 100%;
+}
 .contest-grid > .t-stagger-line > .contest-card {
   display: block;
   height: 100%;
+}
+/* 卡片桌機維持四列等高；第五名之後留在 DOM，手機再依當選狀態展開。 */
+.contest-card .candidate-list li:nth-child(n + 5) {
+  display: none;
+}
+/* /mine：自己押的那一位就算排在第五名之後也要看得到。 */
+.contest-card .candidate-list li.mine {
+  display: grid;
 }
 /* transitions.dev texts reveal。卡片外層負責進場，不覆蓋卡片本身的 hover transition。 */
 .t-stagger-line {
@@ -1291,9 +1484,6 @@ a:focus-visible {
   width: 14px;
 }
 
-.contest-page {
-  max-width: 1210px;
-}
 .feature-card .leading-badge {
   background: color-mix(in srgb, var(--party-color) 16%, white);
   color: var(--ink);
@@ -1509,15 +1699,30 @@ a:focus-visible {
 .comment-compose > div .icon {
   width: 17px;
 }
-.comment-compose button {
+/* 輸入格與送出鍵是同一塊：左邊給一樣的膠囊圓角，右邊切平貼著按鈕。 */
+.comment-compose input {
   background: #fff;
   border: 1px solid #d8d7d0;
-  border-radius: 10px;
-  color: var(--muted);
-  cursor: pointer;
+  border-radius: 999px 0 0 999px;
+  border-right: 0;
+  color: var(--ink);
   flex: 1;
-  padding: 11px;
-  text-align: left;
+  font-size: 13.5px;
+  /* 抵銷 .comment-compose 的 gap，讓按鈕直接接上來。 */
+  margin-right: -10px;
+  min-height: 40px;
+  min-width: 0;
+  outline: 0;
+  padding: 0 16px;
+}
+.comment-compose .button {
+  border-radius: 0 999px 999px 0;
+}
+.comment-compose input::placeholder {
+  color: var(--muted);
+}
+.comment-compose input:focus {
+  border-color: #b8c0bb;
 }
 .comment {
   border-bottom: 1px solid #e8e5de;
@@ -1881,6 +2086,54 @@ a:focus-visible {
   font-size: 12px;
   line-height: 1.6;
   margin-top: 12px;
+}
+/* 照片與名字在同一張身份卡：左邊預覽，右邊上傳／移除。 */
+.identity-photo {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+}
+.identity-photo > i {
+  align-items: center;
+  background: #e4e3de;
+  border-radius: 50%;
+  color: #7d857f;
+  display: flex;
+  flex: none;
+  height: 68px;
+  justify-content: center;
+  overflow: hidden;
+  width: 68px;
+}
+.identity-photo > i img {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  width: 100%;
+}
+.identity-photo > i .icon {
+  width: 28px;
+}
+.identity-photo > span {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+/* label 當按鈕用，真的 input 藏起來——原生的檔案選擇器樣式改不動。 */
+.identity-photo label {
+  cursor: pointer;
+}
+.identity-photo input {
+  display: none;
+}
+.identity-photo .text-action {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
 }
 .identity-field {
   align-items: center;
@@ -2552,12 +2805,42 @@ a:focus-visible {
     transform: scaleX(1);
   }
 }
-.t-progress-fill,
-.t-progress-list .map-leader::before,
-.t-progress-list .map-result-list > div::before {
+.t-progress-fill {
   animation: t-progress-fill var(--duration-fast) var(--ease-smooth-out) both;
   transform-origin: left center;
   will-change: transform;
+}
+/* 切換議員／鄉鎮市長／代表時，清單一列一列出現。外層的 key 綁著 contest.id，
+   換場次就重掛，動畫自然重播。 */
+@keyframes t-row-in {
+  from {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.t-progress-list .candidate-list li {
+  animation: t-row-in var(--duration-fast) var(--ease-smooth-out) both;
+}
+.t-progress-list .candidate-list li:nth-child(2) {
+  animation-delay: 45ms;
+}
+.t-progress-list .candidate-list li:nth-child(3) {
+  animation-delay: 90ms;
+}
+.t-progress-list .candidate-list li:nth-child(4) {
+  animation-delay: 135ms;
+}
+.t-progress-list .candidate-list li:nth-child(5) {
+  animation-delay: 180ms;
+}
+.t-progress-list .candidate-list li:nth-child(n + 6) {
+  animation-delay: 225ms;
 }
 .map-inspector-scroll {
   flex: 1;
@@ -2576,105 +2859,6 @@ a:focus-visible {
   flex: none;
   height: 34px;
   width: 34px;
-}
-.map-portrait.large {
-  border-radius: 14px;
-  height: 54px;
-  width: 54px;
-}
-.map-result-list .map-portrait {
-  border-radius: 11px;
-  height: 40px;
-  width: 40px;
-}
-/* 每一列背後鋪一條自己的佔比，淡到不跟文字搶。isolation 讓 ::before 的
-   z-index: -1 停在這一列的底色之上、文字之下，不會掉到面板背景後面。 */
-.map-leader,
-.map-result-list > div {
-  border-radius: 10px;
-  isolation: isolate;
-  margin: 0 -8px;
-  overflow: hidden;
-  padding: 6px 8px;
-  position: relative;
-}
-.map-leader::before,
-.map-result-list > div::before {
-  background: var(--share-color);
-  content: '';
-  inset: 0 auto 0 0;
-  opacity: 0.14;
-  pointer-events: none;
-  position: absolute;
-  width: var(--share, 0%);
-  z-index: -1;
-}
-.map-leader {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-/* 複數席次時線上會有好幾位，彼此靠得近一點，跟線下那一組區隔得開。 */
-.map-leader + .map-leader {
-  margin-top: 6px;
-}
-.map-leader > span {
-  align-items: center;
-  display: inline-flex;
-  flex: none;
-  font-size: 19px;
-  font-weight: 700;
-  gap: 9px;
-}
-.map-leader > b {
-  font-family: Georgia, serif;
-  font-size: 34px;
-  font-weight: 500;
-  line-height: 1;
-  margin-left: auto;
-}
-.map-leader > small {
-  color: var(--muted);
-  font-size: 12.5px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.map-result-list {
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 13px;
-  margin-top: 20px;
-  padding-top: 18px;
-}
-.map-result-list > div {
-  align-items: center;
-  display: flex;
-  gap: 9px;
-}
-.map-result-list > div > span {
-  align-items: center;
-  display: inline-flex;
-  flex: none;
-  font-size: 14.5px;
-  font-weight: 650;
-  gap: 9px;
-}
-.map-result-list > div > b {
-  font-family: Georgia, serif;
-  font-size: 21px;
-  font-weight: 500;
-  margin-left: auto;
-}
-.map-result-list > div > small {
-  color: var(--muted);
-  font-size: 12px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .map-inspector-total {
   border-top: 1px solid var(--line);
@@ -2753,6 +2937,12 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .council-contest-card .candidate-list li.winner {
+    display: grid;
+  }
+  .council-contest-card .candidate-list li:not(.winner) {
+    display: none;
+  }
   body {
     padding-bottom: 67px;
   }
@@ -2835,6 +3025,36 @@ a:focus-visible {
   }
   .countdown i {
     margin-left: 10px;
+  }
+  /* 鄉鎮市區改用原生下拉，膠囊列在手機會佔掉整個畫面。 */
+  .town-picker {
+    display: none;
+  }
+  .town-picker-skeleton {
+    display: flex;
+    margin: 14px 0 16px;
+  }
+  .town-picker-skeleton > i {
+    display: none;
+  }
+  .town-picker-skeleton > i:first-child {
+    border-radius: 12px;
+    display: block;
+    height: 44px;
+    width: 100%;
+  }
+  .town-select {
+    background: #f0eee7;
+    border: 1px solid #d9d7cf;
+    border-radius: 12px;
+    color: var(--ink);
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 14px 0 16px;
+    min-height: 44px;
+    padding: 0 12px;
+    width: 100%;
   }
   .election-tabs {
     margin-left: -15px;
@@ -3259,8 +3479,7 @@ a:focus-visible {
     transition: none !important;
   }
   .t-progress-fill,
-  .t-progress-list .map-leader::before,
-  .t-progress-list .map-result-list > div::before {
+  .t-progress-list .candidate-list li {
     animation: none !important;
   }
   *,

@@ -30,7 +30,8 @@ export const parties = [
   { id: 'KMT' as const, name: '中國國民黨', shortName: '國民黨', color: '#3f69b1' },
   { id: 'DPP' as const, name: '民主進步黨', shortName: '民進黨', color: '#2c8a64' },
   { id: 'TPP' as const, name: '台灣民眾黨', shortName: '民眾黨', color: '#28a5a5' },
-  { id: 'IND' as const, name: '無黨籍／其他', shortName: '無黨籍', color: '#b9813f' },
+  // 無黨籍不是政黨，給中性灰，不跟三個政黨的識別色混在一起。
+  { id: 'IND' as const, name: '無黨籍／其他', shortName: '無黨籍', color: '#8b8f8a' },
 ];
 
 export const electionViews: { id: ElectionView; label: string; shortLabel: string }[] = [

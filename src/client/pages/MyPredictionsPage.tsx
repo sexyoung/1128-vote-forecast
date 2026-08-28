@@ -8,17 +8,29 @@ import { getResultRows } from './ForecastSheet';
 const forecasterCode = '#8F2A';
 const defaultForecasterName = '預測者';
 
-function RenameDialog({
+function IdentityDialog({
   name,
-  onRename,
+  avatar,
+  onSave,
   onClose,
 }: {
   name: string;
-  onRename: (name: string) => void;
+  avatar: string | null;
+  onSave: (name: string, avatar: string | null) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(name);
+  const [photo, setPhoto] = useState(avatar);
   const trimmed = draft.trim();
+  const changed = (trimmed && trimmed !== name) || photo !== avatar;
+
+  // 原型直接讀成 data URL 存在記憶體裡；正式版會上傳到儲存空間，只留網址。
+  function readPhoto(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(typeof reader.result === 'string' ? reader.result : null);
+    reader.readAsDataURL(file);
+  }
 
   // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
   useEffect(() => {
@@ -48,7 +60,25 @@ function RenameDialog({
             <Icon name="close" />
           </button>
         </header>
-        <p>留言與排行榜上其他人看到的名字。後面的編號是系統配發的，不會跟著改。</p>
+        <p>留言與排行榜上其他人看到的名字與照片。後面的編號是系統配發的，不會跟著改。</p>
+        <div className="identity-photo">
+          <i>{photo ? <img alt="" src={photo} /> : <Icon name="user" />}</i>
+          <span>
+            <label className="button button-glass button-small">
+              上傳照片
+              <input
+                accept="image/*"
+                onChange={(event) => readPhoto(event.target.files?.[0])}
+                type="file"
+              />
+            </label>
+            {photo && (
+              <button className="text-action" onClick={() => setPhoto(null)} type="button">
+                移除
+              </button>
+            )}
+          </span>
+        </div>
         <div className="identity-field">
           <input
             aria-label="顯示名稱"
@@ -62,13 +92,13 @@ function RenameDialog({
         </div>
         <button
           className="button button-dark button-wide"
-          disabled={!trimmed || trimmed === name}
-          onClick={() => onRename(trimmed)}
+          disabled={!trimmed || !changed}
+          onClick={() => onSave(trimmed, photo)}
           type="button"
         >
-          儲存名稱
+          儲存
         </button>
-        <small>編號不會變，換名字也不會影響已送出的預測。</small>
+        <small>編號不會變，換名字或照片也不會影響已送出的預測。</small>
       </section>
     </div>
   );
@@ -90,6 +120,7 @@ export function MyPredictionsPage() {
   const { phase } = usePrototype();
   // 原型先記在記憶體，正式版會跟著匿名身份一起存。
   const [name, setName] = useState(defaultForecasterName);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const items = savedForecasts.map(({ jurisdictionId, view, contestIndex, pickIndex }) => {
     const jurisdiction = getJurisdiction(jurisdictionId);
@@ -110,7 +141,7 @@ export function MyPredictionsPage() {
             onClick={() => setRenaming((open) => !open)}
             type="button"
           >
-            <Icon name="user" />
+            {avatar ? <img alt="" src={avatar} /> : <Icon name="user" />}
             {name} {forecasterCode}
           </button>
           <span className="page-stat">
@@ -119,11 +150,13 @@ export function MyPredictionsPage() {
         </section>
 
         {renaming && (
-          <RenameDialog
+          <IdentityDialog
+            avatar={avatar}
             name={name}
             onClose={() => setRenaming(false)}
-            onRename={(next) => {
-              setName(next);
+            onSave={(nextName, nextAvatar) => {
+              setName(nextName);
+              setAvatar(nextAvatar);
               setRenaming(false);
             }}
           />
@@ -146,7 +179,12 @@ export function MyPredictionsPage() {
                 meta={`我預測 ${mine.label} · ${rows[0].id === mine.id ? '目前領先' : '目前落後'}`}
                 title={contest.name}
               />
-              <CandidateList forecasts={contest.forecasts} highlightId={mine.id} rows={rows} />
+              <CandidateList
+                forecasts={contest.forecasts}
+                highlightId={mine.id}
+                rows={rows}
+                winnerCount={contest.seatCount}
+              />
             </Link>
           ))}
         </div>

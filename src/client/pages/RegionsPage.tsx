@@ -54,7 +54,7 @@ function RegionCard({ jurisdiction }: { jurisdiction: Jurisdiction }) {
         meta={contest.name}
         title={jurisdiction.name}
       />
-      <CandidateList forecasts={contest.forecasts} rows={rows} />
+      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
     </Link>
   );
 }

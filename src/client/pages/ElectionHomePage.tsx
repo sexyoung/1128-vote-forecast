@@ -1,11 +1,4 @@
-import {
-  type CSSProperties,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
@@ -32,6 +25,7 @@ import {
 } from '../mock-election';
 import {
   AppHeader,
+  CandidateList,
   ForecastButton,
   Icon,
   SearchBox,
@@ -309,11 +303,6 @@ function MapBrand() {
 // 讓「樣本太少」這個狀態在原型裡真的走得到。正式版應該改成依選區規模決定。
 const lowSampleThreshold = 150;
 
-// 每一列背後那條淡淡的佔比。寬度與顏色用 CSS 變數帶進去，畫的是 ::before。
-function shareStyle(row: { color: string; value: number }) {
-  return { '--share': `${row.value}%`, '--share-color': row.color } as CSSProperties;
-}
-
 // 候選人的頭像位置，放在名字左邊。照片要等中選會 2026-11 公告名單才會有
 // （檔名規則見 public/avatars/README.md），在那之前留一塊淺灰的空位——填名字的
 // 第一個字會被誤讀成資訊。放在名字旁邊而不是標題列：職稱長度每個選區都不一樣。
@@ -349,13 +338,8 @@ function MapInspector({
   const { phase } = usePrototype();
   const rows = getResultRows(contest, phase);
   const leader = rows[0];
-  // 應選幾席，線上就放幾位：議員那種複數席次的選區，「當選」不是只有第一名。
-  // 目前 getResultRows 只給四位，席次比它多的選區線下就會是空的。
-  const winners = rows.slice(0, contest.seatCount);
-  const runnersUp = rows.slice(contest.seatCount);
   // 份數太少時不放大領先者，避免十來份預測被讀成民調。
   const lowSample = contest.forecasts < lowSampleThreshold;
-  const countOf = (value: number) => Math.round((contest.forecasts * value) / 100).toLocaleString();
 
   if (showForm)
     return (
@@ -470,39 +454,18 @@ function MapInspector({
         ))}
       </div>
       <div className="map-inspector-scroll t-progress-list" key={`results-${contest.id}`}>
-        {!lowSample &&
-          winners.map((row) => (
-            <div className="map-leader" key={row.id} style={shareStyle(row)}>
-              <span>
-                <CandidatePortrait large />
-                {row.label}
-              </span>
-              <small>
-                {contest.seatCount === 1 && '目前領先 · '}
-                {countOf(row.value)} 份
-              </small>
-              <b style={{ color: row.color }}>{row.value}%</b>
-            </div>
-          ))}
-        <div className="map-result-list">
-          {(lowSample ? rows : runnersUp).map((row) => (
-            <div key={row.id} style={shareStyle(row)}>
-              <span>
-                <CandidatePortrait />
-                {row.label}
-              </span>
-              <small>{lowSample ? `${row.value}%` : `${countOf(row.value)} 份`}</small>
-              <b>{lowSample ? countOf(row.value) : `${row.value}%`}</b>
-            </div>
-          ))}
-        </div>
+        <CandidateList
+          forecasts={contest.forecasts}
+          rows={rows}
+          winnerCount={lowSample ? 0 : contest.seatCount}
+        />
         <p className="map-inspector-total">
           共 <strong>{contest.forecasts.toLocaleString()}</strong> 份預測 · 2 分鐘前更新
         </p>
         <div className="map-inspector-links">
-          <Link to={`/contest/${contest.id}`}>查看趨勢</Link>
+          <Link to={`/contest/${contest.id}?tab=trend`}>查看趨勢</Link>
           <i />
-          <Link to={`/contest/${contest.id}`}>留言 36</Link>
+          <Link to={`/contest/${contest.id}?tab=comments`}>留言 36</Link>
         </div>
       </div>
       <footer className="map-inspector-footer">
