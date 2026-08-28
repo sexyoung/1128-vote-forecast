@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vite-plus/test';
 import { getContests, getJurisdiction, jurisdictions } from '../mock-election';
-import { parseView, summariseArea } from './JurisdictionPage';
+import { countLocalExecutiveDistricts, isLocalExecutiveTownship } from '../map-shapes';
+import { isViewAvailable, parseView, summariseArea } from './JurisdictionPage';
 
 describe('jurisdiction page tab in the url', () => {
   it('reads the tab from the view param', () => {
@@ -98,5 +99,38 @@ describe('area list shown on a contest card', () => {
     );
 
     expect(Math.max(...summarised.map((area) => area.length))).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('indigenous mountain districts', () => {
+  // 地方制度法第 83-2 條：這五個區改制為地方自治團體，有區長與區民代表選舉。
+  // 其餘市轄區沒有，所以直轄市不能整批開放這兩個分頁。
+  it('opens the township tabs for the five mountain indigenous districts only', () => {
+    for (const id of ['TAO', 'TXG', 'KHH']) {
+      expect(isViewAvailable(getJurisdiction(id), 'TOWNSHIP')).toBe(true);
+      expect(isViewAvailable(getJurisdiction(id), 'REPRESENTATIVE')).toBe(true);
+    }
+    for (const id of ['TPE', 'NTP', 'TNN', 'KEE', 'HSZ', 'CYI']) {
+      expect(isViewAvailable(getJurisdiction(id), 'TOWNSHIP')).toBe(false);
+    }
+    expect(isViewAvailable(getJurisdiction('NAN'), 'TOWNSHIP')).toBe(true);
+  });
+
+  it('keeps only the indigenous districts of a municipality', () => {
+    const shape = (townCode: string, townName: string) => ({
+      id: `town-${townCode}`,
+      path: '',
+      townCode,
+      townName,
+      countyName: '高雄市',
+    });
+    const kaohsiung = getJurisdiction('KHH');
+
+    expect(isLocalExecutiveTownship(kaohsiung, shape('64000380', '那瑪夏區'))).toBe(true);
+    expect(isLocalExecutiveTownship(kaohsiung, shape('64000010', '鹽埕區'))).toBe(false);
+    // 別的直轄市的山地原住民區不算這一個直轄市的。
+    expect(isLocalExecutiveTownship(kaohsiung, shape('68000130', '復興區'))).toBe(false);
+    expect(countLocalExecutiveDistricts(kaohsiung, 38)).toBe(3);
+    expect(countLocalExecutiveDistricts(getJurisdiction('NAN'), 13)).toBe(13);
   });
 });

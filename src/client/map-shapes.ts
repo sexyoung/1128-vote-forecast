@@ -140,6 +140,36 @@ export function getShapeResult(jurisdiction: Jurisdiction, seed: number) {
   };
 }
 
+// 直轄市的市轄區沒有區長選舉，只有這五個山地原住民區有區長與區民代表——
+// 地方制度法第 83-2 條把它們改制為地方自治團體，兩個職位都是民選。
+export const indigenousDistricts: Record<string, string> = {
+  '68000130': 'TAO', // 桃園市復興區
+  '66000290': 'TXG', // 臺中市和平區
+  '64000360': 'KHH', // 高雄市茂林區
+  '64000370': 'KHH', // 高雄市桃源區
+  '64000380': 'KHH', // 高雄市那瑪夏區
+};
+
+/** 這個縣市要不要列鄉鎮市長／代表：縣是全部鄉鎮市，直轄市只有山地原住民區。 */
+export function hasLocalExecutiveElection(jurisdiction: Jurisdiction) {
+  return (
+    jurisdiction.kind === 'county' || Object.values(indigenousDistricts).includes(jurisdiction.id)
+  );
+}
+
+/** 該縣市底下有幾個鄉鎮市區要列。 */
+export function countLocalExecutiveDistricts(jurisdiction: Jurisdiction, townshipTotal: number) {
+  if (jurisdiction.kind === 'county') return townshipTotal;
+  return Object.values(indigenousDistricts).filter((id) => id === jurisdiction.id).length;
+}
+
+/** 直轄市只留山地原住民區，縣則全部保留。 */
+export function isLocalExecutiveTownship(jurisdiction: Jurisdiction, township: TownshipShape) {
+  return (
+    jurisdiction.kind === 'county' || indigenousDistricts[township.townCode] === jurisdiction.id
+  );
+}
+
 // 鄉鎮市長與村里長沒有選舉區劃分：中選會的選舉區公告只到直轄市長、縣市長與
 // 議員（第 38 條第 1 項第 1 款），這兩個職位一鄉一席、一里一席，範圍就是整個
 // 行政區本身，所以直接從圖資產生，不需要等各縣市選委會的公告。

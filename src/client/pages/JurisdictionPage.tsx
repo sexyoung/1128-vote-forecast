@@ -2,6 +2,9 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   buildRepresentativeContest,
+  countLocalExecutiveDistricts,
+  hasLocalExecutiveElection,
+  isLocalExecutiveTownship,
   buildTownshipContest,
   buildVillageContest,
   jurisdictionToMapLocation,
@@ -88,7 +91,9 @@ export function usesShapeContests(view: ElectionView) {
 
 // 直轄市與市的區長是官派，不是選出來的；縣才有鄉鎮市長與代表。
 export function isViewAvailable(jurisdiction: Jurisdiction, view: ElectionView) {
-  if (view === 'TOWNSHIP' || view === 'REPRESENTATIVE') return jurisdiction.kind === 'county';
+  // 直轄市沒有區長選舉，只有五個山地原住民區例外，見 map-shapes 的 indigenousDistricts。
+  if (view === 'TOWNSHIP' || view === 'REPRESENTATIVE')
+    return hasLocalExecutiveElection(jurisdiction);
   return true;
 }
 
@@ -143,10 +148,16 @@ function useShapeContests(jurisdiction: Jurisdiction, view: ElectionView) {
             contests: shapes.map((shape) => buildVillageContest(shape, jurisdiction)),
             townNames: [...new Set(shapes.map((shape) => shape.townName))],
           }))
-        : loadTownshipShapes(locationId).then((shapes) => ({
-            contests: shapes.map((shape) => build(shape, jurisdiction)),
-            townNames: [...new Set(shapes.map((shape) => shape.townName))],
-          }));
+        : loadTownshipShapes(locationId).then((shapes) => {
+            // 直轄市只有山地原住民區有區長與區民代表，其餘市轄區沒有這兩場選舉。
+            const eligible = shapes.filter((shape) =>
+              isLocalExecutiveTownship(jurisdiction, shape),
+            );
+            return {
+              contests: eligible.map((shape) => build(shape, jurisdiction)),
+              townNames: [...new Set(eligible.map((shape) => shape.townName))],
+            };
+          });
 
     pending.then(
       (value) => active && setLoaded({ key, value }),
@@ -174,7 +185,8 @@ function countForView(jurisdiction: Jurisdiction, view: ElectionView) {
   if (view === 'COUNCIL') return getContests(jurisdiction, 'COUNCIL').length;
   const counts = regionCounts[jurisdictionToMapLocation[jurisdiction.id] ?? ''];
   if (!counts) return null;
-  return view === 'VILLAGE' ? counts.villages : counts.townships;
+  if (view === 'VILLAGE') return counts.villages;
+  return countLocalExecutiveDistricts(jurisdiction, counts.townships);
 }
 
 export function JurisdictionPage() {
