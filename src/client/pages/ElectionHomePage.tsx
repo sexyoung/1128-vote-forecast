@@ -358,13 +358,9 @@ function MapInspector({
             <small>{contest.area}</small>
           </span>
         </header>
-        {/* key 綁 contest：在表單開著的時候換場次，勾選狀態要跟著換掉。 */}
-        <ForecastForm
-          contest={contest}
-          key={contest.id}
-          onSubmitted={onSubmitted}
-          picked={myForecast}
-        />
+        {/* key 綁 contest：在表單開著的時候換場次，勾選狀態要跟著換掉。
+            上次押了誰由伺服器回答，不再從這裡傳進去。 */}
+        <ForecastForm contest={contest} key={contest.id} onSubmitted={onSubmitted} />
       </aside>
     );
 

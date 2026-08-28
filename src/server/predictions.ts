@@ -23,8 +23,11 @@ export class PredictionRejected extends Error {
  * 免得白開一個交易。
  */
 export function validatePicks(contest: RegisteredContest, targetIds: string[]): StoredPick[] {
-  if (targetIds.length !== contest.seats)
-    throw new PredictionRejected(`這一區應選 ${contest.seats} 席，要剛好選 ${contest.seats} 位。`);
+  // 允許押得比席次少：12 席的議員選區要人一次挑滿 12 位太苛，挑 3 位也是有效的
+  // 判斷。多過席次就沒有意義了。
+  if (targetIds.length === 0) throw new PredictionRejected('請至少選擇一位。');
+  if (targetIds.length > contest.seats)
+    throw new PredictionRejected(`這一區應選 ${contest.seats} 席，最多只能選 ${contest.seats} 位。`);
 
   if (new Set(targetIds).size !== targetIds.length)
     throw new PredictionRejected('同一位不能選兩次。');

@@ -1871,6 +1871,15 @@ a:focus-visible {
   line-height: 1.6;
   margin: 20px 0 14px;
 }
+/* 送出失敗時的訊息，用圈選章的紅，跟一般的提示分得開。 */
+.forecast-notice.error {
+  color: var(--stamp);
+  margin-top: 0;
+}
+.forecast-notice.error i {
+  background: var(--stamp);
+  box-shadow: 0 0 0 4px rgb(228 20 30 / 15%);
+}
 .forecast-notice i {
   background: #c59146;
   border-radius: 50%;

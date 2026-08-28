@@ -149,16 +149,20 @@ describe('submitting a prediction', () => {
     expect(body.tally.rows[0]).toMatchObject({ count: 2, percent: 100 });
   });
 
-  it('takes exactly as many picks as the contest has seats', async () => {
+  it('takes fewer picks than seats, but never more', async () => {
     const visitor = await newVisitor();
 
-    const tooFew = await visitor.predict(multiSeat.id, multiTargets.slice(0, 3));
-    expect(tooFew.status).toBe(400);
-    expect(tooFew.body.error).toContain('12');
+    // 12 席的選區挑 3 位也是有效的判斷，不必逼人挑滿。
+    const partial = await visitor.predict(multiSeat.id, multiTargets.slice(0, 3));
+    expect(partial.status).toBe(201);
+    expect(partial.body.tally.rows).toHaveLength(3);
 
-    const justRight = await visitor.predict(multiSeat.id, multiTargets.slice(0, multiSeat.seats));
-    expect(justRight.status).toBe(201);
-    expect(justRight.body.tally.rows).toHaveLength(multiSeat.seats);
+    const tooMany = await visitor.predict(multiSeat.id, multiTargets.slice(0, multiSeat.seats + 1));
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.body.error).toContain('12');
+
+    const empty = await visitor.predict(multiSeat.id, []);
+    expect(empty.status).toBe(400);
   });
 
   it('rejects the same candidate twice', async () => {
