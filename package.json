@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "data:contests": "tsx scripts/build-election-contests.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

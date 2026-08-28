@@ -22,7 +22,9 @@ export default defineConfig({
   fmt: {
     singleQuote: true,
     semi: true,
-    ignorePatterns: ['.claude/**', '.devcontainer/**'],
+    // election-contests.json 是 npm run data:contests 產生的，一列一個選區是刻意
+    // 的：8,429 筆縮排開來 2 MB，diff 也讀不動。
+    ignorePatterns: ['.claude/**', '.devcontainer/**', 'src/server/data/**'],
   },
   test: { environment: 'node' },
 });

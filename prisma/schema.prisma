@@ -1,3 +1,9 @@
+// 設計說明見 docs/2026-election-backend.md。
+//
+// 固定的選舉資料（選區、席次、政黨）不在這裡：它們由 Git 管理，build 時產生成
+// src/server/data/election-contests.json。這個 schema 只放會隨使用者操作變動的
+// 東西：身份、預測、統計、留言、檢舉。
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,6 +13,7 @@ datasource db {
   provider = "postgresql"
 }
 
+// 腳手架留下的示範模型，/tools 還在用。真正的預測是下面的 Prediction。
 model Forecast {
   id          Int      @id @default(autoincrement())
   title       String
@@ -14,4 +21,244 @@ model Forecast {
   probability Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// 身份
+// ---------------------------------------------------------------------------
+
+/// 一位不需要登入的預測者。cookie 是主識別，指紋只是 cookie 被清掉後的復原線索。
+model Forecaster {
+  id String @id @default(cuid())
+
+  displayName String? @db.VarChar(24)
+  /// 物件儲存的 key，不存二進位內容。
+  avatarKey   String?
+
+  /// 頭像被檢舉下架的時間。
+  avatarBlockedAt DateTime?
+  /// 最近一次通過 Turnstile；在有效期內不再要求驗證。
+  humanVerifiedAt DateTime?
+  /// 整個身份被封鎖的時間。
+  blockedAt       DateTime?
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  signals     ForecasterSignal[]
+  predictions Prediction[]
+  comments    Comment[]
+  reports     Report[]
+
+  @@index([lastSeenAt])
+}
+
+enum SignalKind {
+  COOKIE
+  FINGERPRINT
+  IP
+}
+
+/// 辨識訊號。一律存 HMAC（伺服器 pepper），不留原始指紋與 IP。
+model ForecasterSignal {
+  id           String     @id @default(cuid())
+  forecasterId String
+  kind         SignalKind
+  hash         String
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  seenCount   Int      @default(1)
+
+  forecaster Forecaster @relation(fields: [forecasterId], references: [id], onDelete: Cascade)
+
+  @@unique([forecasterId, kind, hash])
+  /// 刻意不是 unique：同型號同版本的裝置會算出一樣的指紋。
+  @@index([kind, hash])
+}
+
+// ---------------------------------------------------------------------------
+// 預測
+// ---------------------------------------------------------------------------
+
+enum PredictionTargetType {
+  PARTY
+  CANDIDATE
+}
+
+enum PredictionStatus {
+  ACTIVE
+  INVALIDATED
+}
+
+enum PredictionInvalidReason {
+  PARTY_HAS_NO_CANDIDATE
+  CANDIDATE_WITHDRAWN
+  CANDIDATE_DISQUALIFIED
+  DISTRICT_CHANGED
+  ADMIN_INVALIDATED
+}
+
+/// 一位預測者對一個選區的預測。議員那種複數席次會有多個 PredictionPick。
+model Prediction {
+  id           String @id @default(cuid())
+  forecasterId String
+  /// 對到 election-contests.json 的選區代號，不下外鍵。
+  contestId    String
+
+  /// 送出當下的應選席次。選區之後改制也查得回來當時是幾席。
+  seatCount     Int
+  status        PredictionStatus         @default(ACTIVE)
+  invalidReason PredictionInvalidReason?
+
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  forecaster Forecaster           @relation(fields: [forecasterId], references: [id], onDelete: Cascade)
+  picks      PredictionPick[]
+  revisions  PredictionRevision[]
+
+  /// 一人一區只有一筆。這是「不能重複預測」的實際保證。
+  @@unique([forecasterId, contestId])
+  @@index([contestId, status])
+}
+
+/// 一筆預測裡押的其中一個目標。targetType + targetId 是 polymorphic reference：
+/// PostgreSQL 的外鍵無法同時指向政黨與候選人兩張表，改由 service layer 驗證。
+model PredictionPick {
+  predictionId String
+  targetType   PredictionTargetType
+  /// PARTY 時是政黨代號（KMT），CANDIDATE 時是候選人 id。
+  targetId     String
+
+  prediction Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@id([predictionId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+/// 改預測時把舊的整組收進來。稽核用，也是「改過幾次」的來源。
+model PredictionRevision {
+  id           String   @id @default(cuid())
+  predictionId String
+  version      Int
+  picks        Json
+  createdAt    DateTime @default(now())
+
+  prediction Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@unique([predictionId, version])
+}
+
+// ---------------------------------------------------------------------------
+// 統計
+// ---------------------------------------------------------------------------
+
+/// 每個選區每個目標的票數。寫預測的同一個 transaction 內 ±1，不事後重算。
+model ContestTally {
+  contestId  String
+  targetType PredictionTargetType
+  targetId   String
+  count      Int                  @default(0)
+  updatedAt  DateTime             @updatedAt
+
+  @@id([contestId, targetType, targetId])
+  @@index([contestId])
+}
+
+/// 地圖著色只需要這張：一個選區一列。
+model ContestSummary {
+  contestId      String @id
+  jurisdictionId String
+
+  totalPredictions Int                   @default(0)
+  leaderType       PredictionTargetType?
+  leaderId         String?
+  leaderPercent    Int?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([jurisdictionId])
+}
+
+/// 趨勢分頁的資料來源，每日 cron 寫入。只寫有預測的選區，否則 8,429 個選區
+/// × 4 個目標 × 365 天會累積到千萬列而且大半是零。
+model ContestTallySnapshot {
+  contestId  String
+  capturedOn DateTime             @db.Date
+  targetType PredictionTargetType
+  targetId   String
+  count      Int
+
+  @@id([contestId, capturedOn, targetType, targetId])
+  @@index([capturedOn])
+}
+
+// ---------------------------------------------------------------------------
+// 留言與檢舉
+// ---------------------------------------------------------------------------
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+model Comment {
+  id           String  @id @default(cuid())
+  contestId    String
+  forecasterId String
+  parentId     String?
+
+  body      String        @db.VarChar(1000)
+  status    CommentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now())
+
+  forecaster Forecaster @relation(fields: [forecasterId], references: [id], onDelete: Cascade)
+  parent     Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[]  @relation("CommentReplies")
+
+  @@index([contestId, status, createdAt])
+  @@index([parentId])
+}
+
+enum ReportTargetType {
+  COMMENT
+  AVATAR
+}
+
+enum ReportReason {
+  SPAM
+  ABUSE
+  ADULT
+  ILLEGAL
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+/// 使用者產生的內容需要下架管道。targetId 視 targetType 是留言或預測者 id。
+model Report {
+  id         String           @id @default(cuid())
+  targetType ReportTargetType
+  targetId   String
+  reporterId String
+
+  reason ReportReason
+  note   String?      @db.VarChar(500)
+
+  status    ReportStatus @default(OPEN)
+  handledBy String?
+  handledAt DateTime?
+  createdAt DateTime     @default(now())
+
+  reporter Forecaster @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([status, createdAt])
 }
