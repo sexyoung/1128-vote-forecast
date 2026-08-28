@@ -26,6 +26,13 @@ export const env = {
   turnstileSecretKey: optional('TURNSTILE_SECRET_KEY', ''),
 
   adminToken: optional('ADMIN_TOKEN', ''),
+
+  s3Endpoint: optional('S3_ENDPOINT', ''),
+  s3Region: optional('S3_REGION', 'us-east-1'),
+  s3Bucket: optional('S3_BUCKET', ''),
+  s3AccessKeyId: optional('S3_ACCESS_KEY_ID', ''),
+  s3SecretAccessKey: optional('S3_SECRET_ACCESS_KEY', ''),
+  s3PublicBaseUrl: optional('S3_PUBLIC_BASE_URL', ''),
 };
 
 /**
@@ -41,6 +48,7 @@ export function assertProductionEnv() {
   if (!env.redisUrl) missing.push('REDIS_URL');
   if (!env.turnstileSecretKey) missing.push('TURNSTILE_SECRET_KEY');
   if (!env.adminToken) missing.push('ADMIN_TOKEN');
+  if (!env.s3Bucket) missing.push('S3_BUCKET');
   if (env.forecasterPepper === 'change-me') missing.push('FORECASTER_PEPPER（還是預設值）');
   if (missing.length > 0) throw new Error(`正式環境缺少設定：${missing.join('、')}`);
 }

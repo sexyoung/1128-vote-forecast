@@ -2,11 +2,19 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prisma } from './db.js';
 import { env, turnstileEnabled } from './env.js';
+import {
+  AvatarRejected,
+  assertUploadableType,
+  avatarUrl,
+  commitAvatar,
+  stagingKey,
+} from './avatars.js';
 import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
 import { describeTarget, getPredictionTargets } from './prediction-targets.js';
 import { PredictionRejected, readMyPrediction, savePrediction } from './predictions.js';
 import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
+import { createUploadUrl, deleteObject, storageEnabled } from './storage.js';
 import { hitCounter } from './redis.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
 
@@ -50,13 +58,78 @@ app.get('/api/session', async (c) => {
     forecaster: {
       id: forecaster.id,
       displayName: forecaster.displayName,
-      avatarUrl: forecaster.avatarBlockedAt ? null : forecaster.avatarKey,
+      avatarUrl: avatarUrl(forecaster.avatarKey, forecaster.avatarBlockedAt),
       predictionCount,
       humanVerified: isHumanVerified(forecaster.humanVerifiedAt),
       blocked: forecaster.blockedAt !== null,
     },
     turnstile: turnstileEnabled ? { siteKey: env.turnstileSiteKey } : null,
   });
+});
+
+/** 改暱稱。名字只是顯示用的外皮，編號才是身份，所以這裡不碰 id。 */
+app.put('/api/me', async (c) => {
+  const forecaster = c.get('forecaster');
+  const body = (await c.req.json().catch(() => null)) as { displayName?: unknown } | null;
+  const raw = typeof body?.displayName === 'string' ? body.displayName.trim() : null;
+  if (raw !== null && raw.length > 24) return c.json({ error: '名字最多 24 個字。' }, 400);
+
+  const updated = await prisma.forecaster.update({
+    where: { id: forecaster.id },
+    data: { displayName: raw || null },
+  });
+  return c.json({ displayName: updated.displayName });
+});
+
+/** 拿一個上傳網址。前端直接 PUT 到物件儲存，圖片不經過這台伺服器。 */
+app.post('/api/me/avatar/upload-url', async (c) => {
+  if (!storageEnabled) return c.json({ error: '目前沒有開放上傳。' }, 503);
+  const forecaster = c.get('forecaster');
+  const body = (await c.req.json().catch(() => null)) as { contentType?: unknown } | null;
+  const contentType = typeof body?.contentType === 'string' ? body.contentType : '';
+
+  try {
+    assertUploadableType(contentType);
+    const key = stagingKey(forecaster.id);
+    return c.json({ key, uploadUrl: await createUploadUrl(key, contentType) });
+  } catch (error) {
+    if (error instanceof AvatarRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+/** 上傳完成後把原檔轉成正式頭像。重新編碼是必要的，不是可選項。 */
+app.post('/api/me/avatar/commit', async (c) => {
+  if (!storageEnabled) return c.json({ error: '目前沒有開放上傳。' }, 503);
+  const forecaster = c.get('forecaster');
+  const body = (await c.req.json().catch(() => null)) as { key?: unknown } | null;
+  const key = typeof body?.key === 'string' ? body.key : '';
+
+  try {
+    const finalKey = await commitAvatar(forecaster.id, key);
+    const previous = forecaster.avatarKey;
+    await prisma.forecaster.update({
+      where: { id: forecaster.id },
+      data: { avatarKey: finalKey, avatarBlockedAt: null },
+    });
+    // 換了新的就把舊的刪掉，不要在 bucket 裡累積使用者的舊照片。
+    if (previous && previous !== finalKey) await deleteObject(previous);
+    return c.json({ avatarUrl: avatarUrl(finalKey, null) });
+  } catch (error) {
+    if (error instanceof AvatarRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+/** 移除頭像。 */
+app.delete('/api/me/avatar', async (c) => {
+  const forecaster = c.get('forecaster');
+  if (forecaster.avatarKey) await deleteObject(forecaster.avatarKey);
+  await prisma.forecaster.update({
+    where: { id: forecaster.id },
+    data: { avatarKey: null },
+  });
+  return c.json({ avatarUrl: null });
 });
 
 /** 地圖首頁：22 個縣市的領先者。這是最熱的端點，永遠讀快照。 */
