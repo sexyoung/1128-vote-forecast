@@ -72,6 +72,30 @@ export async function hitCounter(key: string, windowSeconds: number) {
   }
 }
 
+/** 記下最近被讀過的快照 key，讓 cron 只重算真的有人在看的東西。 */
+export async function trackKey(setKey: string, member: string) {
+  try {
+    await getClient()?.sadd(setKey, member);
+  } catch {
+    // 追蹤不到就少刷一個 key，讀的時候還是會自己重算。
+  }
+}
+
+/** 取出並清空追蹤集合：沒有再被讀到的 key 自然就不再重算。 */
+export async function takeTrackedKeys(setKey: string) {
+  const redis = getClient();
+  if (!redis) return [];
+  try {
+    const [[, members]] = (await redis.multi().smembers(setKey).del(setKey).exec()) as [
+      [Error | null, string[]],
+      unknown,
+    ];
+    return members;
+  } catch {
+    return [];
+  }
+}
+
 export async function disconnectRedis() {
   if (!client) return;
   await client.quit().catch(() => client?.disconnect());

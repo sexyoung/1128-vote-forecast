@@ -2,15 +2,11 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prisma } from './db.js';
 import { env, turnstileEnabled } from './env.js';
-import { getRegisteredContest } from './contest-registry.js';
+import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
 import { describeTarget, getPredictionTargets } from './prediction-targets.js';
-import {
-  PredictionRejected,
-  readContestTally,
-  readMyPrediction,
-  savePrediction,
-} from './predictions.js';
+import { PredictionRejected, readMyPrediction, savePrediction } from './predictions.js';
+import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
 import { hitCounter } from './redis.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
 
@@ -63,6 +59,18 @@ app.get('/api/session', async (c) => {
   });
 });
 
+/** 地圖首頁：22 個縣市的領先者。這是最熱的端點，永遠讀快照。 */
+app.get('/api/map/national', async (c) => c.json({ cells: await readNationalMap() }));
+
+/** 下鑽某個縣市的某一層。level 對應選舉種類。 */
+app.get('/api/map/:jurisdictionId', async (c) => {
+  const jurisdictionId = c.req.param('jurisdictionId');
+  const level = (c.req.query('level') ?? 'COUNCIL').toUpperCase();
+  if (!contestTypes.includes(level as ContestType)) return c.json({ error: '沒有這個層級。' }, 400);
+
+  return c.json({ cells: await readJurisdictionMap(jurisdictionId, level as ContestType) });
+});
+
 /** 一個選區的名單、目前分布，以及我自己押了誰。 */
 app.get('/api/contests/:contestId', async (c) => {
   const contest = getRegisteredContest(c.req.param('contestId'));
@@ -70,22 +78,11 @@ app.get('/api/contests/:contestId', async (c) => {
 
   const forecaster = c.get('forecaster');
   const [tally, mine] = await Promise.all([
-    readContestTally(contest.id),
+    readContestSnapshot(contest.id),
     readMyPrediction(forecaster.id, contest.id),
   ]);
 
-  return c.json({
-    contest,
-    targets: getPredictionTargets(contest),
-    tally: {
-      ...tally,
-      rows: tally.rows.map((row) => ({
-        ...row,
-        ...describeTarget(contest, row.targetType, row.targetId),
-      })),
-    },
-    mine,
-  });
+  return c.json({ contest, targets: getPredictionTargets(contest), tally, mine });
 });
 
 /** 送出或修改預測。同一個人對同一個選區永遠只有一筆，改是覆蓋。 */
@@ -115,17 +112,11 @@ app.post('/api/contests/:contestId/prediction', async (c) => {
 
   try {
     const { created } = await savePrediction(forecaster.id, contest, targetIds as string[]);
-    const tally = await readContestTally(contest.id);
     return c.json(
       {
         mine: await readMyPrediction(forecaster.id, contest.id),
-        tally: {
-          ...tally,
-          rows: tally.rows.map((row) => ({
-            ...row,
-            ...describeTarget(contest, row.targetType, row.targetId),
-          })),
-        },
+        // savePrediction 已經把這個 key 清掉了，所以這裡讀到的是剛寫進去的數字。
+        tally: await readContestSnapshot(contest.id),
       },
       created ? 201 : 200,
     );

@@ -3,6 +3,7 @@ import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { resolvePredictionTarget } from './prediction-targets.js';
 import { cacheDelete } from './redis.js';
+import { keysAffectedBy } from './snapshot-keys.js';
 
 export type StoredPick = {
   targetType: PredictionTargetType;
@@ -167,12 +168,7 @@ export async function savePrediction(
   });
 
   // commit 之後才清快照。順序反過來的話，快照會抓到還沒 commit 的舊值。
-  await cacheDelete(
-    `snap:contest:${contest.id}`,
-    `snap:map:national`,
-    `snap:map:${contest.jurisdictionId}:township`,
-    `snap:map:${contest.jurisdictionId}:village`,
-  );
+  await cacheDelete(...keysAffectedBy(contest.id, contest.jurisdictionId));
 
   return result;
 }

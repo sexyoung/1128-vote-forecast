@@ -6,7 +6,15 @@ import registry from './data/election-contests.json' with { type: 'json' };
  */
 export type SeatsSource = 'OFFICIAL' | 'PLACEHOLDER';
 
-export type ContestType = 'EXECUTIVE' | 'COUNCIL' | 'TOWNSHIP' | 'REPRESENTATIVE' | 'VILLAGE';
+export const contestTypes = [
+  'EXECUTIVE',
+  'COUNCIL',
+  'TOWNSHIP',
+  'REPRESENTATIVE',
+  'VILLAGE',
+] as const;
+
+export type ContestType = (typeof contestTypes)[number];
 
 export type RegisteredContest = {
   id: string;
