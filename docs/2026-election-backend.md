@@ -218,11 +218,14 @@ model PredictionPick {
   predictionId String
   targetType   PredictionTargetType
   targetId     String // 'KMT' 或 candidate id
+  /// 押的那一位的黨籍，由伺服器自己算，不採用前端送來的值。
+  partyId      String?
 
   prediction Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
 
   @@id([predictionId, targetType, targetId])
   @@index([targetType, targetId])
+  @@index([partyId])
 }
 
 model PredictionRevision {
@@ -237,6 +240,18 @@ model PredictionRevision {
   @@unique([predictionId, version])
 }
 ```
+
+### 名單公布前存什麼
+
+前端現在對每一種選舉都是候選人模式（`usesPreAnnouncementCandidateTargets`），送出的
+`targetId` 是 `getMockCandidates()` 產生的佔位人選，例如 `TPE-EXECUTIVE-1-CANDIDATE-1`。
+
+決定是**照原樣存下來，另外記黨籍**：`targetType=CANDIDATE`、`targetId` 是佔位 id、
+`partyId` 由伺服器 import 同一支純函式自己算。這樣主鍵不用改（不同佔位人是不同 id），
+前端顯示不用改，名單公布時靠 `partyId` 對回真候選人，對不到就 `INVALIDATED`。
+
+另一個選項是換算成政黨再存，但複數席次會押到同一個政黨兩次，`PredictionPick` 的主鍵
+放不下，而且 `/mine` 標不回使用者選的那一列。
 
 `targetType + targetId` 是 polymorphic reference，不下外鍵——PostgreSQL 的外鍵無法
 同時指向兩張表。改由 service layer 驗證：
@@ -314,6 +329,10 @@ Redis 在這裡不是被動快取，而是**主動快照**：一支 cron 把重�
 只會變慢，不會壞掉。
 
 ### 快照（60 秒 cron）
+
+實作是 cache-aside 與主動重算的混合：讀不到就當場算並寫回，同時把 key 記進一個追蹤
+集合；cron 取出集合（取出即清空）後只重算裡面的 key。熱門的縣市因此永遠是新的，沒人
+看的村里層不會為了沒人看的數字每分鐘掃 7,780 個選區。全國地圖每輪都重算，那是首頁。
 
 | key                       | 內容               | 為什麼要快照        |
 | ------------------------- | ------------------ | ------------------- |
@@ -464,16 +483,22 @@ POST /api/admin/forecasters/:id/block    admin token
 
 ## 九、實作順序
 
-1. **選區清冊**：build script 產生 `election-contests.json`，帶 `seatsSource`。
-2. **Prisma schema 與 migration**：本文件所有 model。
-3. **身份層**：cookie 發放、指紋 HMAC 回收、Turnstile、Redis 速率限制。
-4. **預測寫入**：單一 transaction 的 upsert ＋ tally ＋ summary ＋ revision。
-5. **讀取 API 與快照 cron**：第五節的六個 key。
-6. **頭像上傳**：presigned PUT ＋ sharp 重編碼。
-7. **留言、檢舉、後台**。
-8. **趨勢每日 cron**。
+1. ✅ **選區清冊**：`npm run data:contests` 產生 `src/server/data/election-contests.json`。
+2. ✅ **Prisma schema 與 migration**。
+3. ✅ **身份層**：cookie 發放、指紋 HMAC 回收、Turnstile、Redis 速率限制。
+4. ✅ **預測寫入**：單一 transaction 的 upsert ＋ tally ＋ summary ＋ revision。
+5. ✅ **讀取 API 與快照 cron**。
+6. ✅ **頭像上傳**：presigned PUT ＋ sharp 重編碼。
+7. ✅ **留言、檢舉、後台**。
+8. ✅ **趨勢每日 cron**。
+9. ⬜ **候選人匯入**（等中選會 2026-11 公告）：
+   - `Candidate` 資料表（`contestId` / `partyId` / `name` / `ballotNo` / `photoKey` / `status`）
+   - 匯入腳本
+   - `getPredictionTargets()` 從 `getMockCandidates()` 換成讀資料表
+   - 一次性遷移：舊 pick 依 `partyId` 對回真候選人，該黨沒推人就 `INVALIDATED`，
+     然後重算 `ContestTally` 與 `ContestSummary`
 
-前端接線在每個階段結束時各接一段，不要等後端全部做完才開始接。
+前端接線還沒開始——目前所有頁面仍讀 `mock-election.ts` 的示意數字。
 
 ---
 
@@ -482,6 +507,7 @@ POST /api/admin/forecasters/:id/block    admin token
 - **鄉鎮市民代表與山地原住民區民代表的名額**。中選會 2026-08-20 另有一份涵蓋鄉鎮
   市長、代表與村里長的公告，取得後把 `seatsSource` 從 `PLACEHOLDER` 換成
   `OFFICIAL`。在那之前這兩種選舉的席次是估的。
-- **候選人名單**。中選會預定 2026-11 公告，在那之前前端用
-  `getMockCandidates()` 產生的佔位名稱（「國民黨候選人 1」）。名單進來後才會有
-  `CANDIDATE` 型別的預測目標，以及舊 `PARTY` 預測的失效處理。
+- **候選人名單**。中選會預定 2026-11 公告，在那之前前端與伺服器都用
+  `getMockCandidates()` 產生的佔位名稱（「國民黨候選人 1」）。名單進來後才做得了
+  第九步的匯入與遷移。
+- **前端接線**。所有頁面目前仍讀 `mock-election.ts` 的示意數字，還沒有打 API。
