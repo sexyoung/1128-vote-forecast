@@ -1,7 +1,14 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { type ContestDetail, getContestTallies } from '../api';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
-import { CandidateList, CardCover, Icon, PageShell, usePrototype } from './ElectionPrototypeShared';
-import { getResultRows } from './ForecastSheet';
+import {
+  CandidateList,
+  CardCover,
+  Icon,
+  PageShell,
+  toCandidateRows,
+} from './ElectionPrototypeShared';
 
 // 官方的行政區順序：六個直轄市，接著縣與同級的市。jurisdictions 本身是照地圖的
 // 圖層排的，直接拿來列會變成連江縣開頭。
@@ -40,21 +47,29 @@ const kindLabels: Record<Jurisdiction['kind'], string> = {
   county: '縣',
 };
 
-function RegionCard({ jurisdiction }: { jurisdiction: Jurisdiction }) {
-  const { phase } = usePrototype();
+function RegionCard({
+  jurisdiction,
+  tally,
+}: {
+  jurisdiction: Jurisdiction;
+  tally?: ContestDetail['tally'];
+}) {
   const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
-  const rows = getResultRows(contest, phase);
   return (
     <Link className="contest-card" to={`/region/${jurisdiction.id}`}>
       <span className="card-link">
-        {contest.forecasts.toLocaleString()} 份 <Icon name="chevron" />
+        {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
       <CardCover
         kicker={kindLabels[jurisdiction.kind]}
         meta={contest.name}
         title={jurisdiction.name}
       />
-      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
+      <CandidateList
+        forecasts={tally?.totalPicks ?? 0}
+        rows={toCandidateRows(tally)}
+        winnerCount={contest.seatCount}
+      />
     </Link>
   );
 }
@@ -62,7 +77,16 @@ function RegionCard({ jurisdiction }: { jurisdiction: Jurisdiction }) {
 // 麵包屑的「全國」指向這裡，而不是地圖：地圖是操作介面，麵包屑往上一層應該還是
 // 一份看得完的清單。
 export function RegionsPage() {
-  const total = orderedJurisdictions.reduce((sum, item) => sum + item.forecasts * 3, 0);
+  const contestIds = orderedJurisdictions.map((jurisdiction) => `${jurisdiction.id}-EXECUTIVE-1`);
+  // 22 張卡一次要完，不要一張一次請求。
+  const tallies = useQuery({
+    queryKey: ['tallies', 'national'],
+    queryFn: () => getContestTallies(contestIds),
+  });
+  const total = Object.values(tallies.data?.tallies ?? {}).reduce(
+    (sum, tally) => sum + tally.totalPredictions,
+    0,
+  );
   return (
     <PageShell>
       <main className="page">
@@ -78,7 +102,11 @@ export function RegionsPage() {
         </section>
         <div className="contest-grid">
           {orderedJurisdictions.map((jurisdiction) => (
-            <RegionCard jurisdiction={jurisdiction} key={jurisdiction.id} />
+            <RegionCard
+              jurisdiction={jurisdiction}
+              key={jurisdiction.id}
+              tally={tallies.data?.tallies[`${jurisdiction.id}-EXECUTIVE-1`]}
+            />
           ))}
         </div>
       </main>

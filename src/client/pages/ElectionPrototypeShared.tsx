@@ -1,12 +1,6 @@
-import {
-  type CSSProperties,
-  type FormEvent,
-  type ReactNode,
-  createContext,
-  useContext,
-  useState,
-} from 'react';
+import { type CSSProperties, type FormEvent, type ReactNode, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
+import type { TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
 import {
   type Contest,
@@ -15,28 +9,6 @@ import {
   electionViews,
   getParty,
 } from '../mock-election';
-
-export type CandidatePhase = 'party' | 'candidate';
-
-type PrototypeContextValue = {
-  phase: CandidatePhase;
-  setPhase: (phase: CandidatePhase) => void;
-};
-
-const PrototypeContext = createContext<PrototypeContextValue | null>(null);
-
-export function PrototypeProvider({ children }: { children: ReactNode }) {
-  const [phase, setPhase] = useState<CandidatePhase>('party');
-  return (
-    <PrototypeContext.Provider value={{ phase, setPhase }}>{children}</PrototypeContext.Provider>
-  );
-}
-
-export function usePrototype() {
-  const value = useContext(PrototypeContext);
-  if (!value) throw new Error('PrototypeProvider is missing.');
-  return value;
-}
 
 export function Icon({
   name,
@@ -306,6 +278,19 @@ export function CardCover({
       </div>
     </div>
   );
+}
+
+/**
+ * 把伺服器的統計列換成 CandidateList 要的形狀。沒有黨籍（例如名單換過之後的舊
+ * 統計列）就用中性灰，不要挑一個政黨的顏色。
+ */
+export function toCandidateRows(tally?: { rows: TallyRow[] }) {
+  return (tally?.rows ?? []).map((row) => ({
+    id: row.targetId,
+    label: row.label,
+    color: row.color ?? '#8b8f8a',
+    value: row.percent,
+  }));
 }
 
 // 卡片裡的候選人清單：一位一行，色點、名字、份數、佔比，底下各自一條長條。

@@ -8,7 +8,13 @@ import {
   updateDisplayName,
   uploadAvatar,
 } from '../api';
-import { CandidateList, CardCover, Icon, PageShell } from './ElectionPrototypeShared';
+import {
+  CandidateList,
+  CardCover,
+  Icon,
+  PageShell,
+  toCandidateRows,
+} from './ElectionPrototypeShared';
 
 const defaultForecasterName = '預測者';
 
@@ -234,12 +240,7 @@ export function MyPredictionsPage() {
                 <CandidateList
                   forecasts={tally.totalPicks}
                   highlightId={picks[0]?.targetId}
-                  rows={tally.rows.map((row) => ({
-                    id: row.targetId,
-                    label: row.label,
-                    color: row.color ?? '#8b8f8a',
-                    value: row.percent,
-                  }))}
+                  rows={toCandidateRows(tally)}
                   winnerCount={contest.seats}
                 />
               </Link>

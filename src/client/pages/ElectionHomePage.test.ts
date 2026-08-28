@@ -11,7 +11,7 @@ import {
   shouldShowTownshipBoundaryPreview,
   shouldShowVillageBoundaryPreview,
 } from './ElectionHomePage';
-import { getForecastInputMode, getResultRows } from './ForecastSheet';
+import { getPredictionMode } from '../../shared/prediction';
 
 describe('election home map behavior', () => {
   it.each(['PEN', 'KIN', 'LIE'])('immediately focuses offshore jurisdiction %s', (id) => {
@@ -80,7 +80,7 @@ describe('election home map behavior', () => {
     const contest = getContests(getJurisdiction('NTP'), 'COUNCIL')[1];
     const candidates = getMockCandidates(contest);
 
-    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
+    expect(getPredictionMode(contest.view, contest.seatCount, false)).toBe('candidate');
     expect(candidates.length).toBeGreaterThan(contest.seatCount);
     expect(candidates.slice(0, 5).map(({ name }) => name)).toEqual([
       '國民黨候選人 1',
@@ -92,13 +92,12 @@ describe('election home map behavior', () => {
     expect(new Set(candidates.map(({ id }) => id)).size).toBe(candidates.length);
   });
 
-  it('shows non-winning candidates after every council seat', () => {
+  it('offers more candidates than there are council seats', () => {
     const contest = getContests(getJurisdiction('ILA'), 'COUNCIL')[0];
-    const rows = getResultRows(contest, 'party');
 
     expect(contest.seatCount).toBe(7);
-    expect(rows).toHaveLength(11);
-    expect(rows.length).toBeGreaterThan(contest.seatCount);
+    // 落選的人也要在名單上，不然「預測誰當選」變成「把名單全勾起來」。
+    expect(getMockCandidates(contest)).toHaveLength(11);
   });
 
   it('uses the same candidate selection for township representative contests', () => {
@@ -117,7 +116,7 @@ describe('election home map behavior', () => {
 
     expect(contest.name).toBe('南投市民代表');
     expect(contest.area).toBe('南投縣南投市代表選區');
-    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
+    expect(getPredictionMode(contest.view, contest.seatCount, false)).toBe('candidate');
     expect(candidates.length).toBeGreaterThan(contest.seatCount);
   });
 
@@ -134,8 +133,8 @@ describe('election home map behavior', () => {
     const contest = getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0];
 
     expect(contest.seatCount).toBe(1);
-    expect(getForecastInputMode(contest, 'party')).toBe('candidate');
-    expect(getResultRows(contest, 'party')[0].label).toBe('國民黨候選人');
+    expect(getPredictionMode(contest.view, contest.seatCount, false)).toBe('candidate');
+    expect(getMockCandidates(contest)[0].name).toBe('國民黨候選人');
   });
 
   it('fields exactly one candidate per party in single-seat contests', () => {

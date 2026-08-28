@@ -111,6 +111,12 @@ export const updateDisplayName = (displayName: string | null) =>
     body: JSON.stringify({ displayName }),
   });
 
+/** 一次拿好幾個選區的分布，給卡片牆用。 */
+export const getContestTallies = (contestIds: string[]) =>
+  request<{ tallies: Record<string, ContestDetail['tally']> }>(
+    `/api/contests?ids=${encodeURIComponent(contestIds.join(','))}`,
+  );
+
 export const getContest = (contestId: string) =>
   request<ContestDetail>(`/api/contests/${encodeURIComponent(contestId)}`);
 

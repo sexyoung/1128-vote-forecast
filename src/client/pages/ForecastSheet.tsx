@@ -1,48 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { ApiError, getContest, submitPrediction } from '../api';
-import { getPredictionMode } from '../../shared/prediction';
-import { type Contest, getMockCandidates, getParty, parties } from '../mock-election';
-import { type CandidatePhase, Icon } from './ElectionPrototypeShared';
+import { type Contest, getParty } from '../mock-election';
+import { Icon } from './ElectionPrototypeShared';
 
-// 結果列跟表單用同一套判斷：面板寫著候選人、表單卻要人選政黨（或反過來）會很錯亂。
-export function getResultRows(contest: Contest, phase: CandidatePhase) {
-  const orderedParties = [
-    getParty(contest.leader),
-    ...parties.filter((party) => party.id !== contest.leader),
-  ];
-  const remaining = 100 - contest.percentage;
-  const values = [contest.percentage, Math.round(remaining * 0.48), Math.round(remaining * 0.32)];
-  values.push(100 - values.reduce((total, value) => total + value, 0));
-  if (getForecastInputMode(contest, phase) === 'party')
-    return orderedParties.map((party, index) => ({
-      id: party.id,
-      label: party.shortName,
-      meta: party.name,
-      color: party.color,
-      value: values[index],
-    }));
-  const candidates = getMockCandidates(contest);
-  return candidates.map((candidate, index) => {
-    const party = getParty(candidate.partyId);
-    return {
-      id: candidate.id,
-      label: candidate.name,
-      meta: party.shortName,
-      color: party.color,
-      value:
-        contest.seatCount === 1
-          ? values[index]
-          : Math.max(
-              1,
-              Math.round((contest.percentage * (candidates.length - index)) / candidates.length),
-            ),
-    };
-  });
+// 送出後留下來的預測。要記 id 才有辦法在「修改我的預測」時把原本那幾格勾回來，
+// 光留 label 對不回選項。
+export type ForecastPick = { id: string; label: string };
+
+function tintChoice(hex: string) {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map((index) => Number.parseInt(value.slice(index, index + 2), 16));
+  return `rgb(${channels.map((channel) => Math.round(250 + (channel - 250) * 0.09)).join(' ')})`;
 }
 
-export function getForecastInputMode(contest: Contest, phase: CandidatePhase) {
-  return getPredictionMode(contest.view, contest.seatCount, phase === 'candidate');
+function targetColor(partyId: string | null) {
+  return partyId ? getParty(partyId as Parameters<typeof getParty>[0]).color : '#8b8f8a';
 }
 
 export function ForecastSheet({
@@ -95,20 +68,6 @@ export function ForecastSheet({
       </section>
     </div>
   );
-}
-
-// 送出後留下來的預測。要記 id 才有辦法在「修改我的預測」時把原本那幾格勾回來，
-// 光留 label 對不回選項。
-export type ForecastPick = { id: string; label: string };
-
-function tintChoice(hex: string) {
-  const value = hex.replace('#', '');
-  const channels = [0, 2, 4].map((index) => Number.parseInt(value.slice(index, index + 2), 16));
-  return `rgb(${channels.map((channel) => Math.round(250 + (channel - 250) * 0.09)).join(' ')})`;
-}
-
-function targetColor(partyId: string | null) {
-  return partyId ? getParty(partyId as Parameters<typeof getParty>[0]).color : '#8b8f8a';
 }
 
 export function ForecastForm({

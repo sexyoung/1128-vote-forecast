@@ -1,5 +1,7 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { getComments, getContest, getTrend, postComment } from '../api';
 import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
 import { type Contest, type Jurisdiction, findContest } from '../mock-election';
 
@@ -10,119 +12,180 @@ import {
   ForecastButton,
   Icon,
   PageShell,
-  usePrototype,
+  toCandidateRows,
 } from './ElectionPrototypeShared';
-import { ForecastSheet, getResultRows } from './ForecastSheet';
+import { ForecastSheet } from './ForecastSheet';
 
-function ResultsPanel({ contest }: { contest: Contest }) {
-  const { phase } = usePrototype();
-  const rows = getResultRows(contest, phase);
+function ResultsPanel({ contestId, seats }: { contestId: string; seats: number }) {
+  const detail = useQuery({
+    queryKey: ['contest', contestId],
+    queryFn: () => getContest(contestId),
+  });
+  const tally = detail.data?.tally;
+
+  if (detail.isPending) return <section className="results-panel">載入中…</section>;
+
   return (
     <section className="results-panel">
       <div className="results-total">
         <span>預測</span>
-        <strong>{contest.forecasts.toLocaleString()}</strong>
+        <strong>{(tally?.totalPredictions ?? 0).toLocaleString()}</strong>
         <small>份</small>
       </div>
-      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
+      {tally && tally.rows.length > 0 ? (
+        <CandidateList
+          forecasts={tally.totalPicks}
+          highlightId={detail.data?.mine?.targetIds[0]}
+          rows={toCandidateRows(tally)}
+          winnerCount={seats}
+        />
+      ) : (
+        <p className="method-note">還沒有人預測這一區，你可以是第一個。</p>
+      )}
       <p className="method-note">每個匿名身份在本選區只計一份預測。重複送出會覆蓋原紀錄。</p>
     </section>
   );
 }
 
-// 示意用的走勢：從 id 生出固定的擾動，越靠近今天越收斂到目前的百分比，所以
-// 線的終點就是清單上的數字。正式版會換成真的每日快照。
-function buildTrendPath(row: { id: string; value: number }, domain: number) {
-  let seed = 0;
-  for (let index = 0; index < row.id.length; index += 1) seed += row.id.charCodeAt(index);
-  const points = 7;
-  return Array.from({ length: points }, (_, index) => {
-    const progress = index / (points - 1);
-    const wobble = Math.sin(seed + index * 1.7) * (1 - progress) * row.value * 0.3;
-    const value = Math.max(0, row.value + wobble);
-    const x = progress * 600;
-    const y = 180 - (value / domain) * 172;
-    return `${index ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(' ');
+/**
+ * 把每日快照畫成折線。x 是「第幾天」而不是真實日期間距——中間缺一天（伺服器沒
+ * 開機、那天沒人預測）時，照日期畫會出現一段假的斜率。
+ */
+function buildTrendPath(points: { count: number }[], domain: number) {
+  if (points.length === 0) return '';
+  if (points.length === 1)
+    return `M0 ${(180 - (points[0].count / domain) * 172).toFixed(1)} L600 ${(180 - (points[0].count / domain) * 172).toFixed(1)}`;
+  return points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * 600;
+      const y = 180 - (point.count / domain) * 172;
+      return `${index ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
 }
 
-function TrendPanel({ contest }: { contest: Contest }) {
-  const { phase } = usePrototype();
-  const rows = getResultRows(contest, phase);
-  const domain = Math.max(...rows.map((row) => row.value)) * 1.35;
+function formatDay(date: string) {
+  const [, month, day] = date.split('-');
+  return `${Number(month)}/${day}`;
+}
+
+function TrendPanel({ contestId }: { contestId: string }) {
+  const trend = useQuery({ queryKey: ['trend', contestId], queryFn: () => getTrend(contestId) });
+  const series = trend.data?.series ?? [];
+  const domain =
+    Math.max(1, ...series.flatMap((line) => line.points.map(({ count }) => count))) * 1.2;
+  const days = series[0]?.points.map(({ date }) => date) ?? [];
+
+  if (trend.isPending) return <section className="trend-panel">載入中…</section>;
+  if (series.length === 0)
+    return (
+      <section className="trend-panel">
+        <p className="method-note">還沒有足夠的資料畫出走勢。每天會留下一個資料點。</p>
+      </section>
+    );
+
   return (
     <section className="trend-panel">
       <div className="trend-legend">
-        {rows.map((row) => (
-          <span key={row.id}>
-            <i style={{ background: row.color }} />
-            {row.label}
+        {series.map((line) => (
+          <span key={line.targetId}>
+            <i style={{ background: line.color ?? '#8b8f8a' }} />
+            {line.label}
           </span>
         ))}
-        <b>近 30 日</b>
+        <b>近 {trend.data?.days ?? 30} 日</b>
       </div>
-      <div className="trend-chart" aria-label="近三十日預測趨勢示意圖">
+      <div className="trend-chart" aria-label="預測走勢">
         <div className="grid-line line-1" />
         <div className="grid-line line-2" />
         <div className="grid-line line-3" />
         <svg preserveAspectRatio="none" viewBox="0 0 600 180">
-          {rows.map((row) => (
-            <path d={buildTrendPath(row, domain)} key={row.id} stroke={row.color} />
+          {series.map((line) => (
+            <path
+              d={buildTrendPath(line.points, domain)}
+              key={line.targetId}
+              stroke={line.color ?? '#8b8f8a'}
+            />
           ))}
         </svg>
         <div className="trend-axis">
-          <span>7/27</span>
-          <span>8/05</span>
-          <span>8/15</span>
-          <span>今天</span>
+          {[days[0], days[Math.floor(days.length / 2)], days[days.length - 1]]
+            .filter(Boolean)
+            .map((date) => (
+              <span key={date}>{formatDay(date)}</span>
+            ))}
         </div>
-      </div>
-      <div className="trend-callout">
-        <Icon name="spark" />
-        <span>
-          <strong>近 7 日變化</strong>
-          {rows[0].label}增加 4.8 個百分點
-        </span>
       </div>
     </section>
   );
 }
 
-function CommentsPanel() {
-  const comments = [
-    {
-      name: '北區觀察員',
-      time: '12 分鐘前',
-      body: '這一區的變化比上週明顯，想看看正式名單公布後會不會重新洗牌。',
+function CommentsPanel({ contestId }: { contestId: string }) {
+  const queryClient = useQueryClient();
+  const list = useQuery({
+    queryKey: ['comments', contestId],
+    queryFn: () => getComments(contestId),
+  });
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+
+  const send = useMutation({
+    mutationFn: () => postComment(contestId, draft),
+    onSuccess: async () => {
+      setDraft('');
+      setError('');
+      await queryClient.invalidateQueries({ queryKey: ['comments', contestId] });
     },
-    {
-      name: '山線居民',
-      time: '1 小時前',
-      body: '目前樣本還不算多，地圖如果能顯示樣本門檻會更清楚。',
+    onError: (failure: unknown) => {
+      setError(failure instanceof Error ? failure.message : '送出失敗，請稍後再試。');
     },
-    { name: '選舉資料控', time: '昨天', body: '希望之後能看到名單公布前後的預測差異。' },
-  ];
+  });
+
+  const comments = list.data?.comments ?? [];
+
   return (
     <section className="comments-panel">
       <div className="comment-compose">
         <div>
           <Icon name="user" />
         </div>
-        <input aria-label="留言內容" placeholder="留下你的看法" type="text" />
-        <button className="button button-glass button-small" type="button">
-          送出
+        <input
+          aria-label="留言內容"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && draft.trim()) send.mutate();
+          }}
+          placeholder="留下你的看法"
+          type="text"
+          value={draft}
+        />
+        <button
+          className="button button-glass button-small"
+          disabled={!draft.trim() || send.isPending}
+          onClick={() => send.mutate()}
+          type="button"
+        >
+          {send.isPending ? '送出中…' : '送出'}
         </button>
       </div>
+      {error && <p className="method-note">{error}</p>}
+      {list.isPending && <p className="method-note">載入中…</p>}
+      {!list.isPending && comments.length === 0 && <p className="method-note">還沒有人留言。</p>}
       {comments.map((comment) => (
-        <article className="comment" key={comment.name}>
-          <div className="comment-avatar">{comment.name.slice(0, 1)}</div>
+        <article className="comment" key={comment.id}>
+          <div className="comment-avatar">
+            {comment.author.avatarUrl ? (
+              <img alt="" src={comment.author.avatarUrl} />
+            ) : (
+              (comment.author.displayName ?? '預').slice(0, 1)
+            )}
+          </div>
           <div>
             <p>
-              <strong>{comment.name}</strong>
-              <time>{comment.time}</time>
+              <strong>{comment.author.displayName ?? '預測者'}</strong>
+              <time>{comment.author.code}</time>
             </p>
             <span>{comment.body}</span>
-            <button type="button">回覆</button>
           </div>
         </article>
       ))}
@@ -156,10 +219,10 @@ function useResolvedContest(contestId?: string) {
 
 export type ContestTab = 'results' | 'trend' | 'comments';
 
-const contestTabs: { id: ContestTab; label: string; badge?: string }[] = [
+const contestTabs: { id: ContestTab; label: string }[] = [
   { id: 'results', label: '預測結果' },
   { id: 'trend', label: '趨勢' },
-  { id: 'comments', label: '留言', badge: '36' },
+  { id: 'comments', label: '留言' },
 ];
 
 /** 分頁寫在網址的 ?tab=，地圖抽屜的「趨勢」「留言」才連得進來，也才分享得出去。 */
@@ -228,16 +291,17 @@ export function ContestPage() {
               type="button"
             >
               {tab.label}
-              {tab.badge && <span>{tab.badge}</span>}
             </button>
           ))}
         </div>
 
         <div className="contest-content">
           <div>
-            {activeTab === 'results' && <ResultsPanel contest={contest} />}
-            {activeTab === 'trend' && <TrendPanel contest={contest} />}
-            {activeTab === 'comments' && <CommentsPanel />}
+            {activeTab === 'results' && (
+              <ResultsPanel contestId={contest.id} seats={contest.seatCount} />
+            )}
+            {activeTab === 'trend' && <TrendPanel contestId={contest.id} />}
+            {activeTab === 'comments' && <CommentsPanel contestId={contest.id} />}
           </div>
           <aside className="contest-aside">
             <h3>你還沒有預測這一區</h3>

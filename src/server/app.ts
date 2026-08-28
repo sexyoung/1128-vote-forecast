@@ -154,6 +154,40 @@ app.get('/api/map/:jurisdictionId', async (c) => {
   return c.json({ cells: await readJurisdictionMap(jurisdictionId, level as ContestType) });
 });
 
+/**
+ * 一次拿好幾個選區的分布。卡片牆一頁有幾十張，一張一次請求會變成幾十次往返。
+ */
+app.get('/api/contests', async (c) => {
+  const ids = (c.req.query('ids') ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (ids.length === 0) return c.json({ tallies: {} });
+  if (ids.length > 250) return c.json({ error: '一次最多查 250 個選區。' }, 400);
+
+  const known = ids.flatMap((id) => getRegisteredContest(id) ?? []);
+  const tallies = await readContestTallies(known.map(({ id }) => id));
+
+  return c.json({
+    tallies: Object.fromEntries(
+      known.map((contest) => {
+        const tally = tallies.get(contest.id);
+        return [
+          contest.id,
+          {
+            totalPredictions: tally?.totalPredictions ?? 0,
+            totalPicks: tally?.totalPicks ?? 0,
+            rows: (tally?.rows ?? []).map((row) => ({
+              ...row,
+              ...describeTarget(contest, row.targetType, row.targetId),
+            })),
+          },
+        ];
+      }),
+    ),
+  });
+});
+
 /** 一個選區的名單、目前分布，以及我自己押了誰。 */
 app.get('/api/contests/:contestId', async (c) => {
   const contest = getRegisteredContest(c.req.param('contestId'));

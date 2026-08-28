@@ -32,6 +32,7 @@ import {
   ForecastButton,
   Icon,
   SearchBox,
+  toCandidateRows,
 } from './ElectionPrototypeShared';
 import { type ForecastPick, ForecastForm } from './ForecastSheet';
 
@@ -359,12 +360,7 @@ function MapInspector({
     queryFn: () => getContest(contest.id),
   });
   const tally = detail.data?.tally;
-  const rows = (tally?.rows ?? []).map((row) => ({
-    id: row.targetId,
-    label: row.label,
-    color: row.color ?? '#8b8f8a',
-    value: row.percent,
-  }));
+  const rows = toCandidateRows(tally);
   const leader = rows[0];
   const totalPredictions = tally?.totalPredictions ?? 0;
   // 份數太少時不放大領先者，避免十來份預測被讀成民調。

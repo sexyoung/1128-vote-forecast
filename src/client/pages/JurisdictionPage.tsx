@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
+import { type ContestDetail, getContestTallies } from '../api';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   buildRepresentativeContest,
@@ -26,10 +28,9 @@ import {
   ElectionTabs,
   Icon,
   PageShell,
-  usePrototype,
+  toCandidateRows,
 } from './ElectionPrototypeShared';
 import { regionCounts } from '../region-counts';
-import { getResultRows } from './ForecastSheet';
 
 // 最窄的卡片（.contest-grid 的 304px）文字欄約 170px，13px 中文一行約 13 字，
 // 兩行就是這個數。
@@ -47,10 +48,9 @@ export function summariseArea(area: string) {
   return `${parts[0]}、${parts[1]} 等 ${parts.length} ${unit}`;
 }
 
-function ContestCard({ contest }: { contest: Contest }) {
-  const { phase } = usePrototype();
+function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestDetail['tally'] }) {
   const rowLimit = contest.view === 'COUNCIL' ? Math.max(4, contest.seatCount) : 4;
-  const rows = getResultRows(contest, phase).slice(0, rowLimit);
+  const rows = toCandidateRows(tally).slice(0, rowLimit);
   // 代表的名額依地方制度法第 33 條按人口決定，公告還沒下來，標明是暫定值。
   const seats =
     contest.view === 'REPRESENTATIVE'
@@ -64,12 +64,16 @@ function ContestCard({ contest }: { contest: Contest }) {
       to={`/contest/${contest.id}`}
     >
       <span className="card-link">
-        {contest.forecasts.toLocaleString()} 份 <Icon name="chevron" />
+        {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
       {/* 區域清單放標題下面而不是上面的 kicker：那一行是單行截斷的，
           「石門區、三芝區、淡水區、八里區」這種會被切掉一半，也會撞到右上角的份數。 */}
       <CardCover kicker={seats} meta={summariseArea(contest.area)} title={contest.name} />
-      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
+      <CandidateList
+        forecasts={tally?.totalPicks ?? 0}
+        rows={rows}
+        winnerCount={contest.seatCount}
+      />
     </Link>
   );
 }
@@ -271,6 +275,14 @@ export function JurisdictionPage() {
   const skeletonSwapState =
     skeletonPhase === 'resetting' ? 'is-resetting' : skeletonLoading ? '' : 'is-revealed';
 
+  // 一頁的卡片一次要完。村里層一個鄉鎮最多百來筆，還在單次請求的範圍內。
+  const contestIds = contests.map(({ id }) => id).slice(0, 250);
+  const tallies = useQuery({
+    enabled: contestIds.length > 0,
+    queryKey: ['tallies', contestIds],
+    queryFn: () => getContestTallies(contestIds),
+  });
+
   return (
     <PageShell>
       <main className="page">
@@ -370,7 +382,7 @@ export function JurisdictionPage() {
                     key={contest.id}
                     style={{ '--stagger-delay': `${index * 20}ms` } as CSSProperties}
                   >
-                    <ContestCard contest={contest} />
+                    <ContestCard contest={contest} tally={tallies.data?.tallies[contest.id]} />
                   </div>
                 ))}
               </div>
