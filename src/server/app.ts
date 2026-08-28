@@ -2,8 +2,17 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prisma } from './db.js';
 import { env, turnstileEnabled } from './env.js';
+import { getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
-import { isHumanVerified } from './turnstile.js';
+import { describeTarget, getPredictionTargets } from './prediction-targets.js';
+import {
+  PredictionRejected,
+  readContestTally,
+  readMyPrediction,
+  savePrediction,
+} from './predictions.js';
+import { hitCounter } from './redis.js';
+import { ensureHuman, isHumanVerified } from './turnstile.js';
 
 type Variables = { forecaster: ResolvedForecaster };
 
@@ -51,6 +60,108 @@ app.get('/api/session', async (c) => {
       blocked: forecaster.blockedAt !== null,
     },
     turnstile: turnstileEnabled ? { siteKey: env.turnstileSiteKey } : null,
+  });
+});
+
+/** 一個選區的名單、目前分布，以及我自己押了誰。 */
+app.get('/api/contests/:contestId', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const forecaster = c.get('forecaster');
+  const [tally, mine] = await Promise.all([
+    readContestTally(contest.id),
+    readMyPrediction(forecaster.id, contest.id),
+  ]);
+
+  return c.json({
+    contest,
+    targets: getPredictionTargets(contest),
+    tally: {
+      ...tally,
+      rows: tally.rows.map((row) => ({
+        ...row,
+        ...describeTarget(contest, row.targetType, row.targetId),
+      })),
+    },
+    mine,
+  });
+});
+
+/** 送出或修改預測。同一個人對同一個選區永遠只有一筆，改是覆蓋。 */
+app.post('/api/contests/:contestId/prediction', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const forecaster = c.get('forecaster');
+  if (forecaster.blockedAt) return c.json({ error: '這個身份已被停用。' }, 403);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    targetIds?: unknown;
+    turnstileToken?: unknown;
+  } | null;
+  const targetIds = Array.isArray(body?.targetIds) ? body.targetIds : null;
+  if (!targetIds || targetIds.some((id) => typeof id !== 'string'))
+    return c.json({ error: '請選擇要預測的人選。' }, 400);
+
+  const ip = c.req.header('cf-connecting-ip') ?? '';
+  const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : '';
+  if (!(await ensureHuman(forecaster, token, ip)))
+    return c.json({ error: '請先完成人機驗證。', needsTurnstile: true }, 403);
+
+  // 一個人一分鐘最多改 20 次。正常使用碰不到，腳本會。
+  const hits = await hitCounter(`rl:pred:${forecaster.id}`, 60);
+  if (hits > 20) return c.json({ error: '操作太頻繁，請稍後再試。' }, 429);
+
+  try {
+    const { created } = await savePrediction(forecaster.id, contest, targetIds as string[]);
+    const tally = await readContestTally(contest.id);
+    return c.json(
+      {
+        mine: await readMyPrediction(forecaster.id, contest.id),
+        tally: {
+          ...tally,
+          rows: tally.rows.map((row) => ({
+            ...row,
+            ...describeTarget(contest, row.targetType, row.targetId),
+          })),
+        },
+      },
+      created ? 201 : 200,
+    );
+  } catch (error) {
+    if (error instanceof PredictionRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+/** 我押過的所有選區，給 /mine 用。 */
+app.get('/api/me/predictions', async (c) => {
+  const forecaster = c.get('forecaster');
+  const predictions = await prisma.prediction.findMany({
+    where: { forecasterId: forecaster.id },
+    include: { picks: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 200,
+  });
+
+  return c.json({
+    predictions: predictions.flatMap((prediction) => {
+      const contest = getRegisteredContest(prediction.contestId);
+      // 選區改制後舊預測可能對不到清冊，那就不列出來，但資料還留著。
+      if (!contest) return [];
+      return [
+        {
+          contest,
+          status: prediction.status,
+          updatedAt: prediction.updatedAt,
+          picks: prediction.picks.map((pick) => ({
+            targetId: pick.targetId,
+            ...describeTarget(contest, pick.targetType, pick.targetId),
+          })),
+        },
+      ];
+    }),
   });
 });
 

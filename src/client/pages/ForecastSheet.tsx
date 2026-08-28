@@ -1,4 +1,5 @@
 import { type CSSProperties, useEffect, useState } from 'react';
+import { getPredictionMode, usesPreAnnouncementCandidateTargets } from '../../shared/prediction';
 import { type Contest, getMockCandidates, getParty, parties } from '../mock-election';
 import { type CandidatePhase, Icon, usePrototype } from './ElectionPrototypeShared';
 
@@ -38,17 +39,14 @@ export function getResultRows(contest: Contest, phase: CandidatePhase) {
   });
 }
 
-// 正式候選人名單公告前就先用（黨籍示意）候選人而不是政黨的選舉。
-// 只有一席的選舉（縣市長、鄉鎮市長、村里長）也算：那種選舉大家記得的是人，
-// 面板只寫「民進黨 52%」等於沒說到重點。
+// 規則本身在 shared/prediction.ts，伺服器收預測時用的是同一份——畫面讓人選
+// 候選人、伺服器卻只收政黨的話，送出就會被拒絕。
 function usesPreAnnouncementCandidateSelection(contest: Contest) {
-  return contest.view === 'COUNCIL' || contest.view === 'REPRESENTATIVE' || contest.seatCount === 1;
+  return usesPreAnnouncementCandidateTargets(contest.view, contest.seatCount);
 }
 
 export function getForecastInputMode(contest: Contest, phase: CandidatePhase) {
-  return usesPreAnnouncementCandidateSelection(contest) || phase === 'candidate'
-    ? 'candidate'
-    : 'party';
+  return getPredictionMode(contest.view, contest.seatCount, phase === 'candidate');
 }
 
 export function ForecastSheet({

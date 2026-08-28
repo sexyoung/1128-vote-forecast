@@ -131,11 +131,16 @@ model PredictionPick {
   targetType   PredictionTargetType
   /// PARTY 時是政黨代號（KMT），CANDIDATE 時是候選人 id。
   targetId     String
+  /// 押的那一位的黨籍。中選會公告前 targetId 是佔位候選人（getMockCandidates
+  /// 產生的），名單進來後要靠這個欄位把舊預測對回真候選人；對不到就 INVALIDATED。
+  /// 由伺服器自己算，不採用前端送來的值。
+  partyId      String?
 
   prediction Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
 
   @@id([predictionId, targetType, targetId])
   @@index([targetType, targetId])
+  @@index([partyId])
 }
 
 /// 改預測時把舊的整組收進來。稽核用，也是「改過幾次」的來源。
