@@ -16,6 +16,7 @@ import { describeTarget, getPredictionTargets } from './prediction-targets.js';
 import { PredictionRejected, readMyPrediction, savePrediction } from './predictions.js';
 import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
 import { createUploadUrl, deleteObject, storageEnabled } from './storage.js';
+import { readTrend } from './trends.js';
 import { fileReport, parseReportReason, parseReportTarget, requireAdmin } from './moderation.js';
 import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
@@ -231,6 +232,16 @@ app.get('/api/me/predictions', async (c) => {
       ];
     }),
   });
+});
+
+/** 近 N 天的走勢。線的終點是現在的數字，不是昨天的快照。 */
+app.get('/api/contests/:contestId/trend', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const requested = Number(c.req.query('days') ?? 30);
+  const days = Number.isFinite(requested) ? Math.min(180, Math.max(7, Math.trunc(requested))) : 30;
+  return c.json({ days, series: await readTrend(contest.id, days) });
 });
 
 /** 一個選區的留言。第一頁最熱，之後用時間游標往下翻。 */

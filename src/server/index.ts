@@ -4,6 +4,7 @@ import { prisma } from './db.js';
 import { assertProductionEnv, env } from './env.js';
 import { disconnectRedis } from './redis.js';
 import { refreshHotSnapshots } from './snapshots.js';
+import { captureDailySnapshot, hasSnapshotFor } from './trends.js';
 
 assertProductionEnv();
 
@@ -23,8 +24,27 @@ const snapshotTimer = setInterval(() => {
 }, 60_000);
 snapshotTimer.unref();
 
+/**
+ * 每天抄一次 tally 當趨勢的資料點。用「今天抄過了沒」判斷而不是排在固定時刻：
+ * 伺服器重啟、部署或當機都不會讓那一天缺一格。
+ */
+const trendTimer = setInterval(
+  () => {
+    void (async () => {
+      if (await hasSnapshotFor()) return;
+      const rows = await captureDailySnapshot();
+      console.log(`趨勢快照寫入 ${rows} 列`);
+    })().catch((error: unknown) => {
+      console.warn('趨勢快照失敗：', error instanceof Error ? error.message : error);
+    });
+  },
+  60 * 60 * 1000,
+);
+trendTimer.unref();
+
 function shutdown() {
   clearInterval(snapshotTimer);
+  clearInterval(trendTimer);
   server.close(async () => {
     await prisma.$disconnect();
     await disconnectRedis();
