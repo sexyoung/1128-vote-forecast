@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
+import { type MapCell, getContest, getJurisdictionMap, getNationalMap } from '../api';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
   type TownshipShape,
@@ -17,6 +19,7 @@ import {
   type Contest,
   type ElectionView,
   type Jurisdiction,
+  type PartyId,
   electionViews,
   getContests,
   getJurisdiction,
@@ -29,9 +32,8 @@ import {
   ForecastButton,
   Icon,
   SearchBox,
-  usePrototype,
 } from './ElectionPrototypeShared';
-import { type ForecastPick, ForecastForm, getResultRows } from './ForecastSheet';
+import { type ForecastPick, ForecastForm } from './ForecastSheet';
 
 type MapBounds = { x: number; y: number; width: number; height: number };
 type MapPanState = MapBounds & {
@@ -288,6 +290,24 @@ function tint(hex: string, percentage: number, selected = false) {
     .join(' ')})`;
 }
 
+/** 還沒有人預測的選區。灰色是誠實的答案，不要用假資料填出一張看起來有內容的地圖。 */
+const noDataFill = '#e2e1dc';
+const noDataSelectedFill = '#c6c5bf';
+
+/**
+ * 地圖著色只看伺服器的統計。cell 是 /api/map/* 回來的那一格；沒有 cell 或還沒有
+ * 人預測就是灰的。
+ */
+function mapFill(cell: MapCell | undefined, selected: boolean) {
+  if (!cell || cell.total === 0 || !cell.party) return selected ? noDataSelectedFill : noDataFill;
+  return tint(getParty(cell.party as PartyId).color, cell.percent, selected);
+}
+
+function mapLabel(name: string, cell: MapCell | undefined) {
+  if (!cell || cell.total === 0 || !cell.party) return `${name}，尚無預測`;
+  return `${name}，${getParty(cell.party as PartyId).shortName} ${cell.percent}%`;
+}
+
 function MapBrand() {
   return (
     <Link className="map-brand" to="/">
@@ -315,7 +335,6 @@ function MapInspector({
   contestOptions,
   jurisdiction,
   expanded,
-  myForecast,
   showForm,
   onContestChange,
   onExpandedChange,
@@ -327,7 +346,6 @@ function MapInspector({
   contestOptions: Contest[];
   jurisdiction: Jurisdiction;
   expanded: boolean;
-  myForecast?: ForecastPick[];
   showForm: boolean;
   onContestChange: (contest: Contest) => void;
   onExpandedChange: (expanded: boolean) => void;
@@ -335,11 +353,22 @@ function MapInspector({
   onBackToResult: () => void;
   onSubmitted: (picked: ForecastPick[]) => void;
 }) {
-  const { phase } = usePrototype();
-  const rows = getResultRows(contest, phase);
+  // 分布來自伺服器；還沒載回來之前不畫數字，不要先給一個等一下會跳掉的假值。
+  const detail = useQuery({
+    queryKey: ['contest', contest.id],
+    queryFn: () => getContest(contest.id),
+  });
+  const tally = detail.data?.tally;
+  const rows = (tally?.rows ?? []).map((row) => ({
+    id: row.targetId,
+    label: row.label,
+    color: row.color ?? '#8b8f8a',
+    value: row.percent,
+  }));
   const leader = rows[0];
+  const totalPredictions = tally?.totalPredictions ?? 0;
   // 份數太少時不放大領先者，避免十來份預測被讀成民調。
-  const lowSample = contest.forecasts < lowSampleThreshold;
+  const lowSample = totalPredictions < lowSampleThreshold;
 
   if (showForm)
     return (
@@ -414,21 +443,31 @@ function MapInspector({
         <strong>{contest.name}</strong>
         <span>
           <CandidatePortrait />
-          {lowSample ? '預測份數還很少' : leader.label}
+          {leader ? (lowSample ? '預測份數還很少' : leader.label) : '尚無預測'}
         </span>
-        <b style={lowSample ? undefined : { color: leader.color }}>
-          {lowSample ? `${contest.forecasts.toLocaleString()} 份` : `${leader.value}%`}
+        <b style={leader && !lowSample ? { color: leader.color } : undefined}>
+          {leader
+            ? lowSample
+              ? `${totalPredictions.toLocaleString()} 份`
+              : `${leader.value}%`
+            : '—'}
         </b>
         <em>看更多 ›</em>
       </button>
-      {myForecast && myForecast.length > 0 && (
+      {detail.data?.mine && (
         <div className="map-my-forecast">
           <i>
             <Icon name="check" />
           </i>
           <span>
-            <strong>你預測 {myForecast.map(({ label }) => label).join('、')} 勝出</strong>
-            <small>剛剛送出 · 可隨時修改</small>
+            <strong>
+              你預測{' '}
+              {(detail.data.mine.targetIds ?? [])
+                .map((id) => rows.find((row) => row.id === id)?.label ?? id)
+                .join('、')}{' '}
+              勝出
+            </strong>
+            <small>可隨時修改</small>
           </span>
         </div>
       )}
@@ -436,8 +475,16 @@ function MapInspector({
         <div className="map-low-sample">
           <i />
           <span>
-            <strong>目前只有 {contest.forecasts.toLocaleString()} 份預測</strong>
-            <small>份數太少，分布容易被少數人左右，先當作參考就好。</small>
+            <strong>
+              {totalPredictions === 0
+                ? '還沒有人預測這一區'
+                : `目前只有 ${totalPredictions.toLocaleString()} 份預測`}
+            </strong>
+            <small>
+              {totalPredictions === 0
+                ? '你可以是第一個。'
+                : '份數太少，分布容易被少數人左右，先當作參考就好。'}
+            </small>
           </span>
         </div>
       )}
@@ -451,21 +498,22 @@ function MapInspector({
       </div>
       <div className="map-inspector-scroll t-progress-list" key={`results-${contest.id}`}>
         <CandidateList
-          forecasts={contest.forecasts}
+          forecasts={tally?.totalPicks ?? 0}
+          highlightId={detail.data?.mine?.targetIds[0]}
           rows={rows}
-          winnerCount={lowSample ? 0 : contest.seatCount}
+          winnerCount={lowSample ? 0 : (detail.data?.contest.seats ?? contest.seatCount)}
         />
         <p className="map-inspector-total">
-          共 <strong>{contest.forecasts.toLocaleString()}</strong> 份預測 · 2 分鐘前更新
+          共 <strong>{totalPredictions.toLocaleString()}</strong> 份預測
         </p>
         <div className="map-inspector-links">
           <Link to={`/contest/${contest.id}?tab=trend`}>查看趨勢</Link>
           <i />
-          <Link to={`/contest/${contest.id}?tab=comments`}>留言 36</Link>
+          <Link to={`/contest/${contest.id}?tab=comments`}>留言</Link>
         </div>
       </div>
       <footer className="map-inspector-footer">
-        <ForecastButton editing={Boolean(myForecast)} onClick={onForecast} />
+        <ForecastButton editing={Boolean(detail.data?.mine)} onClick={onForecast} />
       </footer>
     </aside>
   );
@@ -480,7 +528,7 @@ export function ElectionHomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const compactChrome = useCompactChrome();
   // 這一版先記在記憶體裡，正式版會綁到匿名身份。key 是 contest.id。
-  const [myForecasts, setMyForecasts] = useState<Record<string, ForecastPick[]>>({});
+
   const [viewBox, setViewBox] = useState(initialMapViewBox);
   const [selectedTownshipId, setSelectedTownshipId] = useState<string | null>(null);
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
@@ -537,6 +585,27 @@ export function ElectionHomePage() {
     detailMode &&
     mapWidth <= villageZoomWidth &&
     (!councilVillageGeometryNeeded || focusedTownCode !== null);
+
+  // 地圖著色只看伺服器的統計。全國地圖是首頁必打的一支，永遠拉；下鑽的那一層
+  // 等真的切進去才拉。
+  const nationalMap = useQuery({ queryKey: ['map', 'national'], queryFn: getNationalMap });
+  const drillLevel: ElectionView | null = !detailMode
+    ? null
+    : villageZoom
+      ? 'VILLAGE'
+      : (activeTownshipView ?? 'COUNCIL');
+  const drillMap = useQuery({
+    enabled: Boolean(selectedJurisdiction && drillLevel),
+    queryKey: ['map', selectedJurisdiction?.id, drillLevel],
+    queryFn: () => getJurisdictionMap(selectedJurisdiction?.id ?? '', drillLevel ?? 'COUNCIL'),
+  });
+
+  const cells = useMemo(() => {
+    const all = new Map<string, MapCell>();
+    for (const cell of nationalMap.data?.cells ?? []) all.set(cell.contestId, cell);
+    for (const cell of drillMap.data?.cells ?? []) all.set(cell.contestId, cell);
+    return all;
+  }, [nationalMap.data, drillMap.data]);
 
   useEffect(() => {
     let active = true;
@@ -1194,15 +1263,15 @@ export function ElectionHomePage() {
               {countyShapes.map((location) => {
                 const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
                 const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
-                const party = getParty(contest.leader);
+                const cell = cells.get(contest.id);
                 const selected = selectedJurisdiction?.id === jurisdiction.id;
                 return (
                   <path
-                    aria-label={`${jurisdiction.name}，${party.shortName} ${contest.percentage}%`}
+                    aria-label={mapLabel(jurisdiction.name, cell)}
                     className={`taiwan-county ${selected ? 'selected' : ''}`}
                     data-jurisdiction-id={jurisdiction.id}
                     d={location.path}
-                    fill={tint(party.color, contest.percentage, selected)}
+                    fill={mapFill(cell, selected)}
                     key={location.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
@@ -1230,7 +1299,7 @@ export function ElectionHomePage() {
             {detailMode && selectedJurisdiction && (
               <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
                 {visibleTownships.map(({ contest, township }) => {
-                  const party = contest ? getParty(contest.leader) : null;
+                  const cell = contest ? cells.get(contest.id) : undefined;
                   const selected =
                     contest !== null &&
                     (selectedTownshipId === township.id ||
@@ -1238,19 +1307,15 @@ export function ElectionHomePage() {
                   return (
                     <path
                       aria-label={
-                        contest && party
-                          ? `${township.countyName}${township.townName}，${party.shortName} ${contest.percentage}%`
+                        contest
+                          ? mapLabel(`${township.countyName}${township.townName}`, cell)
                           : `${township.countyName}${township.townName}，請由村里界線選擇議員選區`
                       }
                       className={`taiwan-township ${selected ? 'selected' : ''} ${contest ? '' : 'unresolved'}`}
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={township.townCode}
                       d={township.path}
-                      fill={
-                        contest && party
-                          ? tint(party.color, contest.percentage, selected)
-                          : '#e5e3dd'
-                      }
+                      fill={contest ? mapFill(cell, selected) : '#e5e3dd'}
                       key={township.id}
                       onClick={() => {
                         if (!mapClickAllowed() || !contest) return;
@@ -1272,17 +1337,20 @@ export function ElectionHomePage() {
             {visibleCouncilVillages.length > 0 && selectedJurisdiction && (
               <g className={`council-village-layer ${villageMode ? 'faded' : ''}`}>
                 {visibleCouncilVillages.map(({ contest, village }) => {
-                  const party = getParty(contest.leader);
+                  const cell = cells.get(contest.id);
                   const selected = selectedContest?.id === contest.id;
                   return (
                     <path
-                      aria-label={`${village.countyName}${village.townName}${village.villName}，${contest.name}，${party.shortName} ${contest.percentage}%`}
+                      aria-label={mapLabel(
+                        `${village.countyName}${village.townName}${village.villName}，${contest.name}`,
+                        cell,
+                      )}
                       className={`taiwan-township council-village ${selected ? 'selected' : ''}`}
                       data-council-village="true"
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={village.townCode}
                       d={village.path}
-                      fill={tint(party.color, contest.percentage, selected)}
+                      fill={mapFill(cell, selected)}
                       key={`council-${village.id}`}
                       onClick={() => {
                         if (!mapClickAllowed()) return;
@@ -1313,18 +1381,18 @@ export function ElectionHomePage() {
             {visibleVillages.length > 0 && selectedJurisdiction && (
               <g className={`village-layer ${villageMode ? '' : 'faded'}`}>
                 {visibleVillages.map(({ contest, village }) => {
-                  const party = getParty(contest.leader);
+                  const cell = cells.get(contest.id);
                   const name = village.villName || '未編定村里';
                   const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
                   const selected = selectedVillageId === village.id;
                   return (
                     <path
-                      aria-label={`${village.countyName}${village.townName}${name}，${party.shortName} ${contest.percentage}%`}
+                      aria-label={mapLabel(`${village.countyName}${village.townName}${name}`, cell)}
                       className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={village.townCode}
                       d={village.path}
-                      fill={tint(party.color, contest.percentage, selected)}
+                      fill={mapFill(cell, selected)}
                       key={village.id}
                       onClick={() => {
                         if (!mapClickAllowed()) return;
@@ -1383,7 +1451,6 @@ export function ElectionHomePage() {
               contestOptions={activeContestOptions}
               expanded={inspectorExpanded}
               jurisdiction={selectedJurisdiction}
-              myForecast={myForecasts[activeContest.id]}
               onBackToResult={() => setForecastOpen(false)}
               onContestChange={(contest) => {
                 setForecastOpen(false);
@@ -1391,8 +1458,8 @@ export function ElectionHomePage() {
               }}
               onExpandedChange={setInspectorExpanded}
               onForecast={() => setForecastOpen(true)}
-              onSubmitted={(picked) => {
-                setMyForecasts((current) => ({ ...current, [activeContest.id]: picked }));
+              // 送出後的顯示由伺服器回答，這裡只負責把畫面切回結果。
+              onSubmitted={() => {
                 setForecastOpen(false);
                 setInspectorExpanded(true);
               }}

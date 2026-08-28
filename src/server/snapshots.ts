@@ -121,7 +121,7 @@ async function rebuild(key: string) {
  */
 export async function refreshHotSnapshots() {
   const tracked = await takeTrackedKeys(hotKeys);
-  const keys = new Set([nationalKey, ...tracked]);
+  const keys = [...new Set([nationalKey, ...tracked])];
   for (const key of keys) await rebuild(key);
-  return keys.size;
+  return keys;
 }

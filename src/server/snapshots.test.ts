@@ -109,10 +109,14 @@ describe('map snapshots', () => {
     // 讀過縣市層，它才會進追蹤集合。
     await app.request('/api/map/HUA?level=EXECUTIVE');
 
-    const first = await refreshHotSnapshots();
-    expect(first).toBeGreaterThanOrEqual(2);
+    const key = jurisdictionKey('HUA', 'EXECUTIVE');
+    // 用「這個 key 在不在」判斷而不是數量：追蹤集合是共用的，同時跑的測試檔也會
+    // 把自己讀過的 key 放進去。
+    expect(await refreshHotSnapshots()).toContain(key);
 
-    // 集合取出後就清空，這一輪沒人讀就只剩全國地圖。
-    expect(await refreshHotSnapshots()).toBe(1);
+    // 集合取出後就清空，這一輪沒人讀它就不會再重算。
+    const second = await refreshHotSnapshots();
+    expect(second).not.toContain(key);
+    expect(second).toContain(nationalKey);
   });
 });

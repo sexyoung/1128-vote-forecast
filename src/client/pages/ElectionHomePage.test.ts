@@ -209,6 +209,17 @@ describe('election home map behavior', () => {
     expect(source).not.toContain('className="map-select phase"');
   });
 
+  it('colours the map from the API, never from the mock numbers', async () => {
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
+
+    // contest.percentage 是 mock-election 的示意數字。地圖著色一旦用回它，畫面上
+    // 就會出現看起來像預測、其實沒人送出過的顏色。
+    expect(source).not.toContain('contest.percentage');
+    expect(source).toContain('mapFill(cell');
+    // 沒有人預測的選區要是灰的，不是隨便一個政黨的顏色。
+    expect(source).toContain('noDataFill');
+  });
+
   it('smoothly interpolates both map position and zoom', () => {
     const start = { x: 0, y: 10, width: 100, height: 200 };
     const end = { x: 100, y: 110, width: 20, height: 40 };
