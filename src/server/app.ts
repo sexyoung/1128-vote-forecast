@@ -9,13 +9,16 @@ import {
   commitAvatar,
   stagingKey,
 } from './avatars.js';
+import { CommentRejected, createComment, deleteOwnComment, listComments } from './comments.js';
 import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
 import { describeTarget, getPredictionTargets } from './prediction-targets.js';
 import { PredictionRejected, readMyPrediction, savePrediction } from './predictions.js';
 import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
 import { createUploadUrl, deleteObject, storageEnabled } from './storage.js';
-import { hitCounter } from './redis.js';
+import { fileReport, parseReportReason, parseReportTarget, requireAdmin } from './moderation.js';
+import { cacheDelete, hitCounter } from './redis.js';
+import { commentsKey } from './snapshot-keys.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
 
 type Variables = { forecaster: ResolvedForecaster };
@@ -38,7 +41,8 @@ app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api
  * 這一頁不需要登入，所以「還沒有身份」不是錯誤狀態。
  */
 app.use('/api/*', async (c, next) => {
-  if (c.req.path === '/api/health') return next();
+  // 健康檢查與後台不需要身份，後台走自己的 token。
+  if (c.req.path === '/api/health' || c.req.path.startsWith('/api/admin/')) return next();
   try {
     c.set('forecaster', await resolveForecaster(c));
   } catch (error) {
@@ -227,6 +231,142 @@ app.get('/api/me/predictions', async (c) => {
       ];
     }),
   });
+});
+
+/** 一個選區的留言。第一頁最熱，之後用時間游標往下翻。 */
+app.get('/api/contests/:contestId/comments', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const cursor = c.req.query('cursor');
+  const before = cursor ? new Date(cursor) : undefined;
+  if (before && Number.isNaN(before.getTime())) return c.json({ error: '游標不正確。' }, 400);
+
+  return c.json(await listComments(contest.id, before));
+});
+
+app.post('/api/contests/:contestId/comments', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const forecaster = c.get('forecaster');
+  if (forecaster.blockedAt) return c.json({ error: '這個身份已被停用。' }, 403);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    body?: unknown;
+    parentId?: unknown;
+    turnstileToken?: unknown;
+  } | null;
+
+  const ip = c.req.header('cf-connecting-ip') ?? '';
+  const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : '';
+  if (!(await ensureHuman(forecaster, token, ip)))
+    return c.json({ error: '請先完成人機驗證。', needsTurnstile: true }, 403);
+
+  // 一分鐘最多 5 則。討論跟得上，洗版跟不上。
+  if ((await hitCounter(`rl:comment:${forecaster.id}`, 60)) > 5)
+    return c.json({ error: '留言太頻繁，請稍後再試。' }, 429);
+
+  try {
+    const comment = await createComment(
+      forecaster.id,
+      contest.id,
+      typeof body?.body === 'string' ? body.body : '',
+      typeof body?.parentId === 'string' ? body.parentId : null,
+    );
+    await cacheDelete(commentsKey(contest.id));
+    return c.json({ comment }, 201);
+  } catch (error) {
+    if (error instanceof CommentRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+app.delete('/api/comments/:commentId', async (c) => {
+  const forecaster = c.get('forecaster');
+  try {
+    await deleteOwnComment(forecaster.id, c.req.param('commentId'));
+    return c.json({ ok: true });
+  } catch (error) {
+    if (error instanceof CommentRejected) return c.json({ error: error.message }, 404);
+    throw error;
+  }
+});
+
+/** 檢舉留言或頭像。任何人都能送，處理在後台。 */
+app.post('/api/reports', async (c) => {
+  const forecaster = c.get('forecaster');
+  const body = (await c.req.json().catch(() => null)) as {
+    targetType?: unknown;
+    targetId?: unknown;
+    reason?: unknown;
+    note?: unknown;
+  } | null;
+
+  const targetType = parseReportTarget(body?.targetType);
+  const reason = parseReportReason(body?.reason);
+  const targetId = typeof body?.targetId === 'string' ? body.targetId : '';
+  if (!targetType || !reason || !targetId) return c.json({ error: '檢舉內容不完整。' }, 400);
+
+  const note = typeof body?.note === 'string' ? body.note.slice(0, 500) : null;
+  const report = await fileReport({
+    reporterId: forecaster.id,
+    targetType,
+    targetId,
+    reason,
+    note,
+  });
+  return c.json({ reportId: report.id }, 201);
+});
+
+// --- 後台 ---------------------------------------------------------------
+
+app.use('/api/admin/*', requireAdmin);
+
+app.get('/api/admin/reports', async (c) => {
+  const reports = await prisma.report.findMany({
+    where: { status: 'OPEN' },
+    orderBy: { createdAt: 'asc' },
+    take: 100,
+  });
+  return c.json({ reports });
+});
+
+app.post('/api/admin/comments/:commentId/hide', async (c) => {
+  const commentId = c.req.param('commentId');
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+  if (!comment) return c.json({ error: '找不到這則留言。' }, 404);
+
+  await prisma.$transaction([
+    prisma.comment.update({ where: { id: commentId }, data: { status: 'HIDDEN' } }),
+    prisma.report.updateMany({
+      where: { targetType: 'COMMENT', targetId: commentId, status: 'OPEN' },
+      data: { status: 'ACTIONED', handledAt: new Date() },
+    }),
+  ]);
+  await cacheDelete(commentsKey(comment.contestId));
+  return c.json({ ok: true });
+});
+
+app.post('/api/admin/forecasters/:forecasterId/avatar-block', async (c) => {
+  const forecasterId = c.req.param('forecasterId');
+  await prisma.forecaster.update({
+    where: { id: forecasterId },
+    data: { avatarBlockedAt: new Date() },
+  });
+  await prisma.report.updateMany({
+    where: { targetType: 'AVATAR', targetId: forecasterId, status: 'OPEN' },
+    data: { status: 'ACTIONED', handledAt: new Date() },
+  });
+  return c.json({ ok: true });
+});
+
+app.post('/api/admin/forecasters/:forecasterId/block', async (c) => {
+  await prisma.forecaster.update({
+    where: { id: c.req.param('forecasterId') },
+    data: { blockedAt: new Date() },
+  });
+  return c.json({ ok: true });
 });
 
 app.get('/api/forecasts', async (c) => {

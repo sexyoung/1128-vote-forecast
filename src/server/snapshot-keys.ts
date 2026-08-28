@@ -10,6 +10,10 @@ export function jurisdictionKey(jurisdictionId: string, type: string) {
   return `snap:map:${jurisdictionId}:${type}`;
 }
 
+export function commentsKey(contestId: string) {
+  return `snap:comments:${contestId}:p1`;
+}
+
 export function contestKey(contestId: string) {
   return `snap:contest:${contestId}`;
 }
