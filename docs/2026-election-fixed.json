@@ -259,9 +259,7 @@
       "name": "臺北市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "臺北市"
-      ],
+      "areas": ["臺北市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -271,9 +269,7 @@
       "name": "新北市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "新北市"
-      ],
+      "areas": ["新北市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -283,9 +279,7 @@
       "name": "桃園市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "桃園市"
-      ],
+      "areas": ["桃園市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -295,9 +289,7 @@
       "name": "臺中市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "臺中市"
-      ],
+      "areas": ["臺中市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -307,9 +299,7 @@
       "name": "臺南市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "臺南市"
-      ],
+      "areas": ["臺南市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -319,9 +309,7 @@
       "name": "高雄市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "高雄市"
-      ],
+      "areas": ["高雄市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -331,9 +319,7 @@
       "name": "基隆市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "基隆市"
-      ],
+      "areas": ["基隆市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -343,9 +329,7 @@
       "name": "新竹市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "新竹市"
-      ],
+      "areas": ["新竹市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -355,9 +339,7 @@
       "name": "新竹縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "新竹縣"
-      ],
+      "areas": ["新竹縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -367,9 +349,7 @@
       "name": "苗栗縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "苗栗縣"
-      ],
+      "areas": ["苗栗縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -379,9 +359,7 @@
       "name": "彰化縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "彰化縣"
-      ],
+      "areas": ["彰化縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -391,9 +369,7 @@
       "name": "南投縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "南投縣"
-      ],
+      "areas": ["南投縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -403,9 +379,7 @@
       "name": "雲林縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "雲林縣"
-      ],
+      "areas": ["雲林縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -415,9 +389,7 @@
       "name": "嘉義市",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "嘉義市"
-      ],
+      "areas": ["嘉義市"],
       "candidateStatus": "not_announced"
     },
     {
@@ -427,9 +399,7 @@
       "name": "嘉義縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "嘉義縣"
-      ],
+      "areas": ["嘉義縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -439,9 +409,7 @@
       "name": "屏東縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "屏東縣"
-      ],
+      "areas": ["屏東縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -451,9 +419,7 @@
       "name": "宜蘭縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "宜蘭縣"
-      ],
+      "areas": ["宜蘭縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -463,9 +429,7 @@
       "name": "花蓮縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "花蓮縣"
-      ],
+      "areas": ["花蓮縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -475,9 +439,7 @@
       "name": "臺東縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "臺東縣"
-      ],
+      "areas": ["臺東縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -487,9 +449,7 @@
       "name": "澎湖縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "澎湖縣"
-      ],
+      "areas": ["澎湖縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -499,9 +459,7 @@
       "name": "金門縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "金門縣"
-      ],
+      "areas": ["金門縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -511,9 +469,7 @@
       "name": "連江縣",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "連江縣"
-      ],
+      "areas": ["連江縣"],
       "candidateStatus": "not_announced"
     },
     {
@@ -523,9 +479,7 @@
       "name": "烏來區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "烏來區"
-      ],
+      "areas": ["烏來區"],
       "candidateStatus": "not_announced"
     },
     {
@@ -535,9 +489,7 @@
       "name": "復興區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "復興區"
-      ],
+      "areas": ["復興區"],
       "candidateStatus": "not_announced"
     },
     {
@@ -547,9 +499,7 @@
       "name": "和平區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "和平區"
-      ],
+      "areas": ["和平區"],
       "candidateStatus": "not_announced"
     },
     {
@@ -559,9 +509,7 @@
       "name": "南化區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "南化區"
-      ],
+      "areas": ["南化區"],
       "candidateStatus": "not_announced"
     },
     {
@@ -571,9 +519,7 @@
       "name": "桃源區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "桃源區"
-      ],
+      "areas": ["桃源區"],
       "candidateStatus": "not_announced"
     },
     {
@@ -583,9 +529,7 @@
       "name": "茂林區山地原住民區",
       "districtNo": null,
       "seats": 1,
-      "areas": [
-        "茂林區"
-      ],
+      "areas": ["茂林區"],
       "candidateStatus": "not_announced"
     }
   ]

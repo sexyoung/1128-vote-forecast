@@ -491,14 +491,14 @@ POST /api/admin/forecasters/:id/block    admin token
 6. ✅ **頭像上傳**：presigned PUT ＋ sharp 重編碼。
 7. ✅ **留言、檢舉、後台**。
 8. ✅ **趨勢每日 cron**。
-9. ⬜ **候選人匯入**（等中選會 2026-11 公告）：
-   - `Candidate` 資料表（`contestId` / `partyId` / `name` / `ballotNo` / `photoKey` / `status`）
-   - 匯入腳本
-   - `getPredictionTargets()` 從 `getMockCandidates()` 換成讀資料表
-   - 一次性遷移：舊 pick 依 `partyId` 對回真候選人，該黨沒推人就 `INVALIDATED`，
-     然後重算 `ContestTally` 與 `ContestSummary`
+9. ✅ **前端接線**：地圖、抽屜、`/contest`、`/regions`、`/region`、`/mine` 全部改讀
+   API。前端已經不再自己算任何預測數字——`getResultRows`、`getForecastInputMode`
+   與原型的階段切換器都移除了。
+10. ⬜ **候選人匯入**（等中選會 2026-11 公告）：做法見
+    `2026-candidate-import.md`。
 
-前端接線還沒開始——目前所有頁面仍讀 `mock-election.ts` 的示意數字。
+沒有人預測的選區在地圖上是灰的。用示意數字上色會讓畫面出現「看起來像預測、其實
+沒人送出過」的顏色。
 
 ---
 
@@ -508,6 +508,6 @@ POST /api/admin/forecasters/:id/block    admin token
   市長、代表與村里長的公告，取得後把 `seatsSource` 從 `PLACEHOLDER` 換成
   `OFFICIAL`。在那之前這兩種選舉的席次是估的。
 - **候選人名單**。中選會預定 2026-11 公告，在那之前前端與伺服器都用
-  `getMockCandidates()` 產生的佔位名稱（「國民黨候選人 1」）。名單進來後才做得了
-  第九步的匯入與遷移。
-- **前端接線**。所有頁面目前仍讀 `mock-election.ts` 的示意數字，還沒有打 API。
+  `getMockCandidates()` 產生的佔位名稱（「國民黨候選人 1」）。名單進來後的匯入與
+  遷移步驟寫在 `2026-candidate-import.md`。
+- **代表席次**。取得那份公告後把清冊的 `seatsSource` 換成 `OFFICIAL`。
