@@ -17,6 +17,15 @@
   /* 圈選章的紅，只用在投票這件事上。 */
   --stamp: #e4141e;
   --shadow: 0 22px 60px rgb(38 48 43 / 10%);
+  /* transitions.dev motion tokens：選區切換後的進度填充。 */
+  --duration-fast: 250ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* transitions.dev texts reveal：清單快速依序進場。 */
+  --stagger-dur: 220ms;
+  --stagger-distance: 8px;
+  --stagger-stagger: 20ms;
+  --stagger-blur: 2px;
+  --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -154,16 +163,28 @@ a {
   top: 52px;
 }
 .search-results button {
-  align-items: center;
+  align-items: flex-start;
   background: transparent;
   border: 0;
   border-radius: 10px;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  padding: 11px 12px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
   text-align: left;
   width: 100%;
+}
+.search-results strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+/* 命中的字加橘底，其餘照原樣。 */
+.search-results mark {
+  background: rgb(223 97 73 / 26%);
+  border-radius: 3px;
+  color: inherit;
+  padding: 0 1px;
 }
 .search-results button:hover {
   background: #f2f0e9;
@@ -962,6 +983,41 @@ a:focus-visible {
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(304px, 1fr));
 }
+.contest-grid > .t-stagger-line > .contest-card {
+  display: block;
+  height: 100%;
+}
+/* transitions.dev texts reveal。卡片外層負責進場，不覆蓋卡片本身的 hover transition。 */
+.t-stagger-line {
+  display: block;
+  filter: blur(var(--stagger-blur));
+  opacity: 0;
+  transform: translateY(calc(0px - var(--stagger-distance)));
+  transition:
+    opacity var(--stagger-dur) var(--stagger-ease),
+    transform var(--stagger-dur) var(--stagger-ease),
+    filter var(--stagger-dur) var(--stagger-ease);
+  transition-delay: var(--stagger-delay, 0ms);
+  will-change: transform, opacity, filter;
+}
+.t-stagger-line--2 {
+  transition-delay: var(--stagger-stagger);
+}
+.t-stagger.is-shown .t-stagger-line {
+  filter: blur(0);
+  opacity: 1;
+  transform: translateY(0);
+}
+.t-stagger.is-hiding .t-stagger-line {
+  filter: blur(0);
+  opacity: 0;
+  transform: translateY(0);
+  transition:
+    opacity 200ms ease,
+    transform 0s linear,
+    filter 0s linear;
+  transition-delay: 0s;
+}
 .contest-card {
   background: var(--card);
   border: 1px solid rgb(31 43 39 / 8%);
@@ -1053,23 +1109,17 @@ a:focus-visible {
   padding: 0 16px 0 0;
 }
 .card-cover > i {
-  align-items: center;
   /* 照片永遠是正方形。父層是 align-items: stretch，不覆寫的話封面被長鄉鎮清單
      撐高時，這塊會跟著拉成長方形（stretch 會蓋掉 aspect-ratio 算出的高度）。 */
   align-self: flex-start;
   aspect-ratio: 1;
-  background: var(--cover);
+  background: #e4e3de;
   border-radius: 16px 0 0;
-  display: flex;
+  display: block;
   /* flex: none 是必要的，不是保險。flex 項目預設 flex-shrink: 1，而且
      min-width: auto 只會退到內容寬（這裡是一個字），所以像屏東議員那種
      36 字的鄉鎮清單會把整條 flex line 撐爆，照片跟著被壓成一條窄長方形。 */
   flex: none;
-  font-family: Georgia, serif;
-  font-size: 40px;
-  font-style: normal;
-  font-weight: 500;
-  justify-content: center;
   /* 照片要被圓角裁掉 */
   overflow: hidden;
   width: 104px;
@@ -1121,40 +1171,92 @@ a:focus-visible {
   padding: 0;
 }
 .candidate-list li {
-  align-items: baseline;
+  align-items: center;
   display: grid;
-  gap: 4px 8px;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 1px 8px;
+  grid-template-columns: 56px minmax(0, 1fr) auto auto;
   padding: 7px 0;
 }
-.candidate-list li > i {
+.candidate-list li > .candidate-avatar {
+  align-items: center;
+  background: #e4e3de;
+  border: 2px solid color-mix(in srgb, var(--candidate-color) 55%, white);
   border-radius: 50%;
-  height: 8px;
-  width: 8px;
+  color: #8b928f;
+  display: inline-flex;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  aspect-ratio: 1;
+  height: 44px;
+  justify-content: center;
+  justify-self: center;
+  overflow: hidden;
+  width: 44px;
+}
+.candidate-list li > .candidate-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.candidate-list li > .candidate-avatar .icon {
+  height: 20px;
+  stroke-width: 1.7;
+  width: 20px;
+}
+.candidate-list li.winner > .candidate-avatar {
+  height: 56px;
+  width: 56px;
 }
 .candidate-list li > span {
+  align-items: center;
+  display: flex;
   font-size: 13.5px;
   font-weight: 650;
+  gap: 5px;
+  min-width: 0;
+  transform: translateY(-3px);
+}
+/* 名字自己吃 ellipsis，章才不會被一起截掉。 */
+.candidate-list li > span > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.candidate-list li > span .icon {
+  color: var(--stamp);
+  flex: none;
+  height: 15px;
+  stroke-width: 2.2;
+  width: 15px;
 }
 .candidate-list li > small {
   color: var(--muted);
   font-size: 12.5px;
   white-space: nowrap;
+  transform: translateY(-3px);
 }
 .candidate-list li > b {
   font-family: Georgia, serif;
   font-size: 16px;
   font-weight: 500;
+  transform: translateY(-6px);
+}
+/* /contest 多席選區：依應選席次放大前幾名，顏色由該列政黨色 inline 帶入。
+   百分比留在 grid 第一列，進度線固定在下一列。 */
+.candidate-list li.winner > b {
+  font-size: 28px;
+  line-height: 1;
+}
+.results-panel .candidate-list li.winner + li:not(.winner) {
+  margin-top: 18px;
 }
 .candidate-list li > em {
   background: #e9e7e0;
   border-radius: 99px;
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   height: 5px;
   overflow: hidden;
+  transform: translateY(-6px);
 }
 .candidate-list li > em > s {
   display: block;
@@ -1627,18 +1729,13 @@ a:focus-visible {
    頭像，所以做成貼齊整列高度的正方形。寬度寫死而不用 aspect-ratio：grid 的
    auto 欄位要先知道寬度才排得出來，靠高度換算會算成 0，方塊會整個消失。 */
 .forecast-mark {
-  align-items: center;
   align-self: stretch;
-  background: #fffdf8;
+  background: #e4e3de;
   border: 0;
   border-radius: 14px 0 0 14px;
   border-right: 1px solid #dcd9d0;
-  color: var(--ink);
-  display: inline-flex;
+  display: block;
   flex: none;
-  font-family: Georgia, serif;
-  font-size: 14px;
-  justify-content: center;
   overflow: hidden;
   width: 64px;
 }
@@ -2318,12 +2415,6 @@ a:focus-visible {
   gap: 6px;
   white-space: nowrap;
 }
-.map-peek > span i {
-  border-radius: 50%;
-  flex: none;
-  height: 8px;
-  width: 8px;
-}
 .map-peek > b {
   font-family: Georgia, serif;
   font-size: 21px;
@@ -2431,11 +2522,13 @@ a:focus-visible {
   line-height: 1.6;
   margin-top: 4px;
 }
-.map-share-head {
-  margin: 20px 22px 0;
-}
 /* 四條各自從左邊起跑的長條比不出高下，改成一條 100% 堆疊長條。 */
 /* 跟收合時那條同一個樣子，再矮一點：展開後每一列都寫了數字，長條只負責比例。 */
+/* 面板展開後每一列自己背後就有佔比，不再需要這條堆疊長條；只有收合的抽屜
+   還留著它，因為那一列只寫得下領先者。 */
+.map-inspector .map-share-bar {
+  display: none;
+}
 .map-share-bar {
   display: flex;
   gap: 2px;
@@ -2450,6 +2543,22 @@ a:focus-visible {
   display: block;
   height: 100%;
 }
+/* 換選區時保留最終寬度，只用 transform 畫填充；不會觸發整個面板重排。 */
+@keyframes t-progress-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.t-progress-fill,
+.t-progress-list .map-leader::before,
+.t-progress-list .map-result-list > div::before {
+  animation: t-progress-fill var(--duration-fast) var(--ease-smooth-out) both;
+  transform-origin: left center;
+  will-change: transform;
+}
 .map-inspector-scroll {
   flex: 1;
   overflow-y: auto;
@@ -2457,11 +2566,58 @@ a:focus-visible {
 }
 /* 領先者那一列自己就是標題，所以整個面板只留一個大數字。 */
 /* 名字、份數、百分比排成一行：份數跟在名字後面，不用另外佔一排。 */
+/* 領先者的頭像位置：現在放名字的第一個字，之後直接換成 <img>，尺寸不用再動。 */
+.map-portrait {
+  background: #e4dfde;
+  /* 收合那一列的高度是右邊 21px 百分比撐出來的 34px，頭像頂到 34 就不會把
+     抽屜撐高（--map-drawer-height 也是照這個數字算的）。 */
+  border-radius: 9px;
+  display: inline-block;
+  flex: none;
+  height: 34px;
+  width: 34px;
+}
+.map-portrait.large {
+  border-radius: 14px;
+  height: 54px;
+  width: 54px;
+}
+.map-result-list .map-portrait {
+  border-radius: 11px;
+  height: 40px;
+  width: 40px;
+}
+/* 每一列背後鋪一條自己的佔比，淡到不跟文字搶。isolation 讓 ::before 的
+   z-index: -1 停在這一列的底色之上、文字之下，不會掉到面板背景後面。 */
+.map-leader,
+.map-result-list > div {
+  border-radius: 10px;
+  isolation: isolate;
+  margin: 0 -8px;
+  overflow: hidden;
+  padding: 6px 8px;
+  position: relative;
+}
+.map-leader::before,
+.map-result-list > div::before {
+  background: var(--share-color);
+  content: '';
+  inset: 0 auto 0 0;
+  opacity: 0.14;
+  pointer-events: none;
+  position: absolute;
+  width: var(--share, 0%);
+  z-index: -1;
+}
 .map-leader {
-  align-items: baseline;
+  align-items: center;
   display: flex;
   gap: 10px;
   margin-top: 20px;
+}
+/* 複數席次時線上會有好幾位，彼此靠得近一點，跟線下那一組區隔得開。 */
+.map-leader + .map-leader {
+  margin-top: 6px;
 }
 .map-leader > span {
   align-items: center;
@@ -2470,12 +2626,6 @@ a:focus-visible {
   font-size: 19px;
   font-weight: 700;
   gap: 9px;
-}
-.map-leader > span i {
-  border-radius: 50%;
-  flex: none;
-  height: 11px;
-  width: 11px;
 }
 .map-leader > b {
   font-family: Georgia, serif;
@@ -2500,7 +2650,7 @@ a:focus-visible {
   padding-top: 18px;
 }
 .map-result-list > div {
-  align-items: baseline;
+  align-items: center;
   display: flex;
   gap: 9px;
 }
@@ -2511,12 +2661,6 @@ a:focus-visible {
   font-size: 14.5px;
   font-weight: 650;
   gap: 9px;
-}
-.map-result-list > div > span i {
-  border-radius: 50%;
-  flex: none;
-  height: 9px;
-  width: 9px;
 }
 .map-result-list > div > b {
   font-family: Georgia, serif;
@@ -3049,7 +3193,6 @@ a:focus-visible {
   .map-contest-switch,
   .map-my-forecast,
   .map-low-sample,
-  .map-share-head,
   .map-share-bar {
     margin-left: 18px;
     margin-right: 18px;
@@ -3080,7 +3223,6 @@ a:focus-visible {
   .map-inspector:not(.expanded) > header,
   .map-inspector:not(.expanded) .map-my-forecast,
   .map-inspector:not(.expanded) .map-low-sample,
-  .map-inspector:not(.expanded) .map-share-head,
   .map-inspector:not(.expanded) .map-inspector-scroll,
   .map-inspector:not(.expanded) .map-inspector-footer {
     display: none;
@@ -3102,6 +3244,7 @@ a:focus-visible {
   /* 收合時分布長條貼在抽屜最底下，壓成細的一條——那一列只有領先者，長條補上
      其他人的比例。 */
   .map-inspector:not(.expanded) .map-share-bar {
+    display: flex;
     gap: 2px;
     height: 7px;
     margin: auto 0 env(safe-area-inset-bottom);
@@ -3112,6 +3255,14 @@ a:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .t-stagger-line {
+    transition: none !important;
+  }
+  .t-progress-fill,
+  .t-progress-list .map-leader::before,
+  .t-progress-list .map-result-list > div::before {
+    animation: none !important;
+  }
   *,
   *::before,
   *::after {

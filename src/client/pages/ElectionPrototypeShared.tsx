@@ -7,13 +7,13 @@ import {
   useState,
 } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { highlightParts, searchEverything } from '../search';
 import {
   type Contest,
   type ElectionView,
   type Jurisdiction,
   electionViews,
   getParty,
-  jurisdictions,
 } from '../mock-election';
 
 export type CandidatePhase = 'party' | 'candidate';
@@ -90,34 +90,52 @@ export function Icon({
 }
 
 // 縣市搜尋是通往 /region 與 /contest 的唯一入口，所以頁首、/mine 與地圖共用同一個。
+// 命中的字加橘底，其餘照原樣。
+function Highlighted({ query, text }: { query: string; text: string }) {
+  return (
+    <>
+      {highlightParts(text, query).map((part, index) =>
+        part.hit ? (
+          // 片段沒有天然的 key，但這個陣列只依 text／query 產生，順序穩定。
+          // biome-ignore lint/suspicious/noArrayIndexKey: 片段沒有 id
+          <mark key={index}>{part.text}</mark>
+        ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 片段沒有 id
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 export function SearchBox({ autoFocus = false, className = '' }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const matches = search.trim()
-    ? jurisdictions.filter((item) => item.name.includes(search.trim())).slice(0, 4)
-    : [];
+  const matches = searchEverything(search);
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (matches[0]) void navigate(`/region/${matches[0].id}`);
+    if (matches[0]) void navigate(matches[0].to);
   }
 
   return (
     <form className={`header-search ${className}`} onSubmit={handleSearch}>
       <Icon name="search" />
       <input
-        aria-label="搜尋縣市或選區"
+        aria-label="搜尋縣市、選區、職務或候選人"
         autoFocus={autoFocus}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="搜尋縣市或選區"
+        placeholder="搜尋縣市、選區或候選人"
         value={search}
       />
       {matches.length > 0 && (
         <div className="search-results">
-          {matches.map((item) => (
-            <button key={item.id} onClick={() => void navigate(`/region/${item.id}`)} type="button">
-              {item.name}
-              <span>查看預測</span>
+          {matches.map((hit) => (
+            <button key={hit.id} onClick={() => void navigate(hit.to)} type="button">
+              <strong>
+                <Highlighted query={search} text={hit.label} />
+              </strong>
+              <span>{hit.sub}</span>
             </button>
           ))}
         </div>
@@ -258,28 +276,22 @@ export function Breadcrumbs({
 // 卡片頂端的封面：滿寬的大頭照位置（正式版換成領先者的照片，現在先放名字的
 // 第一個字當底），行政區與選舉名稱直接壓在照片上。
 export function CardCover({
-  row,
   kicker,
   title,
   meta,
-  // 候選人照片，來自 public/avatars/。沒有就退回名字第一個字的色塊——名單要到
-  // 2026-11 中選會公告才會齊，在那之前絕大多數選區都不會有。
+  // 候選人照片，來自 public/avatars/。沒有就留一塊淺灰的空位——名單要到 2026-11
+  // 中選會公告才會齊，在那之前絕大多數選區都不會有。
   photo,
 }: {
-  row: { label: string; color: string };
   kicker: string;
   title: string;
   meta: string;
   photo?: string | null;
 }) {
   return (
-    <div
-      className="card-cover"
-      style={{ '--cover': `color-mix(in srgb, ${row.color} 26%, #fff)` } as CSSProperties}
-    >
-      <i style={{ color: row.color }}>
-        {photo ? <img alt="" src={photo} /> : row.label.slice(0, 1)}
-      </i>
+    <div className="card-cover">
+      {/* 照片還沒有就留一塊淺灰的空位，不放字：填名字的第一個字會被誤讀成資訊。 */}
+      <i>{photo ? <img alt="" src={photo} /> : null}</i>
       <div>
         <span>{kicker}</span>
         <strong>{title}</strong>
@@ -296,24 +308,41 @@ export function CandidateList({
   // /mine 用來標出自己押的那一列。純樣式，不多塞元素——這個 li 是四欄格線，
   // 多一個子元素會把長條那一列擠掉。
   highlightId,
+  winnerCount = 0,
 }: {
-  rows: { id: string; label: string; color: string; value: number }[];
+  rows: { id: string; label: string; color: string; value: number; photo?: string | null }[];
   forecasts: number;
   highlightId?: string;
+  winnerCount?: number;
 }) {
   return (
     <ul className="candidate-list">
-      {rows.map((row) => (
-        <li className={row.id === highlightId ? 'mine' : ''} key={row.id}>
-          <i style={{ background: row.color }} />
-          <span>{row.label}</span>
-          <small>{Math.round((forecasts * row.value) / 100).toLocaleString()} 份</small>
-          <b>{row.value}%</b>
-          <em>
-            <s style={{ background: row.color, width: `${row.value}%` }} />
-          </em>
-        </li>
-      ))}
+      {rows.map((row, index) => {
+        const winner = index < winnerCount;
+        return (
+          <li
+            className={`${row.id === highlightId ? 'mine' : ''} ${winner ? 'winner' : ''}`.trim()}
+            key={row.id}
+          >
+            <i
+              className="candidate-avatar"
+              style={{ '--candidate-color': row.color } as CSSProperties}
+            >
+              {row.photo ? <img alt="" src={row.photo} /> : <Icon name="user" />}
+            </i>
+            <span>
+              <span>{row.label}</span>
+              {/* 自己押的那一位在名字後面蓋一個紅色圈選章。 */}
+              {row.id === highlightId && <Icon name="stamp" />}
+            </span>
+            <small>{Math.round((forecasts * row.value) / 100).toLocaleString()} 份</small>
+            <b style={winner ? { color: row.color } : undefined}>{row.value}%</b>
+            <em>
+              <s style={{ background: row.color, width: `${row.value}%` }} />
+            </em>
+          </li>
+        );
+      })}
     </ul>
   );
 }

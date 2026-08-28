@@ -144,7 +144,6 @@ export function MyPredictionsPage() {
               <CardCover
                 kicker={jurisdiction.name}
                 meta={`我預測 ${mine.label} · ${rows[0].id === mine.id ? '目前領先' : '目前落後'}`}
-                row={mine}
                 title={contest.name}
               />
               <CandidateList forecasts={contest.forecasts} highlightId={mine.id} rows={rows} />

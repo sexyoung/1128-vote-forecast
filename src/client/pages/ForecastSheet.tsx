@@ -19,18 +19,23 @@ export function getResultRows(contest: Contest, phase: CandidatePhase) {
       color: party.color,
       value: values[index],
     }));
-  return getMockCandidates(contest)
-    .slice(0, 4)
-    .map((candidate, index) => {
-      const party = getParty(candidate.partyId);
-      return {
-        id: candidate.id,
-        label: candidate.name,
-        meta: party.shortName,
-        color: party.color,
-        value: values[index],
-      };
-    });
+  const candidates = getMockCandidates(contest);
+  return candidates.map((candidate, index) => {
+    const party = getParty(candidate.partyId);
+    return {
+      id: candidate.id,
+      label: candidate.name,
+      meta: party.shortName,
+      color: party.color,
+      value:
+        contest.seatCount === 1
+          ? values[index]
+          : Math.max(
+              1,
+              Math.round((contest.percentage * (candidates.length - index)) / candidates.length),
+            ),
+    };
+  });
 }
 
 // 正式候選人名單公告前就先用（黨籍示意）候選人而不是政黨的選舉。
@@ -221,23 +226,13 @@ export function ForecastForm({
                   onChange={() => toggle(option.id)}
                   type={singleSeat ? 'radio' : 'checkbox'}
                 />
-                <span
-                  className="forecast-mark"
-                  style={
-                    byNumber
-                      ? selected
-                        ? { borderColor: option.color }
-                        : undefined
-                      : { background: option.color, borderColor: option.color, color: '#fffdf8' }
-                  }
-                >
-                  {option.number}
-                </span>
+                {/* 頭像的位置。照片還沒有就是一塊淺灰，不填字。 */}
+                <span className="forecast-mark" />
                 <span className="forecast-option-text">
                   <strong>{option.label}</strong>
                   <small>
-                    {byNumber && <i style={{ background: option.color }} />}
-                    {option.sub}
+                    <i style={{ background: option.color }} />
+                    {option.number === null ? option.sub : `${option.number} · ${option.sub}`}
                   </small>
                 </span>
                 {/* 右邊的投票格：平常是空白的格子，選取後才蓋上圈選章。章一律紅色，

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   buildRepresentativeContest,
@@ -45,7 +45,7 @@ export function summariseArea(area: string) {
 
 function ContestCard({ contest }: { contest: Contest }) {
   const { phase } = usePrototype();
-  const rows = getResultRows(contest, phase);
+  const rows = getResultRows(contest, phase).slice(0, 4);
   // 代表的名額依地方制度法第 33 條按人口決定，公告還沒下來，標明是暫定值。
   const seats =
     contest.view === 'REPRESENTATIVE'
@@ -60,13 +60,8 @@ function ContestCard({ contest }: { contest: Contest }) {
       </span>
       {/* 區域清單放標題下面而不是上面的 kicker：那一行是單行截斷的，
           「石門區、三芝區、淡水區、八里區」這種會被切掉一半，也會撞到右上角的份數。 */}
-      <CardCover
-        kicker={seats}
-        meta={summariseArea(contest.area)}
-        row={rows[0]}
-        title={contest.name}
-      />
-      <CandidateList forecasts={contest.forecasts} rows={rows} />
+      <CardCover kicker={seats} meta={summariseArea(contest.area)} title={contest.name} />
+      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
     </Link>
   );
 }
@@ -156,6 +151,17 @@ export function JurisdictionPage() {
     if (!needsTownPicker) return state.contests;
     return state.contests.filter((contest) => contest.area.includes(activeTown));
   }, [activeTown, enabled, jurisdiction, needsTownPicker, state, view]);
+  const contestGridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const block = contestGridRef.current;
+    if (!block || contests.length === 0) return;
+    block.classList.remove('is-hiding');
+    block.classList.remove('is-shown');
+    void block.offsetHeight;
+    const frame = requestAnimationFrame(() => block.classList.add('is-shown'));
+    return () => cancelAnimationFrame(frame);
+  }, [contests]);
 
   function updateParams(update: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams);
@@ -227,9 +233,15 @@ export function JurisdictionPage() {
         ) : error ? (
           <p className="view-note">圖資載入失敗，重新整理再試一次。</p>
         ) : (
-          <div className="contest-grid">
-            {contests.map((contest) => (
-              <ContestCard contest={contest} key={contest.id} />
+          <div className="contest-grid t-stagger" ref={contestGridRef}>
+            {contests.map((contest, index) => (
+              <div
+                className="t-stagger-line"
+                key={contest.id}
+                style={{ '--stagger-delay': `${index * 20}ms` } as CSSProperties}
+              >
+                <ContestCard contest={contest} />
+              </div>
             ))}
           </div>
         )}

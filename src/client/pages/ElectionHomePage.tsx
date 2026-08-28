@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
@@ -302,6 +309,18 @@ function MapBrand() {
 // 讓「樣本太少」這個狀態在原型裡真的走得到。正式版應該改成依選區規模決定。
 const lowSampleThreshold = 150;
 
+// 每一列背後那條淡淡的佔比。寬度與顏色用 CSS 變數帶進去，畫的是 ::before。
+function shareStyle(row: { color: string; value: number }) {
+  return { '--share': `${row.value}%`, '--share-color': row.color } as CSSProperties;
+}
+
+// 候選人的頭像位置，放在名字左邊。照片要等中選會 2026-11 公告名單才會有
+// （檔名規則見 public/avatars/README.md），在那之前留一塊淺灰的空位——填名字的
+// 第一個字會被誤讀成資訊。放在名字旁邊而不是標題列：職稱長度每個選區都不一樣。
+function CandidatePortrait({ large = false }: { large?: boolean }) {
+  return <i className={`map-portrait ${large ? 'large' : ''}`} />;
+}
+
 function MapInspector({
   contest,
   contestOptions,
@@ -309,7 +328,6 @@ function MapInspector({
   expanded,
   myForecast,
   showForm,
-  onClose,
   onContestChange,
   onExpandedChange,
   onForecast,
@@ -322,7 +340,6 @@ function MapInspector({
   expanded: boolean;
   myForecast?: ForecastPick[];
   showForm: boolean;
-  onClose: () => void;
   onContestChange: (contest: Contest) => void;
   onExpandedChange: (expanded: boolean) => void;
   onForecast: () => void;
@@ -332,6 +349,10 @@ function MapInspector({
   const { phase } = usePrototype();
   const rows = getResultRows(contest, phase);
   const leader = rows[0];
+  // 應選幾席，線上就放幾位：議員那種複數席次的選區，「當選」不是只有第一名。
+  // 目前 getResultRows 只給四位，席次比它多的選區線下就會是空的。
+  const winners = rows.slice(0, contest.seatCount);
+  const runnersUp = rows.slice(contest.seatCount);
   // 份數太少時不放大領先者，避免十來份預測被讀成民調。
   const lowSample = contest.forecasts < lowSampleThreshold;
   const countOf = (value: number) => Math.round((contest.forecasts * value) / 100).toLocaleString();
@@ -382,14 +403,6 @@ function MapInspector({
             {contest.area} · 應選 {contest.seatCount} 席
           </small>
         </div>
-        <button
-          aria-label="關閉選區資訊"
-          className="map-round-button"
-          onClick={onClose}
-          type="button"
-        >
-          <Icon name="close" />
-        </button>
       </header>
       {/* 切換器要排在摘要前面：手機收合時「投的是哪一場」必須跟送出按鈕一起看得到，
           不然像宜蘭第九選區有議員／鄉鎮市長／代表三場時，只能投到當下那一場。 */}
@@ -420,7 +433,7 @@ function MapInspector({
       >
         <strong>{contest.name}</strong>
         <span>
-          <i style={{ background: leader.color }} />
+          <CandidatePortrait />
           {lowSample ? '預測份數還很少' : leader.label}
         </span>
         <b style={lowSample ? undefined : { color: leader.color }}>
@@ -439,7 +452,7 @@ function MapInspector({
           </span>
         </div>
       )}
-      {lowSample ? (
+      {lowSample && (
         <div className="map-low-sample">
           <i />
           <span>
@@ -447,30 +460,35 @@ function MapInspector({
             <small>份數太少，分布容易被少數人左右，先當作參考就好。</small>
           </span>
         </div>
-      ) : (
-        <span className="eyebrow map-share-head">目前預測分布</span>
       )}
-      <div className={`map-share-bar ${lowSample ? 'faint' : ''}`}>
+      <div
+        className={`map-share-bar t-progress-fill ${lowSample ? 'faint' : ''}`}
+        key={`share-${contest.id}`}
+      >
         {rows.map((row) => (
           <i key={row.id} style={{ background: row.color, width: `${row.value}%` }} />
         ))}
       </div>
-      <div className="map-inspector-scroll">
-        {!lowSample && (
-          <div className="map-leader">
-            <span>
-              <i style={{ background: leader.color }} />
-              {leader.label}
-            </span>
-            <small>目前領先 · {countOf(leader.value)} 份</small>
-            <b style={{ color: leader.color }}>{leader.value}%</b>
-          </div>
-        )}
-        <div className="map-result-list">
-          {(lowSample ? rows : rows.slice(1)).map((row) => (
-            <div key={row.id}>
+      <div className="map-inspector-scroll t-progress-list" key={`results-${contest.id}`}>
+        {!lowSample &&
+          winners.map((row) => (
+            <div className="map-leader" key={row.id} style={shareStyle(row)}>
               <span>
-                <i style={{ background: row.color }} />
+                <CandidatePortrait large />
+                {row.label}
+              </span>
+              <small>
+                {contest.seatCount === 1 && '目前領先 · '}
+                {countOf(row.value)} 份
+              </small>
+              <b style={{ color: row.color }}>{row.value}%</b>
+            </div>
+          ))}
+        <div className="map-result-list">
+          {(lowSample ? rows : runnersUp).map((row) => (
+            <div key={row.id} style={shareStyle(row)}>
+              <span>
+                <CandidatePortrait />
                 {row.label}
               </span>
               <small>{lowSample ? `${row.value}%` : `${countOf(row.value)} 份`}</small>
@@ -1408,10 +1426,6 @@ export function ElectionHomePage() {
               jurisdiction={selectedJurisdiction}
               myForecast={myForecasts[activeContest.id]}
               onBackToResult={() => setForecastOpen(false)}
-              onClose={() => {
-                setForecastOpen(false);
-                resetMap();
-              }}
               onContestChange={(contest) => {
                 setForecastOpen(false);
                 setSelectedContest(contest);

@@ -1,6 +1,10 @@
 {
   "permissions": {
     "allow": [
+      "WebFetch(domain:taiwan.md)",
+      "WebSearch",
+      "Bash(*)",
+      "Bash(timeout 200 npx vp check --fix src/client/pages/ElectionPrototypePage.tsx src/client/styles.css)"
     ]
   },
   "enableAllProjectMcpServers": true,

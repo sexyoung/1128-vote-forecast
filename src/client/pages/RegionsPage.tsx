@@ -52,7 +52,6 @@ function RegionCard({ jurisdiction }: { jurisdiction: Jurisdiction }) {
       <CardCover
         kicker={kindLabels[jurisdiction.kind]}
         meta={contest.name}
-        row={rows[0]}
         title={jurisdiction.name}
       />
       <CandidateList forecasts={contest.forecasts} rows={rows} />

@@ -24,7 +24,7 @@ function ResultsPanel({ contest }: { contest: Contest }) {
         <strong>{contest.forecasts.toLocaleString()}</strong>
         <small>份</small>
       </div>
-      <CandidateList forecasts={contest.forecasts} rows={rows} />
+      <CandidateList forecasts={contest.forecasts} rows={rows} winnerCount={contest.seatCount} />
       <p className="method-note">每個匿名身份在本選區只計一份預測。重複送出會覆蓋原紀錄。</p>
     </section>
   );

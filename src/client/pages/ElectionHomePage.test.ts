@@ -92,6 +92,15 @@ describe('election home map behavior', () => {
     expect(new Set(candidates.map(({ id }) => id)).size).toBe(candidates.length);
   });
 
+  it('shows non-winning candidates after every council seat', () => {
+    const contest = getContests(getJurisdiction('ILA'), 'COUNCIL')[0];
+    const rows = getResultRows(contest, 'party');
+
+    expect(contest.seatCount).toBe(7);
+    expect(rows).toHaveLength(11);
+    expect(rows.length).toBeGreaterThan(contest.seatCount);
+  });
+
   it('uses the same candidate selection for township representative contests', () => {
     // 代表改成從圖資產生（一鄉鎮市一筆），不再有 mock-election 的佔位選舉區。
     const contest = buildRepresentativeContest(
