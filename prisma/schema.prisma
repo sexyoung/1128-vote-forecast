@@ -13,16 +13,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// 腳手架留下的示範模型，/tools 還在用。真正的預測是下面的 Prediction。
-model Forecast {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  probability Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
 // ---------------------------------------------------------------------------
 // 身份
 // ---------------------------------------------------------------------------
