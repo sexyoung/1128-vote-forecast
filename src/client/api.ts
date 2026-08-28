@@ -127,6 +127,7 @@ export const getMyPredictions = () =>
       status: string;
       updatedAt: string;
       picks: { targetId: string; label: string; partyId: string | null; color: string | null }[];
+      tally: ContestDetail['tally'];
     }[];
   }>('/api/me/predictions');
 

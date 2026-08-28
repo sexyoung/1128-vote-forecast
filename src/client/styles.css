@@ -2096,6 +2096,12 @@ a:focus-visible {
   line-height: 1.6;
   margin-top: 12px;
 }
+/* 儲存失敗時的訊息。 */
+.identity-error {
+  color: var(--stamp);
+  font-size: 13px;
+  margin: 14px 0 0;
+}
 /* 照片與名字在同一張身份卡：左邊預覽，右邊上傳／移除。 */
 .identity-photo {
   align-items: center;

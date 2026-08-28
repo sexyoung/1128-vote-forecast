@@ -27,7 +27,9 @@ export function validatePicks(contest: RegisteredContest, targetIds: string[]): 
   // 判斷。多過席次就沒有意義了。
   if (targetIds.length === 0) throw new PredictionRejected('請至少選擇一位。');
   if (targetIds.length > contest.seats)
-    throw new PredictionRejected(`這一區應選 ${contest.seats} 席，最多只能選 ${contest.seats} 位。`);
+    throw new PredictionRejected(
+      `這一區應選 ${contest.seats} 席，最多只能選 ${contest.seats} 位。`,
+    );
 
   if (new Set(targetIds).size !== targetIds.length)
     throw new PredictionRejected('同一位不能選兩次。');
@@ -193,6 +195,50 @@ export async function readContestTally(contestId: string) {
       percent: totalPicks > 0 ? Math.round((row.count / totalPicks) * 100) : 0,
     })),
   };
+}
+
+/**
+ * 一次讀好幾個選區的分布。/mine 一頁可能有幾十張卡片，逐張查會變成幾十次往返。
+ */
+export async function readContestTallies(contestIds: string[]) {
+  if (contestIds.length === 0)
+    return new Map<string, Awaited<ReturnType<typeof readContestTally>>>();
+
+  const [rows, summaries] = await Promise.all([
+    prisma.contestTally.findMany({ where: { contestId: { in: contestIds } } }),
+    prisma.contestSummary.findMany({ where: { contestId: { in: contestIds } } }),
+  ]);
+
+  const totals = new Map(summaries.map((row) => [row.contestId, row.totalPredictions]));
+  const grouped = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (row.count <= 0) continue;
+    const list = grouped.get(row.contestId);
+    if (list) list.push(row);
+    else grouped.set(row.contestId, [row]);
+  }
+
+  return new Map(
+    contestIds.map((contestId) => {
+      const list = (grouped.get(contestId) ?? []).sort(
+        (a, b) => b.count - a.count || a.targetId.localeCompare(b.targetId),
+      );
+      const totalPicks = list.reduce((total, row) => total + row.count, 0);
+      return [
+        contestId,
+        {
+          totalPredictions: totals.get(contestId) ?? 0,
+          totalPicks,
+          rows: list.map((row) => ({
+            targetType: row.targetType,
+            targetId: row.targetId,
+            count: row.count,
+            percent: totalPicks > 0 ? Math.round((row.count / totalPicks) * 100) : 0,
+          })),
+        },
+      ];
+    }),
+  );
 }
 
 export async function readMyPrediction(forecasterId: string, contestId: string) {

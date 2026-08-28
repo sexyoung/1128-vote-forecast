@@ -8,6 +8,13 @@ import { disconnectRedis } from './redis.js';
 
 // 用真的選區，但每次測試都自己清乾淨。單一席次用臺北市長，複數席次用臺北市
 // 議員第 1 選舉區（應選 12 席），複數席次的規則只有在那種選區才看得出來。
+/** 每個訪客一個不重複的來源 IP：同一個 IP 每小時只能開 30 個身份，測試檔跑在
+    一起時很容易撞到那個上限。 */
+function randomIp() {
+  const octet = () => Math.floor(Math.random() * 254) + 1;
+  return `10.${octet()}.${octet()}.${octet()}`;
+}
+
 function requireContest(contestId: string) {
   const contest = getRegisteredContest(contestId);
   if (!contest) throw new Error(`清冊裡少了測試要用的選區 ${contestId}`);
@@ -45,7 +52,7 @@ afterAll(async () => {
 /** 開一個帶著自己 cookie 的使用者，之後每次請求都是同一個人。 */
 async function newVisitor() {
   const response = await app.request('/api/session', {
-    headers: { 'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 200) + 1}` },
+    headers: { 'x-forwarded-for': randomIp() },
   });
   const body = (await response.json()) as { forecaster: { id: string } };
   forecasters.push(body.forecaster.id);

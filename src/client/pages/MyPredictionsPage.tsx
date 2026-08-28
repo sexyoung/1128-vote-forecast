@@ -1,36 +1,53 @@
-import { useEffect, useState } from 'react';
-import { type ElectionView, getContests, getJurisdiction } from '../mock-election';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CandidateList, CardCover, Icon, PageShell, usePrototype } from './ElectionPrototypeShared';
-import { getResultRows } from './ForecastSheet';
+import {
+  getMyPredictions,
+  getSession,
+  removeAvatar,
+  updateDisplayName,
+  uploadAvatar,
+} from '../api';
+import { CandidateList, CardCover, Icon, PageShell } from './ElectionPrototypeShared';
 
-// 系統配發的編號，使用者改不了：它是匿名身份的實際識別碼，名字只是顯示用的外皮。
-const forecasterCode = '#8F2A';
 const defaultForecasterName = '預測者';
+
+/** 系統配發的短碼。跟伺服器的 forecasterCode() 是同一套規則，名字重複時靠它分辨。 */
+function forecasterCode(id: string) {
+  return `#${id.slice(-4).toUpperCase()}`;
+}
 
 function IdentityDialog({
   name,
   avatar,
+  saving,
+  error,
   onSave,
   onClose,
 }: {
   name: string;
   avatar: string | null;
-  onSave: (name: string, avatar: string | null) => void;
+  saving: boolean;
+  error: string;
+  onSave: (name: string, photo: File | null, removePhoto: boolean) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(name);
-  const [photo, setPhoto] = useState(avatar);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [removed, setRemoved] = useState(false);
   const trimmed = draft.trim();
-  const changed = (trimmed && trimmed !== name) || photo !== avatar;
+  const changed = trimmed !== name || photo !== null || removed;
+  // 送出前先在本地預覽，不必等上傳完才看得到自己選了哪張。網址在 render 時就算好，
+  // effect 只負責釋放，避免多跑一次 render。
+  const objectUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
+  const preview = removed ? null : (objectUrl ?? avatar);
 
-  // 原型直接讀成 data URL 存在記憶體裡；正式版會上傳到儲存空間，只留網址。
-  function readPhoto(file: File | undefined) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(typeof reader.result === 'string' ? reader.result : null);
-    reader.readAsDataURL(file);
-  }
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl],
+  );
 
   // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
   useEffect(() => {
@@ -62,18 +79,28 @@ function IdentityDialog({
         </header>
         <p>留言與排行榜上其他人看到的名字與照片。後面的編號是系統配發的，不會跟著改。</p>
         <div className="identity-photo">
-          <i>{photo ? <img alt="" src={photo} /> : <Icon name="user" />}</i>
+          <i>{preview ? <img alt="" src={preview} /> : <Icon name="user" />}</i>
           <span>
             <label className="button button-glass button-small">
               上傳照片
               <input
-                accept="image/*"
-                onChange={(event) => readPhoto(event.target.files?.[0])}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  setPhoto(event.target.files?.[0] ?? null);
+                  setRemoved(false);
+                }}
                 type="file"
               />
             </label>
-            {photo && (
-              <button className="text-action" onClick={() => setPhoto(null)} type="button">
+            {preview && (
+              <button
+                className="text-action"
+                onClick={() => {
+                  setPhoto(null);
+                  setRemoved(true);
+                }}
+                type="button"
+              >
                 移除
               </button>
             )}
@@ -88,15 +115,15 @@ function IdentityDialog({
             placeholder={defaultForecasterName}
             value={draft}
           />
-          <span>{forecasterCode}</span>
         </div>
+        {error && <p className="identity-error">{error}</p>}
         <button
           className="button button-dark button-wide"
-          disabled={!trimmed || !changed}
-          onClick={() => onSave(trimmed, photo)}
+          disabled={!changed || saving}
+          onClick={() => onSave(trimmed, photo, removed)}
           type="button"
         >
-          儲存
+          {saving ? '儲存中…' : '儲存'}
         </button>
         <small>編號不會變，換名字或照片也不會影響已送出的預測。</small>
       </section>
@@ -104,29 +131,34 @@ function IdentityDialog({
   );
 }
 
-// 示意用的三筆紀錄：選了哪一場、押在結果列的第幾位。
-const savedForecasts: {
-  jurisdictionId: string;
-  view: ElectionView;
-  contestIndex: number;
-  pickIndex: number;
-}[] = [
-  { jurisdictionId: 'TPE', view: 'EXECUTIVE', contestIndex: 0, pickIndex: 0 },
-  { jurisdictionId: 'NTP', view: 'COUNCIL', contestIndex: 1, pickIndex: 1 },
-  { jurisdictionId: 'HSZ', view: 'EXECUTIVE', contestIndex: 0, pickIndex: 2 },
-];
-
 export function MyPredictionsPage() {
-  const { phase } = usePrototype();
-  // 原型先記在記憶體，正式版會跟著匿名身份一起存。
-  const [name, setName] = useState(defaultForecasterName);
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const items = savedForecasts.map(({ jurisdictionId, view, contestIndex, pickIndex }) => {
-    const jurisdiction = getJurisdiction(jurisdictionId);
-    const contest = getContests(jurisdiction, view)[contestIndex];
-    const rows = getResultRows(contest, phase);
-    return { contest, jurisdiction, mine: rows[pickIndex], rows };
+  const queryClient = useQueryClient();
+  const session = useQuery({ queryKey: ['session'], queryFn: getSession });
+  const mine = useQuery({ queryKey: ['my-predictions'], queryFn: getMyPredictions });
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState('');
+
+  const forecaster = session.data?.forecaster;
+  const name = forecaster?.displayName ?? defaultForecasterName;
+  const code = forecaster ? forecasterCode(forecaster.id) : '';
+  const items = mine.data?.predictions ?? [];
+
+  const save = useMutation({
+    mutationFn: async (input: { name: string; photo: File | null; removePhoto: boolean }) => {
+      // 名字與照片是兩個端點，但對使用者是同一次「儲存」。
+      if (input.name !== (forecaster?.displayName ?? defaultForecasterName))
+        await updateDisplayName(input.name === defaultForecasterName ? null : input.name);
+      if (input.photo) await uploadAvatar(input.photo);
+      else if (input.removePhoto) await removeAvatar();
+    },
+    onSuccess: async () => {
+      setError('');
+      setEditing(false);
+      await queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
+    onError: (failure: unknown) => {
+      setError(failure instanceof Error ? failure.message : '儲存失敗，請稍後再試。');
+    },
   });
 
   return (
@@ -136,57 +168,83 @@ export function MyPredictionsPage() {
           <h1>我的預測</h1>
           {/* 名字平常只是身份標籤，點了才展開表單——改名不是這一頁的主要目的。 */}
           <button
-            aria-expanded={renaming}
-            className={`forecaster-id ${renaming ? 'open' : ''}`}
-            onClick={() => setRenaming((open) => !open)}
+            aria-expanded={editing}
+            className={`forecaster-id ${editing ? 'open' : ''}`}
+            disabled={!forecaster}
+            onClick={() => setEditing((open) => !open)}
             type="button"
           >
-            {avatar ? <img alt="" src={avatar} /> : <Icon name="user" />}
-            {name} {forecasterCode}
+            {forecaster?.avatarUrl ? (
+              <img alt="" src={forecaster.avatarUrl} />
+            ) : (
+              <Icon name="user" />
+            )}
+            {name} {code}
           </button>
           <span className="page-stat">
             已預測 <strong>{items.length}</strong> 個選區
           </span>
         </section>
 
-        {renaming && (
+        {editing && forecaster && (
           <IdentityDialog
-            avatar={avatar}
+            avatar={forecaster.avatarUrl}
+            error={error}
             name={name}
-            onClose={() => setRenaming(false)}
-            onSave={(nextName, nextAvatar) => {
-              setName(nextName);
-              setAvatar(nextAvatar);
-              setRenaming(false);
+            onClose={() => {
+              setError('');
+              setEditing(false);
             }}
+            onSave={(nextName, photo, removePhoto) =>
+              save.mutate({ name: nextName, photo, removePhoto })
+            }
+            saving={save.isPending}
           />
         )}
 
         <div className="section-heading">
           <h2>預測紀錄</h2>
-          <span>最近更新：今天</span>
+          <span>{mine.isPending ? '載入中…' : `共 ${items.length} 筆`}</span>
         </div>
+
+        {!mine.isPending && items.length === 0 && (
+          <p className="view-note">
+            還沒有預測。回<Link to="/">地圖</Link>挑一個選區開始。
+          </p>
+        )}
+
         {/* 跟 /regions、/region 同一組卡片：桌機多欄、手機自然收成單欄條列。
-            封面用自己押的那位當底色而不是領先者——這一頁的主角是我的預測。 */}
+            封面寫的是自己押了誰而不是領先者——這一頁的主角是我的預測。 */}
         <div className="contest-grid">
-          {items.map(({ contest, jurisdiction, mine, rows }) => (
-            <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
-              <span className="card-link">
-                {contest.forecasts.toLocaleString()} 份 <Icon name="chevron" />
-              </span>
-              <CardCover
-                kicker={jurisdiction.name}
-                meta={`我預測 ${mine.label} · ${rows[0].id === mine.id ? '目前領先' : '目前落後'}`}
-                title={contest.name}
-              />
-              <CandidateList
-                forecasts={contest.forecasts}
-                highlightId={mine.id}
-                rows={rows}
-                winnerCount={contest.seatCount}
-              />
-            </Link>
-          ))}
+          {items.map(({ contest, picks, tally }) => {
+            const leading = tally.rows[0]?.targetId;
+            const mineIsLeading = picks.some(({ targetId }) => targetId === leading);
+            return (
+              <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
+                <span className="card-link">
+                  {tally.totalPredictions.toLocaleString()} 份 <Icon name="chevron" />
+                </span>
+                <CardCover
+                  kicker={contest.area}
+                  meta={`我預測 ${picks.map(({ label }) => label).join('、')} · ${
+                    mineIsLeading ? '目前領先' : '目前落後'
+                  }`}
+                  title={contest.name}
+                />
+                <CandidateList
+                  forecasts={tally.totalPicks}
+                  highlightId={picks[0]?.targetId}
+                  rows={tally.rows.map((row) => ({
+                    id: row.targetId,
+                    label: row.label,
+                    color: row.color ?? '#8b8f8a',
+                    value: row.percent,
+                  }))}
+                  winnerCount={contest.seats}
+                />
+              </Link>
+            );
+          })}
         </div>
       </main>
     </PageShell>

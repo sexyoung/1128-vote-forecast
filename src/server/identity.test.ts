@@ -15,9 +15,16 @@ afterAll(async () => {
 });
 
 /** 每個測試用自己的指紋與 IP，才不會互相認成同一個人。 */
+/** 每個訪客一個不重複的來源 IP：同一個 IP 每小時只能開 30 個身份，測試檔跑在
+    一起時很容易撞到那個上限。 */
+function randomIp() {
+  const octet = () => Math.floor(Math.random() * 254) + 1;
+  return `10.${octet()}.${octet()}.${octet()}`;
+}
+
 function headers(extra: Record<string, string> = {}) {
   return {
-    'x-forwarded-for': `203.0.113.${Math.floor(Math.random() * 200) + 1}`,
+    'x-forwarded-for': randomIp(),
     ...extra,
   };
 }

@@ -36,9 +36,16 @@ afterAll(async () => {
   await disconnectRedis();
 });
 
+/** 每個訪客一個不重複的來源 IP：同一個 IP 每小時只能開 30 個身份，測試檔跑在
+    一起時很容易撞到那個上限。 */
+function randomIp() {
+  const octet = () => Math.floor(Math.random() * 254) + 1;
+  return `10.${octet()}.${octet()}.${octet()}`;
+}
+
 async function predict(targetId: string) {
   const session = await app.request('/api/session', {
-    headers: { 'x-forwarded-for': `192.0.2.${Math.floor(Math.random() * 200) + 1}` },
+    headers: { 'x-forwarded-for': randomIp() },
   });
   const body = (await session.json()) as { forecaster: { id: string } };
   forecasters.push(body.forecaster.id);

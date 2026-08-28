@@ -7,6 +7,13 @@ import { getPredictionTargets } from './prediction-targets.js';
 import { disconnectRedis } from './redis.js';
 import { captureDailySnapshot, hasSnapshotFor, readTrend, today } from './trends.js';
 
+/** 每個訪客一個不重複的來源 IP：同一個 IP 每小時只能開 30 個身份，測試檔跑在
+    一起時很容易撞到那個上限。 */
+function randomIp() {
+  const octet = () => Math.floor(Math.random() * 254) + 1;
+  return `10.${octet()}.${octet()}.${octet()}`;
+}
+
 function requireContest(contestId: string) {
   const contest = getRegisteredContest(contestId);
   if (!contest) throw new Error(`清冊裡少了測試要用的選區 ${contestId}`);
@@ -41,7 +48,7 @@ afterAll(async () => {
 
 async function predict(targetId: string) {
   const session = await app.request('/api/session', {
-    headers: { 'x-forwarded-for': `198.51.101.${Math.floor(Math.random() * 200) + 1}` },
+    headers: { 'x-forwarded-for': randomIp() },
   });
   const body = (await session.json()) as { forecaster: { id: string } };
   forecasters.push(body.forecaster.id);

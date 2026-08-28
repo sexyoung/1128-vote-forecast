@@ -13,7 +13,12 @@ import { CommentRejected, createComment, deleteOwnComment, listComments } from '
 import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
 import { describeTarget, getPredictionTargets } from './prediction-targets.js';
-import { PredictionRejected, readMyPrediction, savePrediction } from './predictions.js';
+import {
+  PredictionRejected,
+  readContestTallies,
+  readMyPrediction,
+  savePrediction,
+} from './predictions.js';
 import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
 import { createUploadUrl, deleteObject, storageEnabled } from './storage.js';
 import { readTrend } from './trends.js';
@@ -214,11 +219,15 @@ app.get('/api/me/predictions', async (c) => {
     take: 200,
   });
 
+  // 卡片要畫出整場的分布，所以一次把這些選區的統計撈回來，不要一張卡一次查詢。
+  const tallies = await readContestTallies(predictions.map(({ contestId }) => contestId));
+
   return c.json({
     predictions: predictions.flatMap((prediction) => {
       const contest = getRegisteredContest(prediction.contestId);
       // 選區改制後舊預測可能對不到清冊，那就不列出來，但資料還留著。
       if (!contest) return [];
+      const tally = tallies.get(contest.id);
       return [
         {
           contest,
@@ -228,6 +237,14 @@ app.get('/api/me/predictions', async (c) => {
             targetId: pick.targetId,
             ...describeTarget(contest, pick.targetType, pick.targetId),
           })),
+          tally: {
+            totalPredictions: tally?.totalPredictions ?? 0,
+            totalPicks: tally?.totalPicks ?? 0,
+            rows: (tally?.rows ?? []).map((row) => ({
+              ...row,
+              ...describeTarget(contest, row.targetType, row.targetId),
+            })),
+          },
         },
       ];
     }),
