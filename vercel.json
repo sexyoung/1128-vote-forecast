@@ -11,7 +11,7 @@
   "functions": {
     "api/server.ts": {
       "maxDuration": 60,
-      "includeFiles": "dist/server/**"
+      "includeFiles": "{dist/server/**,node_modules/react-router/dist/development/dom-export.js}"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/server?__vf_path=/$1" }],
