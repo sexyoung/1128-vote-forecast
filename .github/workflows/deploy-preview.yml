@@ -47,6 +47,11 @@ jobs:
           DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
         run: npx prisma migrate deploy
 
+      - name: Seed preview candidates
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+        run: npm run db:seed
+
       - name: Deploy prebuilt output
         id: deploy
         # --archive=tgz：public/ 底下光是地圖 SVG 就好幾十個檔案，逐檔上傳容易

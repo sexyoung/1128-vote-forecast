@@ -6,7 +6,7 @@ import { env, turnstileEnabled } from './env.js';
 import { CommentRejected, createComment, deleteOwnComment, listComments } from './comments.js';
 import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
-import { describeTarget, getPredictionTargets } from './prediction-targets.js';
+import { describeTarget, getPredictionTargets, refreshCandidates } from './prediction-targets.js';
 import {
   PredictionRejected,
   readContestTallies,
@@ -26,6 +26,9 @@ import { listCandidateRankings } from './candidate-rankings.js';
 type Variables = { forecaster: ResolvedForecaster };
 
 export const app = new Hono<{ Variables: Variables }>();
+
+// 所有入口都經過 app；在這裡載入，API、SSR 與測試才會看到同一份資料庫名單。
+await refreshCandidates();
 
 // 身份靠 cookie，跨網域請求必須帶上它，所以不能用預設的 cors()。
 // 後台不在這組規則裡：下面這個 cors() 會把任何來源反射回去，後台端點若也適用，

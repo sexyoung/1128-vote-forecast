@@ -11,4 +11,8 @@ export function setup() {
     env: { ...process.env, DATABASE_URL: url.toString() },
     stdio: 'pipe',
   });
+  execFileSync('npx', ['tsx', 'prisma/seed.ts'], {
+    env: { ...process.env, DATABASE_URL: url.toString() },
+    stdio: 'pipe',
+  });
 }

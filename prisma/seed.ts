@@ -7,7 +7,12 @@ import { listRegisteredContests } from '../src/server/contest-registry.js';
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('缺少 DATABASE_URL。');
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg(
+    { connectionString },
+    process.env.VITEST ? { schema: 'vote_forecast_test' } : undefined,
+  ),
+});
 const candidates = listRegisteredContests().flatMap((contest) =>
   getMockCandidates({ id: contest.id, seatCount: contest.seats }).map((candidate) => ({
     id: candidate.id,

@@ -1,11 +1,9 @@
 import { app } from '../src/server/app.js';
 import { assertProductionEnv } from '../src/server/env.js';
 import { mountHtmlRoutes } from '../src/server/html.js';
-import { refreshCandidates } from '../src/server/prediction-targets.js';
 import { prodRenderer } from '../src/server/render-prod.js';
 
 assertProductionEnv();
-await refreshCandidates();
 mountHtmlRoutes(app, prodRenderer);
 
 export default {

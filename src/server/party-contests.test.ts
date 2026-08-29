@@ -7,6 +7,7 @@ const candidateIds = [
   'PARTY-PAGE-TEST-CANDIDATE-2',
   'PARTY-PAGE-TEST-CANDIDATE-3',
 ];
+const partyId = 'TEST';
 
 beforeAll(async () => {
   if (databaseSchema !== 'vote_forecast_test') throw new Error('拒絕寫入非測試資料庫。');
@@ -16,7 +17,7 @@ beforeAll(async () => {
     data: candidateIds.map((id, index) => ({
       id,
       contestId: index === 2 ? 'CHA-COUNCIL-1' : 'TPE-COUNCIL-1',
-      partyId: 'DPP',
+      partyId,
       name: `政黨頁測試候選人${index + 1}`,
       nameEn: index === 0 ? 'Test Candidate' : null,
       ballotNo: 998 + index,
@@ -34,14 +35,14 @@ describe('party candidate list', () => {
   it('counts every active candidate by party', async () => {
     const result = await listPartyCandidateCounts();
 
-    expect(result.parties.DPP).toEqual({
+    expect(result.parties[partyId]).toEqual({
       candidateCount: 3,
       offices: [{ type: 'COUNCIL', candidateCount: 3 }],
     });
   });
 
   it('returns one item per candidate even in the same contest', async () => {
-    const page = await listPartyContests('DPP', 1, 'TPE');
+    const page = await listPartyContests(partyId, 1, 'TPE');
 
     expect(page.total).toBe(2);
     expect(page.candidateTotal).toBe(3);
@@ -65,7 +66,7 @@ describe('party candidate list', () => {
       candidate: {
         id: candidateIds[0],
         name: '政黨頁測試候選人1',
-        photo: '/avatars/TPE-COUNCIL-1-DPP-test-candidate.jpg',
+        photo: '/avatars/TPE-COUNCIL-1-TEST-test-candidate.jpg',
         predictedElected: false,
       },
     });
@@ -82,7 +83,7 @@ describe('party candidate list', () => {
       },
     });
 
-    const page = await listPartyContests('DPP', 1, 'TPE');
+    const page = await listPartyContests(partyId, 1, 'TPE');
 
     expect(page.items[0].candidate).toMatchObject({
       predictedElected: true,

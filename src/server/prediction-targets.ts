@@ -1,5 +1,4 @@
-import { getMockCandidates, getParty, parties } from '../shared/candidates.js';
-import { getPredictionMode } from '../shared/prediction.js';
+import { getParty } from '../shared/candidates.js';
 import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { avatarUrl } from '../client/avatars.js';
@@ -8,7 +7,7 @@ import { avatarUrl } from '../client/avatars.js';
  * 一場選舉現在可以押哪些目標。
  *
  * `prisma/seed.ts` 先把原型的佔位人選寫進 Candidate；正式名單收到後直接替換資料。
- * 新資料庫若還沒跑 seed，這裡仍用同一支純函式產生佔位人選，避免整站無法預測。
+ * 資料庫沒有名單時就回傳空陣列，避免不同頁面看到互相矛盾的資料。
  */
 
 export type PredictionTarget = {
@@ -66,26 +65,7 @@ export async function refreshCandidates() {
 }
 
 export function getPredictionTargets(contest: RegisteredContest): PredictionTarget[] {
-  const stored = loadedCandidates.get(contest.id);
-  if (stored) return stored;
-
-  const mode = getPredictionMode(contest.type, contest.seats, false);
-  if (mode === 'party')
-    return parties.map((party) => ({
-      targetType: 'PARTY' as const,
-      targetId: party.id,
-      partyId: party.id,
-      label: party.shortName,
-      ballotNo: null,
-    }));
-
-  return getMockCandidates({ id: contest.id, seatCount: contest.seats }).map((candidate) => ({
-    targetType: 'CANDIDATE' as const,
-    targetId: candidate.id,
-    partyId: candidate.partyId,
-    label: candidate.name,
-    ballotNo: candidate.number,
-  }));
+  return loadedCandidates.get(contest.id) ?? [];
 }
 
 /**
