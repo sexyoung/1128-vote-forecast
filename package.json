@@ -8,6 +8,7 @@
     "api:dev": "tsx watch src/server/index.ts",
     "api:start": "tsx src/server/index.ts",
     "build": "vp build",
+    "vercel-build": "vp build",
     "check": "vp check",
     "test": "vp test --run",
     "db:generate": "prisma generate",

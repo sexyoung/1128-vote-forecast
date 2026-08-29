@@ -19,9 +19,6 @@ env:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    # 整條流程唯一會改資料庫的一步。要不要人按一下放行，由 repo 的 environment
-    # 設定決定，不由這個檔案決定。
-    environment: production
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -33,11 +30,10 @@ jobs:
         run: npm ci
 
       - name: Apply migrations
-        # migrate 要一條真正的 session 連線。transaction 模式的 pooler 會把
-        # advisory lock 切到不同連線上，鎖就不成立了，所以這裡走直連而不是
-        # runtime 用的那條 DATABASE_URL。
+        # migrate 用 session/direct 連線；secret 放 Repository，不要求公開 repo
+        # 或付費的 GitHub Environment。
         env:
-          DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: npx prisma migrate deploy
 
   deploy:
@@ -61,7 +57,11 @@ jobs:
 
       - name: Deploy prebuilt output
         id: deploy
-        run: echo "url=$(vercel deploy --prebuilt --prod --archive=tgz)" >> "$GITHUB_OUTPUT"
+        # 網域由下一步明確指定，避免正式部署把測站網域一起接走。
+        run: echo "url=$(vercel deploy --prebuilt --prod --skip-domain --archive=tgz)" >> "$GITHUB_OUTPUT"
+
+      - name: Point production domain
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" 1128predict.sexyoung.tw
 
       - name: Report
-        run: echo "Production -> ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Production -> https://1128predict.sexyoung.tw (${{ steps.deploy.outputs.url }})" >> "$GITHUB_STEP_SUMMARY"

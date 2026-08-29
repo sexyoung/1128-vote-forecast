@@ -4,7 +4,7 @@ name: Vercel Preview
 # 不會同時觸發這裡與 production 那一支。
 on:
   push:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
 
 concurrency:
@@ -41,11 +41,20 @@ jobs:
       - name: Build
         run: vercel build
 
+      - name: Apply migrations
+        env:
+          # GitHub Repository Secret；不依賴付費的 Environment secrets。
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+        run: npx prisma migrate deploy
+
       - name: Deploy prebuilt output
         id: deploy
         # --archive=tgz：public/ 底下光是地圖 SVG 就好幾十個檔案，逐檔上傳容易
         # 碰到 files 上限。
         run: echo "url=$(vercel deploy --prebuilt --archive=tgz)" >> "$GITHUB_OUTPUT"
 
+      - name: Point preview domain
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" dev-1128predict.sexyoung.tw
+
       - name: Report
-        run: echo "Preview -> ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Preview -> https://dev-1128predict.sexyoung.tw (${{ steps.deploy.outputs.url }})" >> "$GITHUB_STEP_SUMMARY"
