@@ -1,5 +1,5 @@
-import { getCouncilDistricts } from './council-districts';
-import { getMockCandidates, getParty, parties, type PartyId } from '../shared/candidates';
+import { getCouncilDistricts } from './council-districts.js';
+import { getMockCandidates, getParty, parties, type PartyId } from '../shared/candidates.js';
 
 export { getMockCandidates, getParty, parties };
 export type { PartyId };
