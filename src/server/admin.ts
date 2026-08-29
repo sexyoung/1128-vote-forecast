@@ -1,5 +1,11 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
+import type { Prisma } from '../generated/prisma/client.js';
 import { closeAdminSession, openAdminSession, requireAdmin } from './admin-session.js';
+import {
+  CandidateImportRejected,
+  importCandidates,
+  prepareCandidateImport,
+} from './candidate-import.js';
 import { forecasterCode } from './comments.js';
 import {
   type ContestType,
@@ -20,6 +26,22 @@ import { hasSnapshotFor } from './trends.js';
  * 的入口，必須留在 requireAdmin 之外，其餘全部要有後台權限。
  */
 export const adminApp = new Hono();
+
+type CommentWithForecaster = Prisma.CommentGetPayload<{ include: { forecaster: true } }>;
+
+function toAdminComment(comment: CommentWithForecaster) {
+  return {
+    id: comment.id,
+    body: comment.body,
+    status: comment.status,
+    contestId: comment.contestId,
+    forecaster: {
+      id: comment.forecasterId,
+      code: forecasterCode(comment.forecasterId),
+      displayName: comment.forecaster.displayName,
+    },
+  };
+}
 
 // --- 認證 -----------------------------------------------------------------
 // 這兩支路由要留在 requireAdmin 之前註冊：Hono 依註冊順序組成 middleware 鏈，
@@ -98,16 +120,71 @@ adminApp.get('/overview', async (c) => {
   });
 });
 
+// --- 候選人 CSV ------------------------------------------------------------
+
+async function readCandidateCsv(c: Context) {
+  const csv = await c.req.text();
+  if (new TextEncoder().encode(csv).byteLength > 2_000_000)
+    throw new CandidateImportRejected('CSV 不可超過 2 MB。');
+  return csv;
+}
+
+adminApp.post('/candidates/import/preview', async (c) => {
+  try {
+    const plan = await prepareCandidateImport(await readCandidateCsv(c));
+    return c.json({ summary: plan.summary, rows: plan.rows.slice(0, 100), updates: plan.updates });
+  } catch (error) {
+    if (error instanceof CandidateImportRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+adminApp.post('/candidates/import', async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => null)) as {
+      csv?: unknown;
+      replaceCodes?: unknown;
+    } | null;
+    if (
+      typeof body?.csv !== 'string' ||
+      !Array.isArray(body.replaceCodes) ||
+      body.replaceCodes.some((code) => typeof code !== 'string')
+    )
+      throw new CandidateImportRejected('匯入確認內容不完整。');
+    if (new TextEncoder().encode(body.csv).byteLength > 2_000_000)
+      throw new CandidateImportRejected('CSV 不可超過 2 MB。');
+    return c.json({ summary: await importCandidates(body.csv, body.replaceCodes as string[]) });
+  } catch (error) {
+    if (error instanceof CandidateImportRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
 // --- 留言檢舉（既有三支移過來，加一支駁回） -----------------------------------
 
 adminApp.get('/reports', async (c) => {
-  const reports = await prisma.report.findMany({
-    where: { status: 'OPEN', targetType: 'COMMENT' },
-    orderBy: { createdAt: 'asc' },
-    take: 100,
-  });
+  const [reports, hiddenComments, blockedForecasters] = await Promise.all([
+    prisma.report.findMany({
+      where: { status: 'OPEN', targetType: 'COMMENT' },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    }),
+    prisma.comment.findMany({
+      where: { status: 'HIDDEN' },
+      include: { forecaster: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+    prisma.forecaster.findMany({
+      where: { blockedAt: { not: null } },
+      select: { id: true, displayName: true, blockedAt: true },
+      orderBy: { blockedAt: 'desc' },
+      take: 100,
+    }),
+  ]);
   const comments = await prisma.comment.findMany({
     where: { id: { in: [...new Set(reports.map((report) => report.targetId))] } },
+    include: { forecaster: true },
   });
   const commentById = new Map(comments.map((comment) => [comment.id, comment]));
 
@@ -116,16 +193,14 @@ adminApp.get('/reports', async (c) => {
       const comment = commentById.get(report.targetId);
       return {
         ...report,
-        comment: comment
-          ? {
-              body: comment.body,
-              status: comment.status,
-              contestId: comment.contestId,
-              authorCode: forecasterCode(comment.forecasterId),
-            }
-          : null,
+        comment: comment ? toAdminComment(comment) : null,
       };
     }),
+    hiddenComments: hiddenComments.map(toAdminComment),
+    blockedForecasters: blockedForecasters.map((forecaster) => ({
+      ...forecaster,
+      code: forecasterCode(forecaster.id),
+    })),
   });
 });
 
@@ -145,6 +220,17 @@ adminApp.post('/comments/:commentId/hide', async (c) => {
   return c.json({ ok: true });
 });
 
+adminApp.post('/comments/:commentId/restore', async (c) => {
+  const comment = await prisma.comment.findFirst({
+    where: { id: c.req.param('commentId'), status: 'HIDDEN' },
+  });
+  if (!comment) return c.json({ error: '找不到已隱藏的留言。' }, 404);
+
+  await prisma.comment.update({ where: { id: comment.id }, data: { status: 'VISIBLE' } });
+  await cacheDelete(commentsKey(comment.contestId));
+  return c.json({ ok: true });
+});
+
 adminApp.post('/reports/:reportId/dismiss', async (c) => {
   const ok = await dismissReport(c.req.param('reportId'));
   if (!ok) return c.json({ error: '找不到這則檢舉，或已經處理過了。' }, 404);
@@ -156,5 +242,14 @@ adminApp.post('/forecasters/:forecasterId/block', async (c) => {
     where: { id: c.req.param('forecasterId') },
     data: { blockedAt: new Date() },
   });
+  return c.json({ ok: true });
+});
+
+adminApp.post('/forecasters/:forecasterId/unblock', async (c) => {
+  const result = await prisma.forecaster.updateMany({
+    where: { id: c.req.param('forecasterId'), blockedAt: { not: null } },
+    data: { blockedAt: null },
+  });
+  if (!result.count) return c.json({ error: '找不到已封鎖的身份。' }, 404);
   return c.json({ ok: true });
 });

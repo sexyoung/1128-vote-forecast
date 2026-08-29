@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../api';
-import { type AdminReport, blockForecaster, dismissReport, getReports, hideComment } from './api';
+import {
+  type AdminReport,
+  blockForecaster,
+  dismissReport,
+  getReports,
+  hideComment,
+  restoreComment,
+  unblockForecaster,
+} from './api';
 
 const reasonLabels: Record<string, string> = {
   SPAM: '垃圾內容',
@@ -91,6 +99,38 @@ function ReportRow({ report }: { report: AdminReport }) {
   );
 }
 
+function RecoveryButton({
+  action,
+  label,
+  pendingLabel,
+}: {
+  action: () => Promise<unknown>;
+  label: string;
+  pendingLabel: string;
+}) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState('');
+  const mutation = useMutation({
+    mutationFn: action,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'reports'] }),
+    onError: (failure) => setError(failure instanceof ApiError ? failure.message : '操作失敗'),
+  });
+
+  return (
+    <>
+      <button
+        className="button button-ghost button-small"
+        disabled={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        type="button"
+      >
+        {mutation.isPending ? pendingLabel : label}
+      </button>
+      {error && <span className="admin-note admin-note-error">{error}</span>}
+    </>
+  );
+}
+
 export function ModerationPage() {
   const reports = useQuery({ queryKey: ['admin', 'reports'], queryFn: getReports });
 
@@ -102,7 +142,7 @@ export function ModerationPage() {
       </p>
     );
 
-  const items = reports.data.reports;
+  const { reports: items, hiddenComments, blockedForecasters } = reports.data;
 
   return (
     <div className="admin-section">
@@ -112,6 +152,50 @@ export function ModerationPage() {
       <div className="admin-report-list">
         {items.map((report) => (
           <ReportRow key={report.id} report={report} />
+        ))}
+      </div>
+
+      <h2>已隱藏留言</h2>
+      {hiddenComments.length === 0 && <p className="admin-note">目前沒有已隱藏留言。</p>}
+      <div className="admin-report-list">
+        {hiddenComments.map((comment) => (
+          <article className="admin-report-row" key={comment.id}>
+            <blockquote className="admin-report-comment">
+              <p>{comment.body}</p>
+              <cite>
+                {comment.forecaster.displayName ?? '預測者'} · {comment.forecaster.code} · 選區{' '}
+                {comment.contestId}
+              </cite>
+            </blockquote>
+            <div className="admin-action-row">
+              <RecoveryButton
+                action={() => restoreComment(comment.id)}
+                label="恢復留言"
+                pendingLabel="恢復中…"
+              />
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <h2>已封鎖身份</h2>
+      {blockedForecasters.length === 0 && <p className="admin-note">目前沒有已封鎖身份。</p>}
+      <div className="admin-report-list">
+        {blockedForecasters.map((forecaster) => (
+          <article className="admin-report-row" key={forecaster.id}>
+            <header>
+              <strong>{forecaster.displayName ?? '預測者'}</strong>
+              <time>封鎖於 {new Date(forecaster.blockedAt).toLocaleString('zh-TW')}</time>
+            </header>
+            <p className="admin-note">身份編號 {forecaster.code}</p>
+            <div className="admin-action-row">
+              <RecoveryButton
+                action={() => unblockForecaster(forecaster.id)}
+                label="解除封鎖"
+                pendingLabel="解除中…"
+              />
+            </div>
+          </article>
         ))}
       </div>
     </div>

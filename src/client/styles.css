@@ -1041,10 +1041,13 @@ a:focus-visible {
   display: flex;
   justify-content: center;
   overflow: hidden;
+  position: relative;
 }
 .candidate-ranking-avatar img {
   height: 100%;
+  inset: 0;
   object-fit: cover;
+  position: absolute;
   width: 100%;
 }
 .candidate-ranking-avatar .icon {
@@ -1458,23 +1461,33 @@ a:focus-visible {
   /* 照片永遠是正方形。父層是 align-items: stretch，不覆寫的話封面被長鄉鎮清單
      撐高時，這塊會跟著拉成長方形（stretch 會蓋掉 aspect-ratio 算出的高度）。 */
   align-self: flex-start;
+  align-items: center;
   aspect-ratio: 1;
-  background: #e4e3de;
+  background: #eeede8;
   border-radius: 16px 0 0;
-  display: block;
+  color: #b5bab7;
+  display: flex;
   /* flex: none 是必要的，不是保險。flex 項目預設 flex-shrink: 1，而且
      min-width: auto 只會退到內容寬（這裡是一個字），所以像屏東議員那種
      36 字的鄉鎮清單會把整條 flex line 撐爆，照片跟著被壓成一條窄長方形。 */
   flex: none;
   /* 照片要被圓角裁掉 */
   overflow: hidden;
+  justify-content: center;
+  position: relative;
   width: 104px;
 }
 .card-cover > i img {
   display: block;
   height: 100%;
+  inset: 0;
   object-fit: cover;
+  position: absolute;
   width: 100%;
+}
+.card-cover > i .icon {
+  height: 32px;
+  width: 32px;
 }
 .card-cover > div {
   display: flex;
@@ -1537,11 +1550,14 @@ a:focus-visible {
   justify-content: center;
   justify-self: center;
   overflow: hidden;
+  position: relative;
   width: 44px;
 }
 .candidate-list li > .candidate-avatar img {
   height: 100%;
+  inset: 0;
   object-fit: cover;
+  position: absolute;
   width: 100%;
 }
 .candidate-list li > .candidate-avatar .icon {
@@ -1935,6 +1951,26 @@ a:focus-visible {
   font-size: 12.5px;
   margin-top: 8px;
   padding: 0;
+}
+.comment-report-status {
+  color: var(--muted);
+  display: block;
+  margin-top: 7px;
+}
+.report-dialog > label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12.5px;
+  gap: 7px;
+  margin: 20px 0;
+}
+.report-dialog select {
+  background: #fff;
+  border: 1px solid #d8d7d0;
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 14px;
+  padding: 10px 12px;
 }
 
 .sheet-backdrop {
@@ -3685,6 +3721,63 @@ a:focus-visible {
 .admin-note-error {
   color: var(--accent-dark);
 }
+.admin-csv-example,
+.admin-import-box {
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 12px;
+  margin: 14px 0;
+  padding: 14px 16px;
+}
+.admin-csv-example {
+  overflow-x: auto;
+}
+.admin-import-box {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-import-box span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-table-wrap {
+  margin: 14px 0;
+  overflow-x: auto;
+}
+.admin-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  width: 100%;
+}
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.admin-replacement-list {
+  margin: 24px 0;
+}
+.admin-change-list {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 7px;
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+.admin-change-list li {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 90px minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.admin-change-list span {
+  overflow-wrap: anywhere;
+}
 
 .admin-stat-grid {
   display: grid;
@@ -3839,4 +3932,65 @@ a:focus-visible {
   .map-search {
     display: none;
   }
+}
+
+/* ==========================================================================
+   PartiesPage 骨架（SkeletonSwap，見 pages/SkeletonSwap.tsx）
+   沿用上方 1173 行起的 t-skel 系統與 --pulse-*／--reveal-* 變數，
+   這裡只補「兩層疊在同一格」的通用外殼，跟 --skel-bar 這種文字線段骨架。
+   動畫時間全部吃既有變數，reduced-motion 已經在上面那段 t-skel 規則統一擋掉了。
+   ========================================================================== */
+.skel-grid-swap {
+  display: grid;
+}
+.skel-grid-swap > .t-skel-skeleton,
+.skel-grid-swap > .t-skel-content {
+  grid-area: 1 / 1;
+  inset: auto;
+  position: relative;
+}
+.skel-grid-swap > .t-skel-skeleton {
+  pointer-events: none;
+}
+.skel-bar {
+  background: #e4e1da;
+  border-radius: 99px;
+  display: block;
+  height: 10px;
+}
+.skel-bar-tag {
+  height: 8px;
+  width: 34%;
+}
+.skel-bar-title {
+  height: 16px;
+  margin: 8px 0 0;
+  width: 60%;
+}
+.skel-bar-line {
+  margin: 10px 0 0;
+  width: 46%;
+}
+.skel-bar-stat {
+  margin: 0;
+  width: 55%;
+}
+.skel-bar-pill {
+  border-radius: 999px;
+  height: 20px;
+  width: 64px;
+}
+.skel-bar-float {
+  height: 12px;
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 56px;
+}
+.skeleton-feature-card {
+  align-items: flex-start;
+  min-height: 96px;
+}
+.skeleton-feature-card > div {
+  width: 100%;
 }

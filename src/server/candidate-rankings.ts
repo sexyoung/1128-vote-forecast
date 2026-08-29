@@ -14,7 +14,7 @@ export async function listCandidateRankings() {
       id: { in: tallies.map(({ targetId }) => targetId) },
       status: { in: ['REGISTERED', 'CONFIRMED'] },
     },
-    select: { id: true, contestId: true, partyId: true, name: true, nameEn: true },
+    select: { id: true, contestId: true, partyId: true, name: true },
   });
   const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
 
@@ -29,7 +29,7 @@ export async function listCandidateRankings() {
           {
             id: candidate.id,
             name: candidate.name,
-            photo: avatarUrl(contest.id, party.id, candidate.nameEn ?? undefined),
+            photo: avatarUrl(candidate.id),
             party: { id: party.id, name: party.name, color: party.color },
             contest,
             predictionCount: tally.count,

@@ -24,10 +24,7 @@ let loadedCandidates = new Map<string, PredictionTarget[]>();
 /** 撤銷與停止競選的人不在可押名單裡（見 refreshCandidates 的 continue），但舊的
  *  統計列（ContestTally／PredictionPick）還指著他們，describeTarget 要查得到，
  *  不然畫面只能顯示一串 cuid。 */
-let byCandidateId = new Map<
-  string,
-  { label: string; partyId: string | null; nameEn: string | null; contestId: string }
->();
+let byCandidateId = new Map<string, { label: string; partyId: string | null; contestId: string }>();
 
 /** 啟動時載入一次（src/server/index.ts）；名單更新隨新版部署生效。 */
 export async function refreshCandidates() {
@@ -35,16 +32,12 @@ export async function refreshCandidates() {
     orderBy: [{ contestId: 'asc' }, { ballotNo: 'asc' }, { name: 'asc' }],
   });
   const nextTargets = new Map<string, PredictionTarget[]>();
-  const nextById = new Map<
-    string,
-    { label: string; partyId: string | null; nameEn: string | null; contestId: string }
-  >();
+  const nextById = new Map<string, { label: string; partyId: string | null; contestId: string }>();
 
   for (const row of rows) {
     nextById.set(row.id, {
       label: row.name,
       partyId: row.partyId,
-      nameEn: row.nameEn,
       contestId: row.contestId,
     });
     if (row.status === 'WITHDRAWN' || row.status === 'DISQUALIFIED') continue;
@@ -99,6 +92,6 @@ export function describeTarget(contest: RegisteredContest, targetType: string, t
 
 export function getCandidateAvatarUrl(contestId: string, candidateId: string) {
   const candidate = byCandidateId.get(candidateId);
-  if (!candidate || candidate.contestId !== contestId || !candidate.partyId) return null;
-  return avatarUrl(contestId, candidate.partyId, candidate.nameEn ?? undefined);
+  if (!candidate || candidate.contestId !== contestId) return null;
+  return avatarUrl(candidateId);
 }

@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
+import { usePageViews } from './analytics';
 import { ContestPage } from './pages/ContestPage';
 import { ElectionHomePage } from './pages/ElectionHomePage';
 import { JurisdictionPage } from './pages/JurisdictionPage';
@@ -14,6 +15,7 @@ import { CandidateRankingsPage } from './pages/CandidateRankingsPage';
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 export function App() {
+  usePageViews();
   return (
     <Routes>
       <Route path="/" element={<ElectionHomePage />} />

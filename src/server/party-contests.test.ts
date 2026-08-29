@@ -19,7 +19,6 @@ beforeAll(async () => {
       contestId: index === 2 ? 'CHA-COUNCIL-1' : 'TPE-COUNCIL-1',
       partyId,
       name: `政黨頁測試候選人${index + 1}`,
-      nameEn: index === 0 ? 'Test Candidate' : null,
       ballotNo: 998 + index,
     })),
   });
@@ -66,7 +65,7 @@ describe('party candidate list', () => {
       candidate: {
         id: candidateIds[0],
         name: '政黨頁測試候選人1',
-        photo: '/avatars/TPE-COUNCIL-1-TEST-test-candidate.jpg',
+        photo: null,
         predictedElected: false,
       },
     });

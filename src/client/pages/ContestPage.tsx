@@ -1,10 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getComments, getContest, getTrend, postComment } from '../api';
+import {
+  ApiError,
+  getComments,
+  getContest,
+  getTrend,
+  postComment,
+  reportComment,
+  type ReportReason,
+} from '../api';
 import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
 import { type Contest, type Jurisdiction, findContest, getJurisdiction } from '../mock-election';
 import { useDocumentTitle } from '../use-document-title';
+import { track } from '../analytics';
 
 type ResolvedContest = { contest: Contest; jurisdiction: Jurisdiction };
 import {
@@ -125,6 +134,13 @@ function TrendPanel({ contestId }: { contestId: string }) {
 // 留言的身份只剩名字的第一個字。整串都同一個深綠色時，二十則留言看起來像同一個人
 // 在自言自語，所以色相從 id 算出來——同一個人在哪一頁都是同一個顏色，重新整理也不會換。
 const authorColors = ['#173f33', '#3c5b7a', '#7a4a68', '#8a5a2b', '#2f6b5a', '#5b4a86'];
+const reportReasons: { value: ReportReason; label: string }[] = [
+  { value: 'SPAM', label: '垃圾訊息' },
+  { value: 'ABUSE', label: '辱罵或騷擾' },
+  { value: 'ADULT', label: '成人內容' },
+  { value: 'ILLEGAL', label: '違法內容' },
+  { value: 'OTHER', label: '其他' },
+];
 
 function authorColor(id: string) {
   let hash = 0;
@@ -133,7 +149,82 @@ function authorColor(id: string) {
   return authorColors[hash % authorColors.length];
 }
 
-function CommentsPanel({ contestId }: { contestId: string }) {
+function ReportDialog({
+  pending,
+  error,
+  onSubmit,
+  onClose,
+}: {
+  pending: boolean;
+  error: string;
+  onSubmit: (reason: ReportReason) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState<ReportReason>('SPAM');
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    document.body.classList.add('sheet-open');
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.body.classList.remove('sheet-open');
+    };
+  }, [onClose]);
+
+  return (
+    <div className="sheet-backdrop centered" onMouseDown={onClose} role="presentation">
+      <section
+        aria-labelledby="report-title"
+        aria-modal="true"
+        className="identity-card report-dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header>
+          <h2 id="report-title">檢舉留言</h2>
+          <button aria-label="關閉" className="icon-button" onClick={onClose} type="button">
+            <Icon name="close" />
+          </button>
+        </header>
+        <p>請選擇最符合的檢舉原因，管理員會在後台審核。</p>
+        <label>
+          檢舉原因
+          <select
+            autoFocus
+            onChange={(event) => setReason(event.target.value as ReportReason)}
+            value={reason}
+          >
+            {reportReasons.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && <p className="identity-error">{error}</p>}
+        <button
+          className="button button-dark button-wide"
+          disabled={pending}
+          onClick={() => onSubmit(reason)}
+          type="button"
+        >
+          {pending ? '送出中…' : '送出檢舉'}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function CommentsPanel({
+  contestId,
+  contestType,
+}: {
+  contestId: string;
+  contestType: Contest['view'];
+}) {
   const queryClient = useQueryClient();
   const list = useQuery({
     queryKey: ['comments', contestId],
@@ -141,16 +232,47 @@ function CommentsPanel({ contestId }: { contestId: string }) {
   });
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportError, setReportError] = useState('');
+  const [reportStatus, setReportStatus] = useState<{ id: string; message: string } | null>(null);
+  // 送出的當下記住是按 Enter 還是按鈕，onSuccess 才分得出來——mutate() 本身不帶參數。
+  const entryRef = useRef<'enter_key' | 'button'>('button');
 
   const send = useMutation({
     mutationFn: () => postComment(contestId, draft),
     onSuccess: async () => {
+      const bodyLength = draft.trim().length;
       setDraft('');
       setError('');
+      track('comment_posted', {
+        contest_id: contestId,
+        contest_type: contestType,
+        body_length: bodyLength,
+        entry: entryRef.current,
+      });
       await queryClient.invalidateQueries({ queryKey: ['comments', contestId] });
     },
     onError: (failure: unknown) => {
       setError(failure instanceof Error ? failure.message : '送出失敗，請稍後再試。');
+      track('comment_failed', {
+        contest_id: contestId,
+        status: failure instanceof ApiError ? failure.status : null,
+        needs_turnstile: failure instanceof ApiError ? failure.needsTurnstile : false,
+      });
+    },
+  });
+
+  const report = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: ReportReason }) => reportComment(id, reason),
+    onSuccess: (_data, { id, reason }) => {
+      setReportingId(null);
+      setReportError('');
+      setReportStatus({ id, message: '已送出檢舉。' });
+      // 內容一律不送：reason 是固定列舉值，note 從沒問過使用者，body 更不用說。
+      track('report_submitted', { target_type: 'COMMENT', reason, contest_id: contestId });
+    },
+    onError: (failure: unknown) => {
+      setReportError(failure instanceof Error ? failure.message : '檢舉失敗，請稍後再試。');
     },
   });
 
@@ -166,7 +288,10 @@ function CommentsPanel({ contestId }: { contestId: string }) {
           aria-label="留言內容"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && draft.trim()) send.mutate();
+            if (event.key === 'Enter' && draft.trim()) {
+              entryRef.current = 'enter_key';
+              send.mutate();
+            }
           }}
           placeholder="留下你的看法"
           type="text"
@@ -175,7 +300,10 @@ function CommentsPanel({ contestId }: { contestId: string }) {
         <button
           className="button button-glass button-small"
           disabled={!draft.trim() || send.isPending}
-          onClick={() => send.mutate()}
+          onClick={() => {
+            entryRef.current = 'button';
+            send.mutate();
+          }}
           type="button"
         >
           {send.isPending ? '送出中…' : '送出'}
@@ -198,9 +326,33 @@ function CommentsPanel({ contestId }: { contestId: string }) {
               <time>{comment.author.code}</time>
             </p>
             <span>{comment.body}</span>
+            <button
+              aria-expanded={reportingId === comment.id}
+              onClick={() => {
+                setReportingId(comment.id);
+                setReportError('');
+                setReportStatus(null);
+              }}
+              type="button"
+            >
+              檢舉
+            </button>
+            {reportStatus?.id === comment.id && (
+              <small className="comment-report-status" role="status">
+                {reportStatus.message}
+              </small>
+            )}
           </div>
         </article>
       ))}
+      {reportingId && (
+        <ReportDialog
+          error={reportError}
+          onClose={() => setReportingId(null)}
+          onSubmit={(reason) => report.mutate({ id: reportingId, reason })}
+          pending={report.isPending}
+        />
+      )}
     </section>
   );
 }
@@ -286,7 +438,15 @@ export function ContestPage() {
   useDocumentTitle(`${contestTitle}預測｜九合一選舉預測`);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseContestTab(searchParams.get('tab'));
-  const setActiveTab = (tab: ContestTab) =>
+  // 分頁寫在網址上，但那是 replace 的，不算換頁；要知道有沒有人看趨勢與留言只能靠這裡。
+  const setActiveTab = (tab: ContestTab) => {
+    if (resolved)
+      track('contest_tab_changed', {
+        contest_id: resolved.contest.id,
+        contest_type: resolved.contest.view,
+        tab,
+        entry: 'tab_click',
+      });
     setSearchParams(
       (params) => {
         if (tab === 'results') params.delete('tab');
@@ -295,8 +455,29 @@ export function ContestPage() {
       },
       { replace: true },
     );
+  };
   const [forecastOpen, setForecastOpen] = useState(false);
   const [message, setMessage] = useState('');
+
+  // 地圖抽屜的連結直接帶 ?tab= 進來，不會經過 setActiveTab；掛載時分頁不是預設值
+  // 就代表是深連結，只在第一次 render 判斷一次。
+  const deepLinkTracked = useRef(false);
+  useEffect(() => {
+    if (deepLinkTracked.current || !resolved) return;
+    deepLinkTracked.current = true;
+    if (activeTab !== 'results') {
+      track('contest_tab_changed', {
+        contest_id: resolved.contest.id,
+        contest_type: resolved.contest.view,
+        tab: activeTab,
+        entry: 'deep_link',
+      });
+    }
+    // 刻意不把 activeTab 放進相依：這一輪只負責「進來時網址就帶著 ?tab=」這件事，
+    // 之後使用者切分頁走的是 setActiveTab 那條，已經各自送過事件了。放進去會讓
+    // 每次切分頁都多送一筆 deep_link。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved]);
 
   // 鄉鎮市長與村里長是從圖資產生的，不在 mock-election 的靜態清單裡，要先載回來。
   if (!resolved)
@@ -352,7 +533,9 @@ export function ContestPage() {
               <ResultsPanel contestId={contest.id} seats={contest.seatCount} />
             )}
             {activeTab === 'trend' && <TrendPanel contestId={contest.id} />}
-            {activeTab === 'comments' && <CommentsPanel contestId={contest.id} />}
+            {activeTab === 'comments' && (
+              <CommentsPanel contestId={contest.id} contestType={contest.view} />
+            )}
           </div>
           <aside className="contest-aside">
             <h3>{forecastAsideTitle(pickCount, contest.seatCount)}</h3>
@@ -361,7 +544,20 @@ export function ContestPage() {
                 ? '選出你認為最可能勝出的政黨或候選人。'
                 : `預測 ${contest.seatCount} 席最終歸屬。`}
             </p>
-            <ForecastButton editing={pickCount > 0} onClick={() => setForecastOpen(true)} />
+            <ForecastButton
+              editing={pickCount > 0}
+              onClick={() => {
+                track('forecast_sheet_opened', {
+                  contest_id: contest.id,
+                  contest_type: contest.view,
+                  jurisdiction_id: contest.jurisdictionId,
+                  seats: contest.seatCount,
+                  surface: 'contest_page',
+                  is_update: pickCount > 0,
+                });
+                setForecastOpen(true);
+              }}
+            />
             <div className="privacy-note">
               <span>匿名可參加</span>
               <small>裝置只保留一份預測，可隨時修改。</small>

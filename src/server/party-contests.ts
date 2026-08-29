@@ -49,7 +49,7 @@ export async function listPartyContests(
 ) {
   const candidates = await prisma.candidate.findMany({
     where: { partyId, status: { in: ['REGISTERED', 'CONFIRMED'] } },
-    select: { id: true, contestId: true, name: true, nameEn: true, ballotNo: true },
+    select: { id: true, contestId: true, name: true, ballotNo: true },
   });
   const items = candidates
     .flatMap((candidate) => {
@@ -106,7 +106,7 @@ export async function listPartyContests(
           id: candidate.id,
           name: candidate.name,
           ballotNo: candidate.ballotNo,
-          photo: avatarUrl(contest.id, partyId, candidate.nameEn ?? undefined),
+          photo: avatarUrl(candidate.id),
           predictionCount: row?.count ?? 0,
           predictionPercent: row?.percent ?? 0,
           predictedElected: predictedWinners.has(candidate.id),

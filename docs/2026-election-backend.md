@@ -359,6 +359,7 @@ PostgreSQL 就好。
 ## 六、候選人照片
 
 候選人照片由 Git 管理（`public/avatars/`，檔名規則見該目錄的 README），逐張確認授權。
+照片檔名是候選人代碼 `{code}.webp`，後台不提供圖片上傳。
 
 ---
 
@@ -445,8 +446,12 @@ POST /api/contests/:id/comments
 POST /api/reports
 
 GET  /api/admin/reports                  admin token
+POST /api/admin/candidates/import/preview admin token
+POST /api/admin/candidates/import         admin token
 POST /api/admin/comments/:id/hide        admin token
+POST /api/admin/comments/:id/restore     admin token
 POST /api/admin/forecasters/:id/block    admin token
+POST /api/admin/forecasters/:id/unblock  admin token
 ```
 
 `POST /api/contests/:id/prediction` 的驗證順序：選區存在 → 勾選數等於 `seats` →
@@ -478,6 +483,6 @@ POST /api/admin/forecasters/:id/block    admin token
 - **鄉鎮市民代表與山地原住民區民代表的名額**。中選會 2026-08-20 另有一份涵蓋鄉鎮
   市長、代表與村里長的公告，取得後把 `seatsSource` 從 `PLACEHOLDER` 換成
   `OFFICIAL`。在那之前這兩種選舉的席次是估的。
-- **候選人名單**。中選會預定 2026-11 公告，在那之前前端與伺服器都用
-  `getMockCandidates()` 產生並寫入 DB 的假中文姓名。正式名單
-  收到後直接替換 Candidate，不做後台匯入或舊預測遷移。
+- **候選人名單**。中選會預定 2026-11 公告，在那之前用
+  `getMockCandidates()` 產生並寫入 DB 的假中文姓名。正式名單從後台匯入固定格式
+  CSV；相同 code 逐筆顯示差異並確認是否取代。

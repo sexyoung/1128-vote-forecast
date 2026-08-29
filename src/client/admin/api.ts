@@ -23,7 +23,7 @@ type RequestOptions = RequestInit & {
 async function request<T>(path: string, init: RequestOptions = {}): Promise<T> {
   const { skipAuthRedirect, ...rest } = init;
   const headers = new Headers(rest.headers);
-  if (rest.body) headers.set('Content-Type', 'application/json');
+  if (rest.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   // cookie 是 SameSite=Strict，但瀏覽器對它的實作有過空窗；沒有 preflight 的跨站
   // 請求送不出自訂 header，requireAdmin 靠這個再擋一次，所以非 GET 一定要帶。
   if ((rest.method ?? 'GET') !== 'GET') headers.set('x-admin-request', '1');
@@ -65,6 +65,49 @@ export type AdminOverview = {
 
 export const getAdminOverview = () => request<AdminOverview>('/api/admin/overview');
 
+// --- 候選人 CSV -------------------------------------------------------------
+
+export type CandidateImportSummary = {
+  candidates: number;
+  contests: number;
+  create: number;
+  update: number;
+  unchanged: number;
+  removePlaceholders: number;
+};
+
+export type CandidateImportRow = {
+  code: string;
+  contestId: string;
+  name: string;
+  partyId: string;
+  ballotNo: number | null;
+  status: string;
+};
+
+export type CandidateImportUpdate = {
+  code: string;
+  name: string;
+  changes: { field: string; before: string | number | null; after: string | number | null }[];
+};
+
+export const previewCandidateCsv = (csv: string) =>
+  request<{
+    summary: CandidateImportSummary;
+    rows: CandidateImportRow[];
+    updates: CandidateImportUpdate[];
+  }>('/api/admin/candidates/import/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv; charset=utf-8' },
+    body: csv,
+  });
+
+export const importCandidateCsv = (csv: string, replaceCodes: string[]) =>
+  request<{ summary: CandidateImportSummary }>('/api/admin/candidates/import', {
+    method: 'POST',
+    body: JSON.stringify({ csv, replaceCodes }),
+  });
+
 // --- 檢舉／留言審核 ---------------------------------------------------------
 
 export type ReportReason = 'SPAM' | 'ABUSE' | 'ADULT' | 'ILLEGAL' | 'OTHER';
@@ -87,10 +130,28 @@ export type AdminReport = {
   } | null;
 };
 
-export const getReports = () => request<{ reports: AdminReport[] }>('/api/admin/reports');
+export type AdminHiddenComment = NonNullable<AdminReport['comment']>;
+export type AdminBlockedForecaster = {
+  id: string;
+  code: string;
+  displayName: string | null;
+  blockedAt: string;
+};
+
+export const getReports = () =>
+  request<{
+    reports: AdminReport[];
+    hiddenComments: AdminHiddenComment[];
+    blockedForecasters: AdminBlockedForecaster[];
+  }>('/api/admin/reports');
 
 export const hideComment = (commentId: string) =>
   request<{ ok: true }>(`/api/admin/comments/${encodeURIComponent(commentId)}/hide`, {
+    method: 'POST',
+  });
+
+export const restoreComment = (commentId: string) =>
+  request<{ ok: true }>(`/api/admin/comments/${encodeURIComponent(commentId)}/restore`, {
     method: 'POST',
   });
 
@@ -102,5 +163,10 @@ export const dismissReport = (reportId: string, note?: string) =>
 
 export const blockForecaster = (forecasterId: string) =>
   request<{ ok: true }>(`/api/admin/forecasters/${encodeURIComponent(forecasterId)}/block`, {
+    method: 'POST',
+  });
+
+export const unblockForecaster = (forecasterId: string) =>
+  request<{ ok: true }>(`/api/admin/forecasters/${encodeURIComponent(forecasterId)}/unblock`, {
     method: 'POST',
   });

@@ -333,6 +333,11 @@ app.post('/api/reports', async (c) => {
   const reason = parseReportReason(body?.reason);
   const targetId = typeof body?.targetId === 'string' ? body.targetId : '';
   if (!targetType || !reason || !targetId) return c.json({ error: '檢舉內容不完整。' }, 400);
+  const target = await prisma.comment.findFirst({
+    where: { id: targetId, status: 'VISIBLE' },
+    select: { id: true },
+  });
+  if (!target) return c.json({ error: '找不到這則留言。' }, 404);
 
   const note = typeof body?.note === 'string' ? body.note.slice(0, 500) : null;
   const report = await fileReport({

@@ -2,11 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { ApiError, getContest, submitPrediction } from '../api';
 import { type Contest, getParty } from '../mock-election';
+import { track } from '../analytics';
 import { Icon } from './ElectionPrototypeShared';
 
 // 送出後留下來的預測。要記 id 才有辦法在「修改我的預測」時把原本那幾格勾回來，
 // 光留 label 對不回選項。
 export type ForecastPick = { id: string; label: string };
+
+// 同一個表單掛在兩處（選區頁的 ForecastSheet、地圖抽屜的 MapInspector），不分開
+// 就分不出地圖上的預測佔多少。
+export type ForecastSurface = 'contest_page' | 'map_inspector';
 
 export function ForecastSheet({
   contest,
@@ -54,6 +59,7 @@ export function ForecastSheet({
           onSubmitted={() =>
             onSubmitted(`已更新「${contest.name}」的示意預測。正式版將同步寫入你的匿名身份。`)
           }
+          surface="contest_page"
         />
       </section>
     </div>
@@ -63,9 +69,11 @@ export function ForecastSheet({
 export function ForecastForm({
   contest,
   onSubmitted,
+  surface,
 }: {
   contest: Contest;
   onSubmitted: (picked: ForecastPick[]) => void;
+  surface: ForecastSurface;
 }) {
   const queryClient = useQueryClient();
   // 名單、席次與目前分布都由伺服器給：中選會公告後只要換伺服器那一份，這裡不用動。
@@ -83,11 +91,24 @@ export function ForecastForm({
   const selected = picks ?? detail.data?.mine?.targetIds ?? [];
   const isValid = selected.length > 0;
   const shares = new Map(detail.data?.tally.rows.map((row) => [row.targetId, row.percent]) ?? []);
+  // onSuccess 時 detail 已經被 invalidate，當場再讀 detail.data?.mine 永遠是 true；
+  // 送出前先算好「這是新的還是修改」，才分得出轉換漏斗裡有多少是回頭客。
+  const isUpdate = Boolean(detail.data?.mine);
 
   const submit = useMutation({
     mutationFn: () => submitPrediction(contest.id, selected),
     onSuccess: async () => {
       setError('');
+      track('forecast_submitted', {
+        contest_id: contest.id,
+        contest_type: detail.data?.contest.type,
+        jurisdiction_id: detail.data?.contest.jurisdictionId,
+        seats,
+        seats_source: detail.data?.contest.seatsSource,
+        picks: selected.length,
+        is_update: isUpdate,
+        surface,
+      });
       await queryClient.invalidateQueries({ queryKey: ['contest', contest.id] });
       await queryClient.invalidateQueries({ queryKey: ['my-predictions'] });
       await queryClient.invalidateQueries({ queryKey: ['map'] });
@@ -100,6 +121,12 @@ export function ForecastForm({
     },
     onError: (failure: unknown) => {
       setError(failure instanceof ApiError ? failure.message : '送出失敗，請稍後再試。');
+      track('forecast_failed', {
+        contest_id: contest.id,
+        status: failure instanceof ApiError ? failure.status : null,
+        needs_turnstile: failure instanceof ApiError ? failure.needsTurnstile : false,
+        surface,
+      });
     },
   });
 

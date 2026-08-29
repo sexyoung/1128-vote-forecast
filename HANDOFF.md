@@ -55,17 +55,20 @@ production 固定一個服務：Hono 同時掛 `/api/*` 與 SSR HTML。
 
 ## 後台現況
 
-前端只有三個路由：
+前端有四個路由：
 
 - `/admin/login`
 - `/admin`
+- `/admin/candidates`
 - `/admin/moderation`
 
-後端只有七支端點：session 2、overview 1、留言／檢舉管理 4。
+後端另有候選人 CSV 預覽／確認匯入與留言／檢舉管理端點。
 
 候選人放 PostgreSQL。`prisma/seed.ts` 會寫入涵蓋全部選區的假姓名與黨籍；偵測到正式
-候選人資料時會停止，不會覆蓋。正式名單收到後直接替換 Candidate。政黨與假名規則集中在
-`src/shared/candidates.ts`，後端不再 import 前端 mock 模組。
+候選人資料時會停止，不會覆蓋。正式名單由 `/admin/candidates` 上傳固定格式 CSV；
+相同 code 會列出欄位差異，必須逐筆確認取代或取消。新 code 直接新增，首次匯入選區時會移除該區
+全部假候選人。政黨與假名規則集中在 `src/shared/candidates.ts`。照片不上傳，以
+`public/avatars/{code}.webp` commit 進 Git。
 
 原型的假預測份數、領先政黨與百分比不寫入後端，避免被誤認為使用者預測；正式 API
 在尚無預測時回傳 0。

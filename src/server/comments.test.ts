@@ -153,6 +153,13 @@ describe('reports and takedown', () => {
 
     expect((await send()).status).toBe(201);
     await send();
+    const queue = await app.request('/api/admin/reports', { headers: admin });
+    const reports = (await queue.json()) as {
+      reports: { targetId: string; comment: { forecaster: { id: string; code: string } } }[];
+    };
+    expect(
+      reports.reports.find(({ targetId }) => targetId === body.comment.id)?.comment.forecaster,
+    ).toMatchObject({ id: author.id, code: expect.stringMatching(/^#[0-9A-Z]{4}$/) });
     const open = await prisma.report.count({
       where: { reporterId: reporter.id, targetId: body.comment.id, status: 'OPEN' },
     });
@@ -167,6 +174,16 @@ describe('reports and takedown', () => {
       body: JSON.stringify({ targetType: 'COMMENT', targetId: 'x', reason: 'BECAUSE' }),
     });
     expect(response.status).toBe(400);
+  });
+
+  it('rejects a report for a comment that does not exist', async () => {
+    const reporter = await newVisitor();
+    const response = await app.request('/api/reports', {
+      method: 'POST',
+      headers: reporter.headers,
+      body: JSON.stringify({ targetType: 'COMMENT', targetId: 'missing', reason: 'SPAM' }),
+    });
+    expect(response.status).toBe(404);
   });
 
   it('hides a comment from the admin side and closes its reports', async () => {
@@ -190,6 +207,19 @@ describe('reports and takedown', () => {
     expect(
       await prisma.report.count({ where: { targetId: body.comment.id, status: 'OPEN' } }),
     ).toBe(0);
+
+    const queue = await app.request('/api/admin/reports', { headers: admin });
+    const hiddenComments = ((await queue.json()) as { hiddenComments: { id: string }[] })
+      .hiddenComments;
+    expect(hiddenComments.map(({ id }) => id)).toContain(body.comment.id);
+
+    const restored = await app.request(`/api/admin/comments/${body.comment.id}/restore`, {
+      method: 'POST',
+      headers: admin,
+    });
+    expect(restored.status).toBe(200);
+    const restoredList = await app.request(`/api/contests/${contestId}/comments`);
+    expect(((await restoredList.json()) as { comments: unknown[] }).comments).toHaveLength(1);
   });
 
   it('turns away the admin endpoints without the token', async () => {
@@ -205,5 +235,17 @@ describe('reports and takedown', () => {
     });
 
     expect((await visitor.comment('還想說話')).status).toBe(403);
+
+    const queue = await app.request('/api/admin/reports', { headers: admin });
+    const blocked = ((await queue.json()) as { blockedForecasters: { id: string }[] })
+      .blockedForecasters;
+    expect(blocked.map(({ id }) => id)).toContain(visitor.id);
+
+    const unblocked = await app.request(`/api/admin/forecasters/${visitor.id}/unblock`, {
+      method: 'POST',
+      headers: admin,
+    });
+    expect(unblocked.status).toBe(200);
+    expect((await visitor.comment('可以再留言了')).status).toBe(201);
   });
 });

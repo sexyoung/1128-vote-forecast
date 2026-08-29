@@ -33,6 +33,7 @@ import {
 import { regionCounts } from '../region-counts';
 import { summariseArea } from '../../shared/area';
 import { useDocumentTitle } from '../use-document-title';
+import { track } from '../analytics';
 
 export { summariseArea } from '../../shared/area';
 
@@ -249,6 +250,12 @@ export function JurisdictionPage() {
 
   function selectView(next: ElectionView) {
     if (next === view) return;
+    track('region_view_changed', {
+      jurisdiction_id: jurisdiction.id,
+      view: next,
+      previous_view: view,
+      contest_count: countForView(jurisdiction, next),
+    });
     setSkeletonPhase('resetting');
     if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
     resetFrameRef.current = requestAnimationFrame(() => {
@@ -318,9 +325,15 @@ export function JurisdictionPage() {
                   <select
                     aria-label="鄉鎮市區"
                     className="town-select"
-                    onChange={(event) =>
-                      updateParams((params) => params.set('town', event.target.value))
-                    }
+                    onChange={(event) => {
+                      track('town_filter_changed', {
+                        jurisdiction_id: jurisdiction.id,
+                        town: event.target.value,
+                        control: 'select',
+                        town_count: townNames.length,
+                      });
+                      updateParams((params) => params.set('town', event.target.value));
+                    }}
                     value={activeTown}
                   >
                     {townNames.map((name) => (
@@ -335,7 +348,15 @@ export function JurisdictionPage() {
                         aria-selected={name === activeTown}
                         className={name === activeTown ? 'active' : ''}
                         key={name}
-                        onClick={() => updateParams((params) => params.set('town', name))}
+                        onClick={() => {
+                          track('town_filter_changed', {
+                            jurisdiction_id: jurisdiction.id,
+                            town: name,
+                            control: 'pill',
+                            town_count: townNames.length,
+                          });
+                          updateParams((params) => params.set('town', name));
+                        }}
                         role="tab"
                         type="button"
                       >

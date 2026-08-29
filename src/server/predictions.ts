@@ -146,7 +146,9 @@ export async function savePrediction(
     const totalPredictions =
       (await tx.contestSummary.findUnique({ where: { contestId: contest.id } }))
         ?.totalPredictions ?? 0;
-    const nextTotal = existing ? totalPredictions : totalPredictions + 1;
+    // 正式名單取代假候選人時，舊預測會 INVALIDATED 且 summary 歸零。使用者重新
+    // 預測是在把一份預測加回來，不是一般的覆蓋。
+    const nextTotal = existing?.status === 'ACTIVE' ? totalPredictions : totalPredictions + 1;
 
     await tx.contestSummary.upsert({
       where: { contestId: contest.id },

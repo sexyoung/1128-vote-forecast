@@ -107,6 +107,8 @@ export type Comment = {
   author: { id: string; code: string; displayName: string | null };
 };
 
+export type ReportReason = 'SPAM' | 'ABUSE' | 'ADULT' | 'ILLEGAL' | 'OTHER';
+
 export class ApiError extends Error {
   status: number;
   /** 伺服器要求先過人機驗證。前端該把 Turnstile 叫出來再送一次。 */
@@ -215,4 +217,10 @@ export const postComment = (contestId: string, body: string, parentId?: string) 
   request<{ comment: Comment }>(`/api/contests/${encodeURIComponent(contestId)}/comments`, {
     method: 'POST',
     body: JSON.stringify({ body, parentId }),
+  });
+
+export const reportComment = (targetId: string, reason: ReportReason) =>
+  request<{ reportId: string }>('/api/reports', {
+    method: 'POST',
+    body: JSON.stringify({ targetType: 'COMMENT', targetId, reason }),
   });

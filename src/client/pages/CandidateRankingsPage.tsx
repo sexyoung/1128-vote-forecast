@@ -3,7 +3,7 @@ import { type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { getCandidateRankings } from '../api';
 import { useDocumentTitle } from '../use-document-title';
-import { Icon, PageShell } from './ElectionPrototypeShared';
+import { CandidatePhoto, Icon, PageShell } from './ElectionPrototypeShared';
 import { summariseArea } from '../../shared/area';
 
 const typeLabels = {
@@ -44,7 +44,7 @@ export function CandidateRankingsPage() {
                     className="candidate-ranking-avatar"
                     style={{ '--candidate-color': candidate.party.color } as CSSProperties}
                   >
-                    {candidate.photo ? <img alt="" src={candidate.photo} /> : <Icon name="user" />}
+                    <CandidatePhoto photo={candidate.photo} />
                   </i>
                   <span className="candidate-ranking-person">
                     <strong>{candidate.name}</strong>

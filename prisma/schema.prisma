@@ -271,8 +271,7 @@ model Candidate {
   partyId   String?
 
   name     String  @db.VarChar(40)
-  /// 英文拼音。照片檔名由它算出來（avatars.ts 的 avatarFileName），不存路徑：
-  /// 照片是 Git 管的靜態檔，資料庫再記一次就會有兩個互相矛盾的來源。
+  /// 舊的英文拼音欄位。照片現改用 `{id}.webp`，欄位先保留避免無必要的 migration。
   nameEn   String? @db.VarChar(80)
   ballotNo Int?
 

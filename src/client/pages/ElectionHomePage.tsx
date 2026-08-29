@@ -36,6 +36,7 @@ import {
   toCandidateRows,
 } from './ElectionPrototypeShared';
 import { type ForecastPick, ForecastForm } from './ForecastSheet';
+import { track } from '../analytics';
 
 type MapBounds = { x: number; y: number; width: number; height: number };
 type MapPanState = MapBounds & {
@@ -386,7 +387,12 @@ function MapInspector({
         </header>
         {/* key 綁 contest：在表單開著的時候換場次，勾選狀態要跟著換掉。
             上次押了誰由伺服器回答，不再從這裡傳進去。 */}
-        <ForecastForm contest={contest} key={contest.id} onSubmitted={onSubmitted} />
+        <ForecastForm
+          contest={contest}
+          key={contest.id}
+          onSubmitted={onSubmitted}
+          surface="map_inspector"
+        />
       </aside>
     );
 
@@ -397,7 +403,14 @@ function MapInspector({
             成一列，選取的區域與鏡頭都留著。桌機不顯示。 */}
         <button
           className="map-inspector-dismiss"
-          onClick={() => onExpandedChange(false)}
+          onClick={() => {
+            track('map_inspector_toggled', {
+              expanded: false,
+              contest_id: contest.id,
+              contest_type: contest.view,
+            });
+            onExpandedChange(false);
+          }}
           type="button"
         >
           ‹ 返回
@@ -419,7 +432,17 @@ function MapInspector({
               aria-selected={option.id === contest.id}
               className={option.id === contest.id ? 'active' : ''}
               key={option.id}
-              onClick={() => onContestChange(option)}
+              onClick={() => {
+                track('map_contest_switched', {
+                  from_contest_id: contest.id,
+                  from_contest_type: contest.view,
+                  to_contest_id: option.id,
+                  to_contest_type: option.view,
+                  jurisdiction_id: jurisdiction.id,
+                  option_count: contestOptions.length,
+                });
+                onContestChange(option);
+              }}
               role="tab"
               type="button"
             >
@@ -434,7 +457,14 @@ function MapInspector({
       <button
         aria-expanded={expanded}
         className={`map-peek ${lowSample ? 'low' : ''}`}
-        onClick={() => onExpandedChange(true)}
+        onClick={() => {
+          track('map_inspector_toggled', {
+            expanded: true,
+            contest_id: contest.id,
+            contest_type: contest.view,
+          });
+          onExpandedChange(true);
+        }}
         type="button"
       >
         <strong>{contest.name}</strong>
@@ -507,7 +537,20 @@ function MapInspector({
         </div>
       </div>
       <footer className="map-inspector-footer">
-        <ForecastButton editing={Boolean(detail.data?.mine)} onClick={onForecast} />
+        <ForecastButton
+          editing={Boolean(detail.data?.mine)}
+          onClick={() => {
+            track('forecast_sheet_opened', {
+              contest_id: contest.id,
+              contest_type: contest.view,
+              jurisdiction_id: jurisdiction.id,
+              seats: contest.seatCount,
+              surface: 'map_inspector',
+              is_update: Boolean(detail.data?.mine),
+            });
+            onForecast();
+          }}
+        />
       </footer>
     </aside>
   );
@@ -540,6 +583,9 @@ export function ElectionHomePage() {
     {},
   );
   const pathRefs = useRef<Record<string, SVGPathElement | null>>({});
+  // 縮放（滾輪／雙指）與點選都會改變 mapLevelView，量測要分辨是哪一種；applyZoom
+  // 一開始就把它改成 'zoom'，其餘（含預設）都算 'select'。
+  const levelChangeTriggerRef = useRef<'zoom' | 'select'>('select');
   const mapStageRef = useRef<HTMLElement | null>(null);
   const mapSvgRef = useRef<SVGSVGElement | null>(null);
   const panRef = useRef<MapPanState | null>(null);
@@ -772,6 +818,21 @@ export function ElectionHomePage() {
           : 'EXECUTIVE';
   const mapLevelLabel = electionViews.find((item) => item.id === mapLevelView)?.label ?? '選舉';
 
+  // mapLevelView 是推導值，不是哪個 handler 的回傳——滾輪縮放（applyZoom）跟五處
+  // setDetailMode 呼叫點都會改到它，逐一埋點一定漏掉滾輪那條最常見的路。改成盯著
+  // 這個推導值本身，用 ref 記上一個值，變了才發，這樣不管哪條路都量得到。
+  const previousMapLevelRef = useRef(mapLevelView);
+  useEffect(() => {
+    if (previousMapLevelRef.current === mapLevelView) return;
+    track('map_level_changed', {
+      level: mapLevelView,
+      previous_level: previousMapLevelRef.current,
+      jurisdiction_id: selectedJurisdiction?.id ?? null,
+      trigger: levelChangeTriggerRef.current,
+    });
+    previousMapLevelRef.current = mapLevelView;
+  }, [mapLevelView, selectedJurisdiction]);
+
   // 先清掉上一個選區的面板；從地圖點縣市時會在下方的入口放回該縣市 contest。
   function selectJurisdiction(jurisdiction: Jurisdiction) {
     cancelMapFocusAnimation();
@@ -785,6 +846,7 @@ export function ElectionHomePage() {
   }
 
   function selectJurisdictionFromMap(jurisdiction: Jurisdiction, contest: Contest) {
+    levelChangeTriggerRef.current = 'select';
     selectJurisdiction(jurisdiction);
     setSelectedContest(contest);
     if (shouldImmediatelyFocusJurisdiction(jurisdiction.id)) {
@@ -894,6 +956,7 @@ export function ElectionHomePage() {
 
   // 滾輪與雙指縮放共用：套用新的 viewBox，並依縮放方向切換縣市／鄉鎮層級。
   function applyZoom(bounds: MapBounds, zoomingIn: boolean, target: EventTarget | null) {
+    levelChangeTriggerRef.current = 'zoom';
     cancelMapFocusAnimation();
     const next = constrainMapBounds(bounds);
     const element = target instanceof Element ? target.closest('[data-jurisdiction-id]') : null;
@@ -1219,7 +1282,10 @@ export function ElectionHomePage() {
                 aria-label="搜尋縣市"
                 aria-expanded={searchOpen}
                 className="map-round-button"
-                onClick={() => setSearchOpen((open) => !open)}
+                onClick={() => {
+                  track('map_search_toggled', { open: !searchOpen });
+                  setSearchOpen((open) => !open);
+                }}
                 type="button"
               >
                 <Icon name={searchOpen ? 'close' : 'search'} />
@@ -1239,7 +1305,17 @@ export function ElectionHomePage() {
           {/* 取消選取後鏡頭還留在原地，這顆按鈕就是唯一的退路，所以條件看的是
             「視野還縮在全國視野之內」，不是有沒有選取縣市。 */}
           {(mapWidth < nationalViewWidth || (detailMode && selectedJurisdiction)) && (
-            <button className="map-back-button" onClick={() => resetMap()} type="button">
+            <button
+              className="map-back-button"
+              onClick={() => {
+                track('map_reset', {
+                  from_level: mapLevelView,
+                  jurisdiction_id: selectedJurisdiction?.id ?? null,
+                });
+                resetMap();
+              }}
+              type="button"
+            >
               ‹ 回到全臺
             </button>
           )}
@@ -1273,6 +1349,13 @@ export function ElectionHomePage() {
                     key={location.id}
                     onClick={() => {
                       if (!mapClickAllowed()) return;
+                      track('map_area_selected', {
+                        level: 'county',
+                        jurisdiction_id: jurisdiction.id,
+                        contest_id: contest.id,
+                        contest_type: contest.view,
+                        source: 'county_path',
+                      });
                       selectJurisdictionFromMap(jurisdiction, contest);
                     }}
                     ref={(node) => {
@@ -1317,6 +1400,14 @@ export function ElectionHomePage() {
                       key={township.id}
                       onClick={() => {
                         if (!mapClickAllowed() || !contest) return;
+                        levelChangeTriggerRef.current = 'select';
+                        track('map_area_selected', {
+                          level: 'township',
+                          jurisdiction_id: selectedJurisdiction.id,
+                          contest_id: contest.id,
+                          contest_type: contest.view,
+                          town_code: township.townCode,
+                        });
                         setSelectedTownshipId(township.id);
                         setSelectedVillageId(null);
                         setFocusedTownCode(township.townCode);
@@ -1352,6 +1443,14 @@ export function ElectionHomePage() {
                       key={`council-${village.id}`}
                       onClick={() => {
                         if (!mapClickAllowed()) return;
+                        levelChangeTriggerRef.current = 'select';
+                        track('map_area_selected', {
+                          level: 'council_village',
+                          jurisdiction_id: selectedJurisdiction.id,
+                          contest_id: contest.id,
+                          contest_type: contest.view,
+                          town_code: village.townCode,
+                        });
                         setSelectedTownshipId(null);
                         setSelectedVillageId(null);
                         setSelectedContest(contest);
@@ -1394,6 +1493,14 @@ export function ElectionHomePage() {
                       key={village.id}
                       onClick={() => {
                         if (!mapClickAllowed()) return;
+                        levelChangeTriggerRef.current = 'select';
+                        track('map_area_selected', {
+                          level: 'village',
+                          jurisdiction_id: selectedJurisdiction.id,
+                          contest_id: contest.id,
+                          contest_type: contest.view,
+                          town_code: village.townCode,
+                        });
                         setSelectedVillageId(village.id);
                         setSelectedTownshipId(null);
                         setFocusedTownCode(village.townCode);
@@ -1432,7 +1539,16 @@ export function ElectionHomePage() {
                 return (
                   <button
                     key={inset.locationId}
-                    onClick={() => selectJurisdictionFromMap(jurisdiction, contest)}
+                    onClick={() => {
+                      track('map_area_selected', {
+                        level: 'county',
+                        jurisdiction_id: jurisdiction.id,
+                        contest_id: contest.id,
+                        contest_type: contest.view,
+                        source: 'island_inset',
+                      });
+                      selectJurisdictionFromMap(jurisdiction, contest);
+                    }}
                     style={{ left: anchor.left, top: anchor.top }}
                     type="button"
                   >

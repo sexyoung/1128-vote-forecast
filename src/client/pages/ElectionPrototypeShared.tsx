@@ -2,6 +2,7 @@ import { type CSSProperties, type FormEvent, type ReactNode, useState } from 're
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import type { PredictionTarget, TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
+import { track } from '../analytics';
 import {
   type Contest,
   type ElectionView,
@@ -62,6 +63,22 @@ export function Icon({
   );
 }
 
+export function CandidatePhoto({ photo }: { photo?: string | null }) {
+  return (
+    <>
+      <Icon name="user" />
+      {photo && (
+        <img
+          alt=""
+          key={photo}
+          onError={(event) => (event.currentTarget.hidden = true)}
+          src={photo}
+        />
+      )}
+    </>
+  );
+}
+
 // 縣市搜尋是通往 /region 與 /contest 的唯一入口，所以頁首、/mine 與地圖共用同一個。
 // 命中的字加橘底，其餘照原樣。
 function Highlighted({ query, text }: { query: string; text: string }) {
@@ -88,6 +105,14 @@ export function SearchBox({ autoFocus = false, className = '' }) {
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // 第一版不送查詢字串原文：自由輸入的欄位，就算實務上九成是縣市名，也不該
+    // 預設把使用者打的字送給第三方。
+    track('search_used', {
+      matched: Boolean(matches[0]),
+      result_count: matches.length,
+      query_length: search.trim().length,
+      control: 'submit',
+    });
     if (matches[0]) void navigate(matches[0].to);
   }
 
@@ -104,7 +129,19 @@ export function SearchBox({ autoFocus = false, className = '' }) {
       {matches.length > 0 && (
         <div className="search-results">
           {matches.map((hit) => (
-            <button key={hit.id} onClick={() => void navigate(hit.to)} type="button">
+            <button
+              key={hit.id}
+              onClick={() => {
+                track('search_used', {
+                  matched: true,
+                  result_count: matches.length,
+                  query_length: search.trim().length,
+                  control: 'result_click',
+                });
+                void navigate(hit.to);
+              }}
+              type="button"
+            >
               <strong>
                 <Highlighted query={search} text={hit.label} />
               </strong>
@@ -279,8 +316,7 @@ export function CardCover({
   kicker,
   title,
   meta,
-  // 候選人照片，來自 public/avatars/。沒有就留一塊淺灰的空位——名單要到 2026-11
-  // 中選會公告才會齊，在那之前絕大多數選區都不會有。
+  // 候選人照片，來自 public/avatars/。名單公告前沒有照片就顯示人物圖示。
   photo,
 }: {
   kicker: string;
@@ -290,8 +326,9 @@ export function CardCover({
 }) {
   return (
     <div className="card-cover">
-      {/* 照片還沒有就留一塊淺灰的空位，不放字：填名字的第一個字會被誤讀成資訊。 */}
-      <i>{photo ? <img alt="" src={photo} /> : null}</i>
+      <i>
+        <CandidatePhoto photo={photo} />
+      </i>
       <div>
         <span>{kicker}</span>
         <strong>{title}</strong>
@@ -364,7 +401,7 @@ export function CandidateList({
               className="candidate-avatar"
               style={{ '--candidate-color': row.color } as CSSProperties}
             >
-              {row.photo ? <img alt="" src={row.photo} /> : <Icon name="user" />}
+              <CandidatePhoto photo={row.photo} />
             </i>
             <span>
               <span>

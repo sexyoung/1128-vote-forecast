@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { adminLogout, setUnauthorizedHandler } from './api';
+import { CandidateImportPage } from './CandidateImportPage';
 import { LoginPage } from './LoginPage';
 import { ModerationPage } from './ModerationPage';
 import { OverviewPage } from './OverviewPage';
 
 const navItems = [
   { to: '/admin', label: '總覽', end: true },
+  { to: '/admin/candidates', label: '候選人' },
   { to: '/admin/moderation', label: '檢舉／留言' },
 ];
 
@@ -90,6 +92,7 @@ export default function AdminApp() {
         <Routes>
           <Route element={<OverviewPage />} index />
           <Route element={<LoginPage />} path="login" />
+          <Route element={<CandidateImportPage />} path="candidates" />
           <Route element={<ModerationPage />} path="moderation" />
           <Route element={<Navigate replace to="/admin" />} path="*" />
         </Routes>

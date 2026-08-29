@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyPredictions, getSession, updateDisplayName } from '../api';
 import { useDocumentTitle } from '../use-document-title';
+import { track } from '../analytics';
 import {
   CandidateList,
   CardCover,
@@ -103,9 +104,14 @@ export function MyPredictionsPage() {
 
   const save = useMutation({
     mutationFn: (next: string) => updateDisplayName(next === defaultForecasterName ? null : next),
-    onSuccess: async () => {
+    onSuccess: async (_data, next) => {
       setError('');
       setEditing(false);
+      // 不送名字本身：只送長度，以及是不是改回預設值（=清掉自訂名稱）。
+      track('display_name_saved', {
+        name_length: next.length,
+        cleared: next === defaultForecasterName,
+      });
       await queryClient.invalidateQueries({ queryKey: ['session'] });
     },
     onError: (failure: unknown) => {
@@ -123,7 +129,15 @@ export function MyPredictionsPage() {
             aria-expanded={editing}
             className={`forecaster-id ${editing ? 'open' : ''}`}
             disabled={!forecaster}
-            onClick={() => setEditing((open) => !open)}
+            onClick={() => {
+              if (!editing) {
+                track('identity_dialog_opened', {
+                  has_name: Boolean(forecaster?.displayName),
+                  prediction_count: items.length,
+                });
+              }
+              setEditing((open) => !open);
+            }}
             type="button"
           >
             <Icon name="user" />
