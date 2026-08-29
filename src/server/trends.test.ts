@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vite-plus/test';
 import { app } from './app.js';
 import { getRegisteredContest } from './contest-registry.js';
-import { prisma } from './db.js';
+import { databaseSchema, prisma } from './db.js';
 import { forecasterCookieName } from './identity.js';
 import { getPredictionTargets } from './prediction-targets.js';
 import { disconnectRedis } from './redis.js';
@@ -29,6 +29,9 @@ function daysAgo(days: number) {
 }
 
 async function reset() {
+  if (databaseSchema !== 'vote_forecast_test') {
+    throw new Error('拒絕清除非測試資料庫。');
+  }
   await prisma.prediction.deleteMany({ where: { contestId: contest.id } });
   await prisma.contestTally.deleteMany({ where: { contestId: contest.id } });
   await prisma.contestSummary.deleteMany({ where: { contestId: contest.id } });

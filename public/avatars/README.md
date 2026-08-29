@@ -11,14 +11,29 @@
 
 三個欄位都要小寫以外照原樣，拼音用連字號接（`chen-mei-ling`）。
 
-**政黨英文簡稱**用 `src/client/mock-election.ts` 裡的 `PartyId`，只有這四個：
+**政黨英文簡稱**用 `src/shared/candidates.ts` 裡的 `PartyId`：
 
-| 代號  | 政黨         |
-| ----- | ------------ |
-| `KMT` | 中國國民黨   |
-| `DPP` | 民主進步黨   |
-| `TPP` | 台灣民眾黨   |
-| `IND` | 無黨籍／其他 |
+| 代號    | 政黨               |
+| ------- | ------------------ |
+| `DPP`   | 民主進步黨         |
+| `KMT`   | 中國國民黨         |
+| `TPP`   | 台灣民眾黨         |
+| `NPP`   | 時代力量           |
+| `TSP`   | 台灣基進           |
+| `PFP`   | 親民黨             |
+| `TSU`   | 台灣團結聯盟       |
+| `NP`    | 新黨               |
+| `GPT`   | 台灣綠黨           |
+| `SDP`   | 社會民主黨         |
+| `CMG`   | 中華民族致公黨     |
+| `LABOR` | 勞動黨             |
+| `NPSU`  | 無黨團結聯盟       |
+| `OBA`   | 小民參政歐巴桑聯盟 |
+| `TWP`   | 台灣工黨           |
+| `JRP`   | 司法改革黨         |
+| `ZSM`   | 正神名黨           |
+| `MJP`   | 麻將黨             |
+| `IND`   | 無黨籍／其他       |
 
 **選區代號**是 `Contest['id']`，依選舉種類有三種長相：
 
@@ -35,7 +50,7 @@
 ```
 TPE-EXECUTIVE-1-DPP-chen-mei-ling.jpg
 NTP-COUNCIL-2-KMT-lin-chih-hao.jpg
-town-10002040-TOWNSHIP-IND-huang-ta-wei.webp
+town-10002040-TOWNSHIP-NPP-huang-ta-wei.webp
 ```
 
 ## 規格
@@ -54,8 +69,8 @@ town-10002040-TOWNSHIP-IND-huang-ta-wei.webp
 - **2026-11-17 公告直轄市議員、縣（市）長、縣（市）議員候選人名單**
 - 2026-11-28 投票
 
-在 11 月中之前沒有官方名單，`getMockCandidates()` 產生的是「民進黨候選人 1」這種
-佔位名稱，沒有真實姓名也就沒有拼音，檔名湊不出來。
+在 11 月中之前沒有官方名單，`getMockCandidates()` 產生的是假的中文姓名，沒有英文
+拼音，檔名仍湊不出來。
 
 鄉鎮市民代表與村里長那一層由各縣市選舉委員會公告，不在中選會那份裡，要另外查。
 

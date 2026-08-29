@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vite-plus/test';
 import { app } from './app.js';
 import { getRegisteredContest } from './contest-registry.js';
-import { prisma } from './db.js';
+import { databaseSchema, prisma } from './db.js';
 import { forecasterCookieName } from './identity.js';
 import { getPredictionTargets } from './prediction-targets.js';
 import { disconnectRedis } from './redis.js';
@@ -27,6 +27,9 @@ const multiSeat = requireContest('TPE-COUNCIL-1');
 const forecasters: string[] = [];
 
 async function reset() {
+  if (databaseSchema !== 'vote_forecast_test') {
+    throw new Error('拒絕清除非測試資料庫。');
+  }
   await prisma.prediction.deleteMany({
     where: { contestId: { in: [singleSeat.id, multiSeat.id] } },
   });
@@ -73,6 +76,13 @@ async function newVisitor() {
     },
     async read(contestId: string) {
       const result = await app.request(`/api/contests/${contestId}`, {
+        headers: { cookie: `${forecasterCookieName}=${cookie}` },
+      });
+      return { status: result.status, body: await result.json() };
+    },
+    async batch(contestIds: string[]) {
+      const ids = encodeURIComponent(contestIds.join(','));
+      const result = await app.request(`/api/contests?ids=${ids}`, {
         headers: { cookie: `${forecasterCookieName}=${cookie}` },
       });
       return { status: result.status, body: await result.json() };
@@ -200,6 +210,15 @@ describe('submitting a prediction', () => {
 });
 
 describe('reading predictions back', () => {
+  it('returns candidates in card lists before anyone predicts', async () => {
+    const visitor = await newVisitor();
+    const { status, body } = await visitor.batch([singleSeat.id]);
+
+    expect(status).toBe(200);
+    expect(body.tallies[singleSeat.id].rows).toEqual([]);
+    expect(body.tallies[singleSeat.id].targets).toHaveLength(singleTargets.length);
+  });
+
   it('returns my own pick alongside the tally', async () => {
     const visitor = await newVisitor();
     await visitor.predict(singleSeat.id, [singleTargets[2]]);
@@ -207,7 +226,7 @@ describe('reading predictions back', () => {
 
     expect(body.contest.id).toBe(singleSeat.id);
     expect(body.mine.targetIds).toEqual([singleTargets[2]]);
-    expect(body.targets).toHaveLength(4);
+    expect(body.targets).toHaveLength(singleTargets.length);
     // 統計列要帶得出名字與顏色，前端才不用自己再查一次。
     expect(body.tally.rows[0].label).toBeTruthy();
     expect(body.tally.rows[0].color).toBeTruthy();

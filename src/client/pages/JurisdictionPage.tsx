@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
-import { type ContestDetail, getContestTallies } from '../api';
+import { type ContestListTally, getContestTallies } from '../api';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   buildRepresentativeContest,
@@ -36,9 +36,10 @@ import { useDocumentTitle } from '../use-document-title';
 
 export { summariseArea } from '../../shared/area';
 
-function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestDetail['tally'] }) {
-  const rowLimit = contest.view === 'COUNCIL' ? Math.max(4, contest.seatCount) : 4;
-  const rows = toCandidateRows(tally).slice(0, rowLimit);
+function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestListTally }) {
+  const candidates = toCandidateRows(tally, tally?.targets);
+  const rowLimit = contest.seatCount === 1 ? candidates.length : Math.max(4, contest.seatCount);
+  const rows = candidates.slice(0, rowLimit);
   // 代表的名額依地方制度法第 33 條按人口決定，公告還沒下來，標明是暫定值。
   const seats =
     contest.view === 'REPRESENTATIVE'

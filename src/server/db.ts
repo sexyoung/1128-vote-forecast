@@ -11,7 +11,8 @@ import { env } from './env.js';
 // 出來、只在正式環境炸的失敗。靠註解提醒不夠，這裡直接讓它不可能發生。
 const onVercel = Boolean(process.env.VERCEL);
 const connectionString = (!onVercel && env.directDatabaseUrl) || env.databaseUrl;
+export const databaseSchema = process.env.VITEST ? 'vote_forecast_test' : undefined;
 
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({ connectionString }, { schema: databaseSchema });
 
 export const prisma = new PrismaClient({ adapter });

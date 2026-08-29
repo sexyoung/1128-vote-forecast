@@ -6,13 +6,15 @@
 
 ## 目前進度
 
-| 項目      | 狀態     | 備註                                                |
-| --------- | -------- | --------------------------------------------------- |
-| SSR       | 完成     | production 由單一 Hono 服務提供 API 與 SSR HTML     |
-| SEO       | 完成     | route metadata、canonical、robots、sitemap、JSON-LD |
-| 後台精簡  | 完成     | 只留登入、總覽、留言／檢舉審核                      |
-| Analytics | 未開始   | GA4、PostHog 尚未接                                 |
-| Vercel    | 部分完成 | workflow 與 `vercel.json` 已有，runtime 尚缺        |
+| 項目       | 狀態     | 備註                                                |
+| ---------- | -------- | --------------------------------------------------- |
+| SSR        | 完成     | production 由單一 Hono 服務提供 API 與 SSR HTML     |
+| SEO        | 完成     | route metadata、canonical、robots、sitemap、JSON-LD |
+| 政黨頁     | 完成     | 政黨人數 → 行政區卡 → 職務 TAB → 候選人卡           |
+| 候選人排行 | 完成     | `/rankings` 依預測次數列出前 50 位有效候選人        |
+| 後台精簡   | 完成     | 只留登入、總覽、留言／檢舉審核                      |
+| Analytics  | 未開始   | GA4、PostHog 尚未接                                 |
+| Vercel     | 部分完成 | workflow 與 `vercel.json` 已有，runtime 尚缺        |
 
 沒有實際部署。
 
@@ -26,6 +28,9 @@
 - `npm run dev` 同時啟動兩者
 
 production 固定一個服務：Hono 同時掛 `/api/*` 與 SSR HTML。
+
+測試固定使用同一個 PostgreSQL 的 `vote_forecast_test` schema；啟動測試時自動 migration，
+不再清除本機開發資料。
 
 相關檔案：
 
@@ -58,8 +63,8 @@ production 固定一個服務：Hono 同時掛 `/api/*` 與 SSR HTML。
 
 後端只有七支端點：session 2、overview 1、留言／檢舉管理 4。
 
-候選人放 PostgreSQL。`prisma/seed.ts` 會在 Candidate 為空時寫入 36,200 位佔位候選人；
-正式名單收到後直接替換 Candidate。政黨與佔位名單規則集中在
+候選人放 PostgreSQL。`prisma/seed.ts` 會寫入涵蓋全部選區的假姓名與黨籍；偵測到正式
+候選人資料時會停止，不會覆蓋。正式名單收到後直接替換 Candidate。政黨與假名規則集中在
 `src/shared/candidates.ts`，後端不再 import 前端 mock 模組。
 
 原型的假預測份數、領先政黨與百分比不寫入後端，避免被誤認為使用者預測；正式 API
@@ -107,9 +112,9 @@ production 固定一個服務：Hono 同時掛 `/api/*` 與 SSR HTML。
 
 - `npm run check`：通過
 - `npm run build`：通過，client 與 SSR bundle 都產生
-- `npm run db:seed`：建立 36,200 位佔位候選人；重跑會安全略過
-- `/api/contests/TPE-EXECUTIVE-1`：從 DB 回傳 4 位佔位候選人
-- `npm test`：108/109
+- `npm run db:seed`：重建全部選區的假候選人；若已有正式候選人會安全略過
+- `/api/parties/DPP/contests`：回傳 2,584 個參選選區，分 26 頁
+- 排除既有 Redis 測試後：116/116
 - 唯一失敗：`snapshots.test.ts > rebuilds only what was read this round`
 - 原因：本機 Redis tracking set 不可用；不是本次後台或文件精簡造成
 

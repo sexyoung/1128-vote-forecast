@@ -1,11 +1,12 @@
 import { type CSSProperties, type FormEvent, type ReactNode, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import type { TallyRow } from '../api';
+import type { PredictionTarget, TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
 import {
   type Contest,
   type ElectionView,
   type Jurisdiction,
+  type PartyId,
   electionViews,
   getParty,
 } from '../mock-election';
@@ -148,6 +149,14 @@ export function HeaderNav() {
         <Icon name="stamp" />
         選區
       </NavLink>
+      <NavLink to="/parties">
+        <Icon name="user" />
+        政黨
+      </NavLink>
+      <NavLink to="/rankings">
+        <Icon name="spark" />
+        排行
+      </NavLink>
       <NavLink to="/mine">
         <Icon name="vote" />
         我的
@@ -167,6 +176,14 @@ function MobileNav() {
       <NavLink to="/regions">
         <Icon name="stamp" />
         <span>選區</span>
+      </NavLink>
+      <NavLink to="/parties">
+        <Icon name="user" />
+        <span>政黨</span>
+      </NavLink>
+      <NavLink to="/rankings">
+        <Icon name="spark" />
+        <span>排行</span>
       </NavLink>
       <NavLink to="/mine">
         <Icon name="vote" />
@@ -193,11 +210,13 @@ export function ElectionTabs({
   available = () => true,
   // 每個分頁底下有幾個選區。縣市長只有一場，回 null 就不顯示。
   count = () => null,
+  showIndigenous = true,
 }: {
   value: ElectionView;
   onChange: (value: ElectionView) => void;
   available?: (view: ElectionView) => boolean;
   count?: (view: ElectionView) => number | null;
+  showIndigenous?: boolean;
 }) {
   return (
     <div className="election-tabs" role="tablist" aria-label="選舉種類">
@@ -219,9 +238,11 @@ export function ElectionTabs({
             </button>
           );
         })}
-      <button className="indigenous-tab" type="button">
-        原住民選區 <span>獨立圖層</span>
-      </button>
+      {showIndigenous && (
+        <button className="indigenous-tab" type="button">
+          原住民選區 <span>獨立圖層</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -284,36 +305,59 @@ export function CardCover({
  * 把伺服器的統計列換成 CandidateList 要的形狀。沒有黨籍（例如名單換過之後的舊
  * 統計列）就用中性灰，不要挑一個政黨的顏色。
  */
-export function toCandidateRows(tally?: { rows: TallyRow[] }) {
-  return (tally?.rows ?? []).map((row) => ({
-    id: row.targetId,
-    label: row.label,
-    color: row.color ?? '#8b8f8a',
-    value: row.percent,
-  }));
+export function toCandidateRows(tally?: { rows: TallyRow[] }, targets: PredictionTarget[] = []) {
+  const rows = tally?.rows ?? [];
+  const counted = new Set(rows.map(({ targetId }) => targetId));
+  return [
+    ...rows.map((row) => ({
+      id: row.targetId,
+      label: row.label,
+      partyName: getParty((row.partyId ?? 'IND') as PartyId).name,
+      color: row.color ?? '#8b8f8a',
+      value: row.percent,
+    })),
+    ...targets
+      .filter(({ targetId }) => !counted.has(targetId))
+      .map((target) => ({
+        id: target.targetId,
+        label: target.label,
+        partyName: getParty((target.partyId ?? 'IND') as PartyId).name,
+        color: target.partyId ? getParty(target.partyId as PartyId).color : '#8b8f8a',
+        value: 0,
+      })),
+  ];
 }
 
 // 卡片裡的候選人清單：一位一行，色點、名字、份數、佔比，底下各自一條長條。
 export function CandidateList({
   rows,
   forecasts,
-  // /mine 用來標出自己押的那一列。純樣式，不多塞元素——這個 li 是四欄格線，
+  // /mine 用來標出自己押的列。純樣式，不多塞元素——這個 li 是四欄格線，
   // 多一個子元素會把長條那一列擠掉。
-  highlightId,
+  highlightIds = [],
   winnerCount = 0,
 }: {
-  rows: { id: string; label: string; color: string; value: number; photo?: string | null }[];
+  rows: {
+    id: string;
+    label: string;
+    partyName?: string;
+    color: string;
+    value: number;
+    photo?: string | null;
+  }[];
   forecasts: number;
-  highlightId?: string;
+  highlightIds?: string[];
   winnerCount?: number;
 }) {
+  const hasVotes = rows.some(({ value }) => value > 0);
+  const highlighted = new Set(highlightIds);
   return (
     <ul className="candidate-list">
       {rows.map((row, index) => {
-        const winner = index < winnerCount;
+        const winner = hasVotes && index < winnerCount;
         return (
           <li
-            className={`${row.id === highlightId ? 'mine' : ''} ${winner ? 'winner' : ''}`.trim()}
+            className={`${highlighted.has(row.id) ? 'mine' : ''} ${winner ? 'winner' : ''}`.trim()}
             key={row.id}
           >
             <i
@@ -323,9 +367,12 @@ export function CandidateList({
               {row.photo ? <img alt="" src={row.photo} /> : <Icon name="user" />}
             </i>
             <span>
-              <span>{row.label}</span>
+              <span>
+                <strong>{row.label}</strong>
+                {row.partyName && <small>{row.partyName}</small>}
+              </span>
               {/* 自己押的那一位在名字後面蓋一個紅色圈選章。 */}
-              {row.id === highlightId && <Icon name="stamp" />}
+              {highlighted.has(row.id) && <Icon name="stamp" />}
             </span>
             <small>{Math.round((forecasts * row.value) / 100).toLocaleString()} 份</small>
             <b style={winner ? { color: row.color } : undefined}>{row.value}%</b>

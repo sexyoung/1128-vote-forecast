@@ -361,7 +361,7 @@ function MapInspector({
     queryFn: () => getContest(contest.id),
   });
   const tally = detail.data?.tally;
-  const rows = toCandidateRows(tally);
+  const rows = toCandidateRows(tally, detail.data?.targets);
   const leader = rows[0];
   const totalPredictions = tally?.totalPredictions ?? 0;
   // 份數太少時不放大領先者，避免十來份預測被讀成民調。
@@ -485,10 +485,7 @@ function MapInspector({
           </span>
         </div>
       )}
-      <div
-        className={`map-share-bar t-progress-fill ${lowSample ? 'faint' : ''}`}
-        key={`share-${contest.id}`}
-      >
+      <div className="map-share-bar t-progress-fill" key={`share-${contest.id}`}>
         {rows.map((row) => (
           <i key={row.id} style={{ background: row.color, width: `${row.value}%` }} />
         ))}
@@ -496,7 +493,7 @@ function MapInspector({
       <div className="map-inspector-scroll t-progress-list" key={`results-${contest.id}`}>
         <CandidateList
           forecasts={tally?.totalPicks ?? 0}
-          highlightId={detail.data?.mine?.targetIds[0]}
+          highlightIds={detail.data?.mine?.targetIds}
           rows={rows}
           winnerCount={lowSample ? 0 : (detail.data?.contest.seats ?? contest.seatCount)}
         />
@@ -1230,8 +1227,11 @@ export function ElectionHomePage() {
               <Link aria-label="選區列表" className="map-round-button stamp" to="/regions">
                 <Icon name="stamp" />
               </Link>
-              <Link aria-label="我的預測" className="map-round-button" to="/mine">
+              <Link aria-label="政黨列表" className="map-round-button" to="/parties">
                 <Icon name="user" />
+              </Link>
+              <Link aria-label="我的預測" className="map-round-button" to="/mine">
+                <Icon name="vote" />
               </Link>
             </div>
           )}

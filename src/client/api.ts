@@ -50,6 +50,45 @@ export type ContestDetail = {
   mine: { contestId: string; version: number; targetIds: string[] } | null;
 };
 
+export type ContestListTally = ContestDetail['tally'] & { targets: PredictionTarget[] };
+
+export type PartyContestsPage = {
+  items: {
+    contest: ContestDetail['contest'];
+    hasPredictions: boolean;
+    candidate: {
+      id: string;
+      name: string;
+      ballotNo: number | null;
+      photo: string | null;
+      predictionCount: number;
+      predictionPercent: number;
+      predictedElected: boolean;
+    };
+  }[];
+  page: number;
+  pageSize: number;
+  total: number;
+  candidateTotal: number;
+  activeType: ContestDetail['contest']['type'] | null;
+  totalPages: number;
+  regions: {
+    id: string;
+    candidateCount: number;
+    offices: { type: ContestDetail['contest']['type']; candidateCount: number }[];
+  }[];
+};
+
+export type CandidateRanking = {
+  rank: number;
+  id: string;
+  name: string;
+  photo: string | null;
+  party: { id: string; name: string; color: string };
+  contest: ContestDetail['contest'];
+  predictionCount: number;
+};
+
 export type MapCell = { contestId: string; party: string | null; percent: number; total: number };
 
 export type TrendSeries = {
@@ -112,12 +151,31 @@ export const updateDisplayName = (displayName: string | null) =>
 
 /** 一次拿好幾個選區的分布，給卡片牆用。 */
 export const getContestTallies = (contestIds: string[]) =>
-  request<{ tallies: Record<string, ContestDetail['tally']> }>(
+  request<{ tallies: Record<string, ContestListTally> }>(
     `/api/contests?ids=${encodeURIComponent(contestIds.join(','))}`,
   );
 
 export const getContest = (contestId: string) =>
   request<ContestDetail>(`/api/contests/${encodeURIComponent(contestId)}`);
+
+export const getPartyCandidateCounts = () =>
+  request<{
+    parties: Record<
+      string,
+      {
+        candidateCount: number;
+        offices: { type: ContestDetail['contest']['type']; candidateCount: number }[];
+      }
+    >;
+  }>('/api/parties');
+
+export const getCandidateRankings = () =>
+  request<{ candidates: CandidateRanking[] }>('/api/rankings/candidates');
+
+export const getPartyContests = (partyId: string, page: number, regionId: string, view: string) =>
+  request<PartyContestsPage>(
+    `/api/parties/${encodeURIComponent(partyId)}/contests?page=${page}&region=${encodeURIComponent(regionId)}&view=${encodeURIComponent(view)}`,
+  );
 
 export const submitPrediction = (contestId: string, targetIds: string[], turnstileToken?: string) =>
   request<Pick<ContestDetail, 'mine' | 'tally'>>(

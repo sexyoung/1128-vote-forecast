@@ -21,12 +21,12 @@ describe('candidate avatar file names', () => {
     expect(toAvatarSlug('Chiang_Wan-an')).toBe('chiang-wan-an');
   });
 
-  // 名單公告前 getMockCandidates() 只有「民進黨候選人 1」這種佔位名稱，沒有拼音。
+  // 名單公告前 getMockCandidates() 只有假中文姓名，沒有拼音。
   // 回 null 而不是猜一個檔名，封面才會安靜地退回色塊，不會每張卡送一個 404。
   it('has no url until the name is known', () => {
     expect(avatarUrl('TPE-EXECUTIVE-1', 'DPP')).toBeNull();
     expect(avatarUrl('TPE-EXECUTIVE-1', 'DPP', '')).toBeNull();
-    expect(avatarUrl('TPE-EXECUTIVE-1', 'DPP', '民進黨候選人 1')).toBeNull();
+    expect(avatarUrl('TPE-EXECUTIVE-1', 'DPP', '陳怡君')).toBeNull();
     expect(avatarUrl('TPE-EXECUTIVE-1', 'DPP', 'Puma Shen')).toBe(
       '/avatars/TPE-EXECUTIVE-1-DPP-puma-shen.jpg',
     );

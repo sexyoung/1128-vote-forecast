@@ -40,11 +40,28 @@ describe('page metadata', () => {
     expect(renderHead(withImage)).toContain('content="https://vote.example/avatars/candidate.jpg"');
   });
 
+  it('publishes party index and detail metadata', () => {
+    expect(
+      resolvePageMeta('/parties', new URLSearchParams(), { origin, indexable: true }),
+    ).toMatchObject({ status: 200, canonical: `${origin}/parties` });
+    expect(
+      resolvePageMeta('/parties/DPP', new URLSearchParams(), { origin, indexable: true }),
+    ).toMatchObject({ status: 200, title: expect.stringContaining('民主進步黨') });
+  });
+
+  it('publishes candidate ranking metadata', () => {
+    expect(
+      resolvePageMeta('/rankings', new URLSearchParams(), { origin, indexable: true }),
+    ).toMatchObject({ status: 200, canonical: `${origin}/rankings` });
+  });
+
   it('builds production robots and a filtered sitemap', () => {
     expect(renderRobots(origin, true)).toContain(`Sitemap: ${origin}/sitemap.xml`);
     expect(renderRobots(origin, false)).toBe('User-agent: *\nDisallow: /\n');
     const sitemap = renderCoreSitemap(origin);
     expect(sitemap).toContain('/contest/TPE-EXECUTIVE-1');
+    expect(sitemap).toContain('/parties/DPP');
+    expect(sitemap).toContain('/rankings');
     expect(sitemap).not.toContain('-VILLAGE');
   });
 });

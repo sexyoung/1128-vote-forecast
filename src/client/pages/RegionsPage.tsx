@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { type ContestDetail, getContestTallies } from '../api';
+import { type ContestListTally, getContestTallies } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
+import { jurisdictionOrder } from '../../shared/jurisdictions';
 import {
   CandidateList,
   CardCover,
@@ -11,34 +12,7 @@ import {
   toCandidateRows,
 } from './ElectionPrototypeShared';
 
-// 官方的行政區順序：六個直轄市，接著縣與同級的市。jurisdictions 本身是照地圖的
-// 圖層排的，直接拿來列會變成連江縣開頭。
-const displayOrder = [
-  'TPE',
-  'NTP',
-  'TAO',
-  'TXG',
-  'TNN',
-  'KHH',
-  'ILA',
-  'HSQ',
-  'MIA',
-  'CHA',
-  'NAN',
-  'YUN',
-  'CYQ',
-  'PIF',
-  'HUA',
-  'TTT',
-  'PEN',
-  'KEE',
-  'HSZ',
-  'CYI',
-  'KIN',
-  'LIE',
-];
-
-const orderedJurisdictions = displayOrder.flatMap(
+const orderedJurisdictions = jurisdictionOrder.flatMap(
   (id) => jurisdictions.find((item) => item.id === id) ?? [],
 );
 
@@ -53,7 +27,7 @@ function RegionCard({
   tally,
 }: {
   jurisdiction: Jurisdiction;
-  tally?: ContestDetail['tally'];
+  tally?: ContestListTally;
 }) {
   const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
   return (
@@ -68,7 +42,7 @@ function RegionCard({
       />
       <CandidateList
         forecasts={tally?.totalPicks ?? 0}
-        rows={toCandidateRows(tally)}
+        rows={toCandidateRows(tally, tally?.targets)}
         winnerCount={contest.seatCount}
       />
     </Link>

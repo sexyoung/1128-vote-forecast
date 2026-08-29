@@ -2,8 +2,8 @@
 // 改這裡要一起改（avatars.test.ts 會比對兩邊的例子）。
 //
 // 目前沒有任何檔案：中選會要到 2026-11-12／11-17 才公告候選人名單（候選人
-// 2026-08-31 才開始登記），在那之前 getMockCandidates() 產生的是「民進黨候選人 1」
-// 這種佔位名稱，沒有真實姓名就沒有拼音，檔名的第三個欄位湊不出來。
+// 2026-08-31 才開始登記），在那之前 getMockCandidates() 產生的是假中文姓名，
+// 沒有拼音，檔名的第三個欄位湊不出來。
 
 export const avatarExtensions = ['jpg', 'webp', 'png'] as const;
 
@@ -40,8 +40,7 @@ export function avatarUrl(
   extension: AvatarExtension = 'jpg',
 ) {
   const slug = romanizedName ? toAvatarSlug(romanizedName) : '';
-  // 至少要有一個拉丁字母才算拼音。只檢查非空是不夠的：佔位名稱「民進黨候選人 1」
-  // 中文被濾光之後會剩下 "1"，就會拼出 -DPP-1.jpg 這種必定 404 的網址。
+  // 至少要有一個拉丁字母才算拼音。假中文姓名被濾光後不可產生必定 404 的網址。
   if (!/[a-z]/.test(slug)) return null;
   return `/avatars/${avatarFileName(contestId, partyId, slug, extension)}`;
 }

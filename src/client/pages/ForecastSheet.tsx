@@ -8,16 +8,6 @@ import { Icon } from './ElectionPrototypeShared';
 // 光留 label 對不回選項。
 export type ForecastPick = { id: string; label: string };
 
-function tintChoice(hex: string) {
-  const value = hex.replace('#', '');
-  const channels = [0, 2, 4].map((index) => Number.parseInt(value.slice(index, index + 2), 16));
-  return `rgb(${channels.map((channel) => Math.round(250 + (channel - 250) * 0.09)).join(' ')})`;
-}
-
-function targetColor(partyId: string | null) {
-  return partyId ? getParty(partyId as Parameters<typeof getParty>[0]).color : '#8b8f8a';
-}
-
 export function ForecastSheet({
   contest,
   onClose,
@@ -162,7 +152,8 @@ export function ForecastForm({
         )}
         <div className="forecast-options">
           {targets.map((target) => {
-            const color = targetColor(target.partyId);
+            const party = getParty((target.partyId ?? 'IND') as Parameters<typeof getParty>[0]);
+            const color = party.color;
             const isSelected = selected.includes(target.targetId);
             return (
               <label
@@ -170,7 +161,7 @@ export function ForecastForm({
                 key={target.targetId}
                 style={
                   {
-                    ...(isSelected ? { background: tintChoice(color), borderColor: color } : null),
+                    ...(isSelected ? { borderColor: color } : null),
                     '--share': `${shares.get(target.targetId) ?? 0}%`,
                     '--share-color': color,
                   } as CSSProperties
@@ -188,9 +179,7 @@ export function ForecastForm({
                   <strong>{target.label}</strong>
                   <small>
                     <i style={{ background: color }} />
-                    {target.ballotNo === null
-                      ? (target.partyId ?? '')
-                      : `${target.ballotNo} · ${target.partyId ?? ''}`}
+                    {target.ballotNo === null ? party.name : `${target.ballotNo} · ${party.name}`}
                   </small>
                 </span>
                 {/* 右邊的投票格：平常是空白的格子，選取後才蓋上圈選章。章一律紅色，

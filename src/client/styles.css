@@ -95,7 +95,7 @@ a {
   border-bottom: 1px solid rgb(31 43 39 / 9%);
   display: grid;
   gap: 32px;
-  grid-template-columns: minmax(210px, 1fr) minmax(300px, 520px) minmax(210px, 1fr);
+  grid-template-columns: max-content minmax(180px, 1fr) max-content;
   height: 78px;
   padding: 0 max(24px, calc((100vw - 1360px) / 2));
   position: sticky;
@@ -133,9 +133,12 @@ a {
   border-radius: 999px;
   display: flex;
   height: 44px;
+  justify-self: center;
+  max-width: 520px;
   padding: 0 16px;
   position: relative;
   transition: 0.2s ease;
+  width: 100%;
 }
 .header-search:focus-within {
   background: #fff;
@@ -250,7 +253,7 @@ a {
 .app-header-overlay .header-search {
   grid-column: 2;
 }
-/* 桌機主選單：地圖／選區／我的，跟手機底部選單同一組去處。
+/* 桌機主選單：地圖／選區／政黨／我的，跟手機底部選單同一組去處。
    窄畫面隱藏，交給 .mobile-nav。 */
 .header-nav {
   align-items: center;
@@ -267,6 +270,7 @@ a {
   font-weight: 650;
   gap: 7px;
   padding: 9px 13px;
+  white-space: nowrap;
   transition:
     background 0.15s ease,
     color 0.15s ease;
@@ -904,6 +908,15 @@ a:focus-visible {
   gap: 16px;
   margin-bottom: 20px;
   padding: 18px;
+  transition:
+    border 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.feature-card:hover {
+  border-color: #b8beb9;
+  box-shadow: 0 12px 26px rgb(31 43 39 / 8%);
+  transform: translateY(-2px);
 }
 .feature-card > div:first-child {
   margin-right: auto;
@@ -921,6 +934,154 @@ a:focus-visible {
   color: var(--muted);
   font-size: 12.5px;
   margin: 4px 0 0;
+}
+.party-grid .feature-card {
+  border-left: 6px solid var(--party-color);
+  margin: 0;
+  padding-right: 50px;
+  position: relative;
+}
+.party-grid .feature-card > .icon {
+  color: var(--party-color);
+  height: 20px;
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+}
+.party-pagination {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 24px;
+}
+.party-pagination a {
+  color: var(--accent);
+  font-weight: 750;
+}
+.party-pagination span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.party-region-grid .feature-card {
+  margin: 0;
+}
+.party-region-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.party-region-counts small {
+  background: #f0eee7;
+  border-radius: 999px;
+  color: #4c5853;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+.party-office-counts {
+  margin: 10px 0 0;
+}
+.party-region-group .election-tabs {
+  margin-bottom: 18px;
+}
+.contest-card.party-candidate-card {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.party-candidate-card .card-cover > div {
+  padding-block: 0;
+}
+.candidate-ranking-list {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.candidate-ranking-list > li:nth-child(-n + 4) {
+  grid-column: 1 / -1;
+}
+.candidate-ranking-list > li > a {
+  align-items: center;
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 16px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 36px 56px minmax(0, 1fr) auto 20px;
+  padding: 12px 16px;
+  transition:
+    border 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.candidate-ranking-list > li > a:hover {
+  border-color: #b8beb9;
+  box-shadow: 0 10px 24px rgb(31 43 39 / 8%);
+  transform: translateY(-1px);
+}
+.candidate-ranking-number {
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 22px;
+  text-align: center;
+}
+.candidate-ranking-avatar {
+  align-items: center;
+  aspect-ratio: 1;
+  background: #e4e3de;
+  border: 3px solid var(--candidate-color);
+  border-radius: 50%;
+  color: #818883;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+.candidate-ranking-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.candidate-ranking-avatar .icon {
+  height: 25px;
+  width: 25px;
+}
+.candidate-ranking-person {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.candidate-ranking-person > strong {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 19px;
+  font-weight: 500;
+}
+.candidate-ranking-person > small,
+.candidate-ranking-person > span,
+.candidate-ranking-score > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.candidate-ranking-person > span {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-ranking-score {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+.candidate-ranking-score > strong {
+  font-family: Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
 }
 .feature-score {
   font-family: Georgia, serif;
@@ -1365,7 +1526,7 @@ a:focus-visible {
 .candidate-list li > .candidate-avatar {
   align-items: center;
   background: #e4e3de;
-  border: 2px solid color-mix(in srgb, var(--candidate-color) 55%, white);
+  border: 2px solid var(--candidate-color);
   border-radius: 50%;
   color: #8b928f;
   display: inline-flex;
@@ -1403,6 +1564,18 @@ a:focus-visible {
 }
 /* 名字自己吃 ellipsis，章才不會被一起截掉。 */
 .candidate-list li > span > span {
+  display: grid;
+  min-width: 0;
+}
+.candidate-list li > span > span > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-list li > span > span > small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1908,14 +2081,12 @@ a:focus-visible {
     border-color 0.15s ease,
     background 0.15s ease;
 }
-/* 目前佔比鋪在整列底下：投的時候看得到大家押在哪，但要淡到不跟文字搶。
-   z-index: -1 讓它蓋在 label 的底色之上、文字之下——不加的話絕對定位的
-   ::before 會畫在文字上面。 */
+/* 目前佔比沿著選項底部顯示，直接使用政黨色，不混白或套透明度。 */
 .forecast-options label::before {
   background: var(--share-color, transparent);
   content: '';
-  inset: 0 auto 0 0;
-  opacity: 0.16;
+  height: 5px;
+  inset: auto auto 0 0;
   pointer-events: none;
   position: absolute;
   transition: width 0.2s ease;
@@ -2747,9 +2918,6 @@ a:focus-visible {
   height: 6px;
   margin: 12px 22px 0;
 }
-.map-share-bar.faint {
-  opacity: 0.45;
-}
 .map-share-bar i {
   border-radius: 2px;
   display: block;
@@ -2896,6 +3064,9 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .candidate-ranking-list {
+    grid-template-columns: 1fr;
+  }
   .council-contest-card .candidate-list li.winner {
     display: grid;
   }
@@ -3080,7 +3251,7 @@ a:focus-visible {
     border-top: 1px solid #d9d7cf;
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     height: 67px;
     left: 0;
     padding-bottom: env(safe-area-inset-bottom);
@@ -3216,7 +3387,7 @@ a:focus-visible {
     flex-wrap: wrap;
     gap: 7px;
     left: 11px;
-    max-width: calc(100vw - 152px);
+    max-width: calc(100vw - 199px);
     top: 10px;
   }
   .map-brand {

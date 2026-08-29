@@ -59,5 +59,5 @@ export default defineConfig({
     // 的：8,429 筆縮排開來 2 MB，diff 也讀不動。
     ignorePatterns: ['.claude/**', '.devcontainer/**', 'src/server/data/**'],
   },
-  test: { environment: 'node' },
+  test: { environment: 'node', globalSetup: 'src/test/global-setup.ts' },
 });

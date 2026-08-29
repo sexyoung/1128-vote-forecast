@@ -238,7 +238,7 @@ model PredictionRevision {
 
 ### 名單公布前存什麼
 
-每種選舉都使用候選人模式。`prisma/seed.ts` 先把 `getMockCandidates()` 產生的佔位人選
+每種選舉都使用候選人模式。`prisma/seed.ts` 先把 `getMockCandidates()` 產生的假名人選
 寫入 Candidate，API 與正式候選人走同一條資料路徑。正式名單在上線前直接替換這些資料。
 
 另一個選項是換算成政黨再存，但複數席次會押到同一個政黨兩次，`PredictionPick` 的主鍵
@@ -479,5 +479,5 @@ POST /api/admin/forecasters/:id/block    admin token
   市長、代表與村里長的公告，取得後把 `seatsSource` 從 `PLACEHOLDER` 換成
   `OFFICIAL`。在那之前這兩種選舉的席次是估的。
 - **候選人名單**。中選會預定 2026-11 公告，在那之前前端與伺服器都用
-  `getMockCandidates()` 產生並寫入 DB 的佔位名稱（「國民黨候選人 1」）。正式名單
+  `getMockCandidates()` 產生並寫入 DB 的假中文姓名。正式名單
   收到後直接替換 Candidate，不做後台匯入或舊預測遷移。

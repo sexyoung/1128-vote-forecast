@@ -14,6 +14,12 @@ import {
 import { getPredictionMode } from '../../shared/prediction';
 
 describe('election home map behavior', () => {
+  it('keeps the parties link in the compact map controls', async () => {
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('aria-label="政黨列表"');
+    expect(source).toContain('to="/parties"');
+  });
+
   it.each(['PEN', 'KIN', 'LIE'])('immediately focuses offshore jurisdiction %s', (id) => {
     expect(shouldImmediatelyFocusJurisdiction(id)).toBe(true);
   });
@@ -82,13 +88,8 @@ describe('election home map behavior', () => {
 
     expect(getPredictionMode(contest.view, contest.seatCount, false)).toBe('candidate');
     expect(candidates.length).toBeGreaterThan(contest.seatCount);
-    expect(candidates.slice(0, 5).map(({ name }) => name)).toEqual([
-      '國民黨候選人 1',
-      '民進黨候選人 1',
-      '民眾黨候選人 1',
-      '無黨籍候選人 1',
-      '國民黨候選人 2',
-    ]);
+    expect(candidates.every(({ name }) => /^[\p{Script=Han}]{3}$/u.test(name))).toBe(true);
+    expect(new Set(candidates.map(({ partyId }) => partyId)).size).toBeLessThan(candidates.length);
     expect(new Set(candidates.map(({ id }) => id)).size).toBe(candidates.length);
   });
 
@@ -134,18 +135,12 @@ describe('election home map behavior', () => {
 
     expect(contest.seatCount).toBe(1);
     expect(getPredictionMode(contest.view, contest.seatCount, false)).toBe('candidate');
-    expect(getMockCandidates(contest)[0].name).toBe('國民黨候選人');
+    expect(getMockCandidates(contest)[0].name).toMatch(/^[\p{Script=Han}]{3}$/u);
   });
 
   it('fields exactly one candidate per party in single-seat contests', () => {
     const candidates = getMockCandidates(getContests(getJurisdiction('TPE'), 'EXECUTIVE')[0]);
 
-    expect(candidates.map(({ name }) => name)).toEqual([
-      '國民黨候選人',
-      '民進黨候選人',
-      '民眾黨候選人',
-      '無黨籍候選人',
-    ]);
     expect(new Set(candidates.map(({ partyId }) => partyId)).size).toBe(candidates.length);
   });
 

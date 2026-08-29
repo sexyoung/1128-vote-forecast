@@ -1,8 +1,65 @@
 import { readFile } from 'node:fs/promises';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vite-plus/test';
 import { getContests, getJurisdiction, jurisdictions } from '../mock-election';
 import { countLocalExecutiveDistricts, isLocalExecutiveTownship } from '../map-shapes';
 import { isViewAvailable, parseView, summariseArea } from './JurisdictionPage';
+import { CandidateList, toCandidateRows } from './ElectionPrototypeShared';
+
+it('shows candidates with zero votes before anyone predicts', () => {
+  expect(
+    toCandidateRows({ rows: [] }, [
+      {
+        targetType: 'CANDIDATE',
+        targetId: 'TPE-EXECUTIVE-1-CANDIDATE-1',
+        label: '陳怡君',
+        partyId: 'DPP',
+        ballotNo: 1,
+      },
+    ]),
+  ).toEqual([expect.objectContaining({ label: '陳怡君', partyName: '民主進步黨', value: 0 })]);
+});
+
+it('does not highlight a winner when every candidate has zero votes', () => {
+  const html = renderToStaticMarkup(
+    createElement(CandidateList, {
+      forecasts: 0,
+      rows: [
+        {
+          id: 'candidate-1',
+          label: '陳怡君',
+          partyName: '民主進步黨',
+          color: '#2c8a64',
+          value: 0,
+        },
+      ],
+      winnerCount: 1,
+    }),
+  );
+
+  expect(html).toContain('民主進步黨');
+  expect(html).not.toContain('winner');
+});
+
+it('stamps every candidate in a multi-seat prediction', () => {
+  const rows = ['candidate-1', 'candidate-2'].map((id) => ({
+    id,
+    label: id,
+    color: '#000099',
+    value: 50,
+  }));
+  const html = renderToStaticMarkup(
+    createElement(CandidateList, {
+      forecasts: 2,
+      highlightIds: rows.map(({ id }) => id),
+      rows,
+      winnerCount: 2,
+    }),
+  );
+
+  expect(html.match(/class="mine winner"/g)).toHaveLength(2);
+});
 
 describe('jurisdiction page tab in the url', () => {
   it('reads the tab from the view param', () => {
@@ -65,6 +122,25 @@ describe('responsive council candidate rows', () => {
     expect(styles).toContain('.contest-card .candidate-list li:nth-child(n + 5)');
     expect(styles).toContain('.council-contest-card .candidate-list li.winner');
     expect(styles).toContain('.council-contest-card .candidate-list li:not(.winner)');
+  });
+});
+
+describe('candidate party colors', () => {
+  it('uses the supplied color directly without white mixing or opacity', async () => {
+    const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+    const avatarRule = styles.slice(
+      styles.indexOf('.candidate-list li > .candidate-avatar {'),
+      styles.indexOf('.candidate-list li > .candidate-avatar img'),
+    );
+    const forecastShareRule = styles.slice(
+      styles.indexOf('.forecast-options label::before {'),
+      styles.indexOf('.forecast-options label:hover'),
+    );
+
+    expect(avatarRule).toContain('border: 2px solid var(--candidate-color);');
+    expect(avatarRule).not.toContain('color-mix');
+    expect(forecastShareRule).not.toContain('opacity');
+    expect(styles).not.toContain('.map-share-bar.faint');
   });
 });
 

@@ -1,5 +1,6 @@
 import { electionViews, jurisdictions } from '../client/mock-election.js';
 import { summariseArea } from '../shared/area.js';
+import { candidateParties } from '../shared/candidates.js';
 import {
   type ContestType,
   type RegisteredContest,
@@ -94,6 +95,43 @@ export function resolvePageMeta(
       robots: indexRobots,
       status: 200,
     });
+
+  if (pathname === '/parties')
+    return finish({
+      title: `政黨一覽｜${siteName}`,
+      description: '查看 2026 九合一選舉各政黨，以及每個政黨有候選人參選的選區。',
+      ogTitle: '2026 九合一選舉政黨一覽',
+      ogDescription: '從政黨查看參選選區與候選人分布。',
+      canonical: absolute(origin, '/parties'),
+      robots: indexRobots,
+      status: 200,
+    });
+
+  if (pathname === '/rankings')
+    return finish({
+      title: `熱門候選人排行｜${siteName}`,
+      description: '查看 2026 九合一選舉中，被群眾選入預測次數最多的前 50 位候選人。',
+      ogTitle: '2026 九合一選舉熱門候選人排行',
+      ogDescription: '依群眾預測次數排序，查看目前最熱門的候選人。',
+      canonical: absolute(origin, '/rankings'),
+      robots: indexRobots,
+      status: 200,
+    });
+
+  const partyMatch = /^\/parties\/([^/]+)$/.exec(pathname);
+  if (partyMatch) {
+    const party = candidateParties.find(({ id }) => id === partyMatch[1].toUpperCase());
+    if (!party) return notFound();
+    return finish({
+      title: `${party.name}參選選區｜${siteName}`,
+      description: `查看 ${party.name} 在 2026 九合一選舉有候選人參選的選區。`,
+      ogTitle: `${party.name}參選選區`,
+      ogDescription: `查看 ${party.name} 的 2026 九合一選舉參選選區。`,
+      canonical: absolute(origin, `/parties/${party.id}`),
+      robots: indexRobots,
+      status: 200,
+    });
+  }
 
   const regionMatch = /^\/region\/([^/]+)$/.exec(pathname);
   if (regionMatch) {
@@ -242,6 +280,9 @@ export function renderCoreSitemap(origin: string) {
   const paths = [
     '/',
     '/regions',
+    '/parties',
+    '/rankings',
+    ...candidateParties.map(({ id }) => `/parties/${id}`),
     ...jurisdictions.map(({ id }) => `/region/${id}`),
     ...listRegisteredContests()
       .filter(({ type }) => indexableTypes.has(type))

@@ -19,20 +19,25 @@ const candidates = listRegisteredContests().flatMap((contest) =>
 );
 
 try {
-  const inserted = await prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
-      if ((await tx.candidate.count()) > 0) return 0;
+      const formalCandidates = await tx.candidate.count({
+        where: { NOT: { id: { contains: '-CANDIDATE-' } } },
+      });
+      if (formalCandidates > 0) return { inserted: 0, protected: formalCandidates };
+
+      await tx.candidate.deleteMany();
       for (let index = 0; index < candidates.length; index += 500)
         await tx.candidate.createMany({ data: candidates.slice(index, index + 500) });
-      return candidates.length;
+      return { inserted: candidates.length, protected: 0 };
     },
     { timeout: 300_000 },
   );
 
   console.log(
-    inserted > 0
-      ? `已建立 ${inserted.toLocaleString()} 位佔位候選人。`
-      : 'Candidate 已有資料，略過佔位名單。',
+    result.protected > 0
+      ? `Candidate 已有 ${result.protected.toLocaleString()} 位非假資料，略過 seed。`
+      : `已建立 ${result.inserted.toLocaleString()} 位假候選人。`,
   );
 } finally {
   await prisma.$disconnect();

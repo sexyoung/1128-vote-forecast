@@ -1,5 +1,6 @@
 import type { Context, Env, Hono } from 'hono';
 import { jurisdictions } from '../client/mock-election.js';
+import { candidateParties } from '../shared/candidates.js';
 import {
   type ContestType,
   getRegisteredContest,
@@ -13,6 +14,8 @@ import {
 import { readContestTallies } from './predictions.js';
 import { readContestSnapshot } from './snapshots.js';
 import { env, seoIndexable } from './env.js';
+import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
+import { listCandidateRankings } from './candidate-rankings.js';
 import {
   renderCoreSitemap,
   renderHead,
@@ -48,6 +51,7 @@ async function tallySeed(contestIds: string[], key: unknown[]): Promise<QuerySee
             {
               totalPredictions: tally?.totalPredictions ?? 0,
               totalPicks: tally?.totalPicks ?? 0,
+              targets: contest ? getPredictionTargets(contest) : [],
               rows: (tally?.rows ?? []).map((row) => ({
                 ...row,
                 ...(contest
@@ -170,6 +174,39 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
         ? (getCandidateAvatarUrl(contest.id, uniqueLeader.targetId) ?? undefined)
         : undefined;
     return send(c, [seed], { ogImage });
+  });
+
+  app.get('/parties', async (c) =>
+    send(c, [
+      {
+        key: ['party-counts'],
+        data: await listPartyCandidateCounts(),
+        updatedAt: Date.now(),
+      },
+    ]),
+  );
+  app.get('/rankings', async (c) =>
+    send(c, [
+      {
+        key: ['candidate-rankings'],
+        data: await listCandidateRankings(),
+        updatedAt: Date.now(),
+      },
+    ]),
+  );
+  app.get('/parties/:partyId', async (c) => {
+    const partyId = c.req.param('partyId').toUpperCase();
+    if (!candidateParties.some(({ id }) => id === partyId)) return send(c, []);
+    const requestedPage = Number.parseInt(c.req.query('page') ?? '1', 10);
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const regionId = (c.req.query('region') ?? '').toUpperCase();
+    const view = (c.req.query('view') ?? '').toUpperCase();
+    const seed: QuerySeed = {
+      key: ['party-contests', partyId, regionId, view, page],
+      data: await listPartyContests(partyId, page, regionId, view),
+      updatedAt: Date.now(),
+    };
+    return send(c, [seed]);
   });
 
   app.get('/mine', (c) => send(c, []));

@@ -178,7 +178,7 @@ export function MyPredictionsPage() {
                 />
                 <CandidateList
                   forecasts={tally.totalPicks}
-                  highlightId={picks[0]?.targetId}
+                  highlightIds={picks.map(({ targetId }) => targetId)}
                   rows={toCandidateRows(tally)}
                   winnerCount={contest.seats}
                 />

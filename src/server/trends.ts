@@ -1,5 +1,6 @@
+import { Prisma } from '../generated/prisma/client.js';
 import { getRegisteredContest } from './contest-registry.js';
-import { prisma } from './db.js';
+import { databaseSchema, prisma } from './db.js';
 import { describeTarget } from './prediction-targets.js';
 
 /**
@@ -19,10 +20,16 @@ export function today() {
  * 同一天重跑會覆蓋，所以補跑是安全的。
  */
 export async function captureDailySnapshot(capturedOn = today()) {
+  const snapshots = Prisma.raw(
+    databaseSchema ? `"${databaseSchema}"."ContestTallySnapshot"` : '"ContestTallySnapshot"',
+  );
+  const tallies = Prisma.raw(
+    databaseSchema ? `"${databaseSchema}"."ContestTally"` : '"ContestTally"',
+  );
   return prisma.$executeRaw`
-    INSERT INTO "ContestTallySnapshot" ("contestId", "capturedOn", "targetType", "targetId", "count")
+    INSERT INTO ${snapshots} ("contestId", "capturedOn", "targetType", "targetId", "count")
     SELECT "contestId", ${capturedOn}::date, "targetType", "targetId", "count"
-    FROM "ContestTally"
+    FROM ${tallies}
     WHERE "count" > 0
     ON CONFLICT ("contestId", "capturedOn", "targetType", "targetId")
     DO UPDATE SET "count" = EXCLUDED."count"

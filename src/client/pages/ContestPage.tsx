@@ -23,6 +23,7 @@ function ResultsPanel({ contestId, seats }: { contestId: string; seats: number }
     queryFn: () => getContest(contestId),
   });
   const tally = detail.data?.tally;
+  const rows = toCandidateRows(tally, detail.data?.targets);
 
   if (detail.isPending) return <section className="results-panel">載入中…</section>;
 
@@ -33,11 +34,11 @@ function ResultsPanel({ contestId, seats }: { contestId: string; seats: number }
         <strong>{(tally?.totalPredictions ?? 0).toLocaleString()}</strong>
         <small>份</small>
       </div>
-      {tally && tally.rows.length > 0 ? (
+      {rows.length > 0 ? (
         <CandidateList
-          forecasts={tally.totalPicks}
-          highlightId={detail.data?.mine?.targetIds[0]}
-          rows={toCandidateRows(tally)}
+          forecasts={tally?.totalPicks ?? 0}
+          highlightIds={detail.data?.mine?.targetIds}
+          rows={rows}
           winnerCount={seats}
         />
       ) : (
@@ -264,9 +265,19 @@ export function parseContestTab(value: string | null): ContestTab {
   return contestTabs.find((tab) => tab.id === id)?.id ?? 'results';
 }
 
+export function forecastAsideTitle(pickCount: number, seats: number) {
+  if (pickCount === 0) return '你還沒有預測這一區';
+  return pickCount < seats ? '你還可以補齊這區的預測' : '你已完成這區的預測';
+}
+
 export function ContestPage() {
   const { contestId } = useParams();
   const resolved = useResolvedContest(contestId);
+  const detail = useQuery({
+    queryKey: ['contest', contestId],
+    queryFn: () => getContest(contestId ?? ''),
+    enabled: Boolean(contestId),
+  });
   const contestTitle = resolved
     ? resolved.contest.name.startsWith(resolved.jurisdiction.name)
       ? resolved.contest.name
@@ -298,6 +309,7 @@ export function ContestPage() {
     );
 
   const { contest, jurisdiction } = resolved;
+  const pickCount = detail.data?.mine?.targetIds.length ?? 0;
   return (
     <PageShell>
       <main className="page contest-page">
@@ -343,13 +355,13 @@ export function ContestPage() {
             {activeTab === 'comments' && <CommentsPanel contestId={contest.id} />}
           </div>
           <aside className="contest-aside">
-            <h3>你還沒有預測這一區</h3>
+            <h3>{forecastAsideTitle(pickCount, contest.seatCount)}</h3>
             <p>
               {contest.seatCount === 1
                 ? '選出你認為最可能勝出的政黨或候選人。'
                 : `預測 ${contest.seatCount} 席最終歸屬。`}
             </p>
-            <ForecastButton onClick={() => setForecastOpen(true)} />
+            <ForecastButton editing={pickCount > 0} onClick={() => setForecastOpen(true)} />
             <div className="privacy-note">
               <span>匿名可參加</span>
               <small>裝置只保留一份預測，可隨時修改。</small>

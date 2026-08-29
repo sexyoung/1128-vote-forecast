@@ -19,6 +19,9 @@ import { fileReport, parseReportReason, parseReportTarget } from './moderation.j
 import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
+import { candidateParties } from '../shared/candidates.js';
+import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
+import { listCandidateRankings } from './candidate-rankings.js';
 
 type Variables = { forecaster: ResolvedForecaster };
 
@@ -97,6 +100,20 @@ app.get('/api/map/:jurisdictionId', async (c) => {
   return c.json({ cells: await readJurisdictionMap(jurisdictionId, level as ContestType) });
 });
 
+app.get('/api/parties', async (c) => c.json(await listPartyCandidateCounts()));
+
+app.get('/api/rankings/candidates', async (c) => c.json(await listCandidateRankings()));
+
+app.get('/api/parties/:partyId/contests', async (c) => {
+  const partyId = c.req.param('partyId').toUpperCase();
+  if (!candidateParties.some(({ id }) => id === partyId))
+    return c.json({ error: '找不到這個政黨。' }, 404);
+  const page = Number.parseInt(c.req.query('page') ?? '1', 10);
+  const regionId = (c.req.query('region') ?? '').toUpperCase();
+  const view = (c.req.query('view') ?? '').toUpperCase();
+  return c.json(await listPartyContests(partyId, Number.isFinite(page) ? page : 1, regionId, view));
+});
+
 /**
  * 一次拿好幾個選區的分布。卡片牆一頁有幾十張，一張一次請求會變成幾十次往返。
  */
@@ -120,6 +137,7 @@ app.get('/api/contests', async (c) => {
           {
             totalPredictions: tally?.totalPredictions ?? 0,
             totalPicks: tally?.totalPicks ?? 0,
+            targets: getPredictionTargets(contest),
             rows: (tally?.rows ?? []).map((row) => ({
               ...row,
               ...describeTarget(contest, row.targetType, row.targetId),
