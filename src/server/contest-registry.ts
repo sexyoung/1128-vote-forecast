@@ -1,9 +1,6 @@
 import registry from './data/election-contests.json' with { type: 'json' };
 
-/**
- * 席次有沒有官方依據。代表的名額由各縣市選委會依地方制度法第 33 條按人口劃分，
- * 那份公告還沒進來，所以只有代表是 PLACEHOLDER。
- */
+/** 席次有沒有官方依據；PDF 公告到齊後直接更新 build 進來的清冊。 */
 export type SeatsSource = 'OFFICIAL' | 'PLACEHOLDER';
 
 export const contestTypes = [
@@ -27,10 +24,7 @@ export type RegisteredContest = {
 };
 
 const contests = registry.contests as RegisteredContest[];
-
-// 清冊有 8,429 筆，每次收預測都線性搜尋會變成瓶頸，啟動時就建索引。
 const byId = new Map(contests.map((contest) => [contest.id, contest]));
-
 const byJurisdiction = contests.reduce((groups, contest) => {
   const list = groups.get(contest.jurisdictionId);
   if (list) list.push(contest);

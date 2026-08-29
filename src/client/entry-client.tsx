@@ -1,13 +1,17 @@
+import {
+  type DehydratedState,
+  HydrationBoundary,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { createQueryClient } from './query-client';
 import './styles.css';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
-});
+const queryClient = createQueryClient();
+const dehydratedState = (window as typeof window & { __RQ_STATE__?: DehydratedState }).__RQ_STATE__;
 
 // 禁掉瀏覽器對整個頁面的縮放，只留地圖自己的縮放。iOS Safari 會忽略 viewport
 // meta 的 maximum-scale／user-scalable，唯一擋得住的是它自己那組非標準的
@@ -25,12 +29,18 @@ if (window.matchMedia('(pointer: coarse)').matches) {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')!;
+const tree = (
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <HydrationBoundary state={dehydratedState}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </HydrationBoundary>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
+
+if (root.childElementCount > 0) hydrateRoot(root, tree);
+else createRoot(root).render(tree);

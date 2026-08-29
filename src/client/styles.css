@@ -410,14 +410,6 @@ a:focus-visible {
   gap: 6px;
   padding: 6px 12px 6px 10px;
 }
-.forecaster-id img {
-  border-radius: 50%;
-  flex: none;
-  height: 18px;
-  object-fit: cover;
-  object-position: top;
-  width: 18px;
-}
 .forecaster-id .icon {
   height: 15px;
   width: 15px;
@@ -1731,9 +1723,9 @@ a:focus-visible {
   grid-template-columns: 36px 1fr;
   padding: 18px 2px;
 }
-.comment-avatar {
+.comment-author-mark {
   align-items: center;
-  background: var(--green);
+  background: var(--author-color, var(--green));
   border-radius: 50%;
   color: #fff;
   display: flex;
@@ -2101,54 +2093,6 @@ a:focus-visible {
   color: var(--stamp);
   font-size: 13px;
   margin: 14px 0 0;
-}
-/* 照片與名字在同一張身份卡：左邊預覽，右邊上傳／移除。 */
-.identity-photo {
-  align-items: center;
-  display: flex;
-  gap: 14px;
-  margin-top: 16px;
-}
-.identity-photo > i {
-  align-items: center;
-  background: #e4e3de;
-  border-radius: 50%;
-  color: #7d857f;
-  display: flex;
-  flex: none;
-  height: 68px;
-  justify-content: center;
-  overflow: hidden;
-  width: 68px;
-}
-.identity-photo > i img {
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-  width: 100%;
-}
-.identity-photo > i .icon {
-  width: 28px;
-}
-.identity-photo > span {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-/* label 當按鈕用，真的 input 藏起來——原生的檔案選擇器樣式改不動。 */
-.identity-photo label {
-  cursor: pointer;
-}
-.identity-photo input {
-  display: none;
-}
-.identity-photo .text-action {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
 }
 .identity-field {
   align-items: center;
@@ -3504,5 +3448,224 @@ a:focus-visible {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* ===========================================================================
+   後台（/admin/*）——站長一個人用的畫面，不套用公開頁面的地圖／卡片美術，
+   純資訊密度優先。只有這個檔案跟 src/client/admin/ 底下的元件會用到這些 class。
+   =========================================================================== */
+
+.admin-shell {
+  min-height: 100vh;
+}
+.admin-header {
+  align-items: center;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 24px;
+  padding: 14px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.admin-brand {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.admin-nav a {
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 13px;
+}
+.admin-nav a:hover {
+  background: #eeece4;
+}
+.admin-nav a.active {
+  background: var(--green);
+  color: #fff;
+}
+.admin-header > .button {
+  margin-left: auto;
+}
+.admin-page {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 28px 24px 90px;
+}
+.admin-section h1 {
+  font-size: 24px;
+  margin: 0 0 6px;
+}
+.admin-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.admin-note-error {
+  color: var(--accent-dark);
+}
+
+.admin-stat-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  margin: 14px 0;
+}
+.admin-stat-card {
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+}
+.admin-stat-card > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-stat-card > strong {
+  font-size: 22px;
+}
+.admin-stat-card > small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.admin-health-row {
+  display: flex;
+  gap: 16px;
+  margin: 10px 0 20px;
+}
+.admin-health-dot {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+}
+.admin-health-dot i {
+  background: #b8bdb8;
+  border-radius: 50%;
+  height: 9px;
+  width: 9px;
+}
+.admin-health-dot.ok i {
+  background: #2b8a64;
+}
+.admin-health-dot.down i {
+  background: var(--stamp);
+}
+
+.admin-action-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.admin-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-report-row {
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.admin-report-row > header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+.admin-report-reason {
+  background: #fbecea;
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 10px;
+  text-transform: uppercase;
+}
+.admin-report-row time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-report-comment {
+  background: #f5f3ed;
+  border-left: 3px solid var(--line);
+  border-radius: 0 10px 10px 0;
+  margin: 10px 0;
+  padding: 10px 14px;
+}
+.admin-report-comment p {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.admin-report-comment cite {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.admin-login {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.admin-login-card {
+  background: var(--card);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 30px;
+  width: min(360px, 100%);
+}
+.admin-login-card h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.admin-login-card p {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+  margin: 0 0 18px;
+}
+.admin-login-card input {
+  background: #f5f3ed;
+  border: 1px solid #e0ddd4;
+  border-radius: 12px;
+  font-size: 15px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  width: 100%;
+}
+.admin-login-error {
+  color: var(--accent-dark);
+  font-size: 12.5px;
+  margin: -6px 0 14px;
+}
+
+/* SSR 的窄畫面 snapshot 在 hydrate 前會先輸出手機控制列；桌機直接藏掉，避免閃爍。 */
+@media (min-width: 1001px) {
+  .map-floating-actions,
+  .map-search {
+    display: none;
   }
 }

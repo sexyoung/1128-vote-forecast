@@ -20,6 +20,7 @@ const signals = () => [
 let cached: string | null = null;
 
 export async function getFingerprint() {
+  if (typeof window === 'undefined') throw new Error('getFingerprint() 只能在瀏覽器呼叫。');
   if (cached) return cached;
   const raw = signals().join('|');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));

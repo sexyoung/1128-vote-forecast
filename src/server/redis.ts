@@ -96,6 +96,22 @@ export async function takeTrackedKeys(setKey: string) {
   }
 }
 
+/** 後台總覽要秀「Redis 活著沒」，但不能讓一個掛掉的 Redis 拖慢整個頁面——
+ *  設個短 deadline，逾時就當作不可用。 */
+export async function pingRedis(deadlineMs = 300) {
+  const redis = getClient();
+  if (!redis) return false;
+  try {
+    const result = await Promise.race([
+      redis.ping(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), deadlineMs)),
+    ]);
+    return result === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
 export async function disconnectRedis() {
   if (!client) return;
   await client.quit().catch(() => client?.disconnect());

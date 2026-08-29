@@ -9,7 +9,6 @@ export type Session = {
   forecaster: {
     id: string;
     displayName: string | null;
-    avatarUrl: string | null;
     predictionCount: number;
     humanVerified: boolean;
     blocked: boolean;
@@ -66,7 +65,7 @@ export type Comment = {
   parentId: string | null;
   body: string;
   createdAt: string;
-  author: { id: string; code: string; displayName: string | null; avatarUrl: string | null };
+  author: { id: string; code: string; displayName: string | null };
 };
 
 export class ApiError extends Error {
@@ -159,26 +158,3 @@ export const postComment = (contestId: string, body: string, parentId?: string) 
     method: 'POST',
     body: JSON.stringify({ body, parentId }),
   });
-
-export async function uploadAvatar(file: File) {
-  const { key, uploadUrl } = await request<{ key: string; uploadUrl: string }>(
-    '/api/me/avatar/upload-url',
-    { method: 'POST', body: JSON.stringify({ contentType: file.type }) },
-  );
-
-  // 圖片直接進物件儲存，不經過 API 伺服器。
-  const upload = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type },
-  });
-  if (!upload.ok) throw new ApiError('圖片上傳失敗，請再試一次。', upload.status);
-
-  return request<{ avatarUrl: string }>('/api/me/avatar/commit', {
-    method: 'POST',
-    body: JSON.stringify({ key }),
-  });
-}
-
-export const removeAvatar = () =>
-  request<{ avatarUrl: null }>('/api/me/avatar', { method: 'DELETE' });

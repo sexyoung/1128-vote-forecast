@@ -1,46 +1,75 @@
-import { type Contest, getMockCandidates, getParty, parties } from '../client/mock-election.js';
+import { getMockCandidates, getParty, parties } from '../shared/candidates.js';
 import { getPredictionMode } from '../shared/prediction.js';
 import type { RegisteredContest } from './contest-registry.js';
+import { prisma } from './db.js';
+import { avatarUrl } from '../client/avatars.js';
 
 /**
  * 一場選舉現在可以押哪些目標。
  *
- * 中選會的候選人名單要到 2026-11 才公告，在那之前 getMockCandidates() 會依選區
- * 產生固定的佔位人選（「國民黨候選人 1」）。這裡刻意 import 前端那支同一個函式：
- * 它是純函式、結果只由選區決定，兩邊算出來一定一樣，伺服器才驗得了前端送來的
- * targetId。名單進來之後這裡改讀 Candidate 資料表，其餘不動。
+ * `prisma/seed.ts` 先把原型的佔位人選寫進 Candidate；正式名單收到後直接替換資料。
+ * 新資料庫若還沒跑 seed，這裡仍用同一支純函式產生佔位人選，避免整站無法預測。
  */
 
 export type PredictionTarget = {
   targetType: 'PARTY' | 'CANDIDATE';
   targetId: string;
-  /** 押的那一位的黨籍。名單公布後靠它把佔位預測對回真候選人。 */
+  /** 押的那一位的黨籍。 */
   partyId: string | null;
   label: string;
   ballotNo: number | null;
 };
 
-/** 名單還沒進來。之後這裡會變成「這個選區有沒有 Candidate 資料」。 */
-const candidatesPublished = false;
+/** 啟動時一次載入 Candidate；完整名單也只有幾 MB，不需要分頁。 */
+let loadedCandidates = new Map<string, PredictionTarget[]>();
+/** 撤銷與停止競選的人不在可押名單裡（見 refreshCandidates 的 continue），但舊的
+ *  統計列（ContestTally／PredictionPick）還指著他們，describeTarget 要查得到，
+ *  不然畫面只能顯示一串 cuid。 */
+let byCandidateId = new Map<
+  string,
+  { label: string; partyId: string | null; nameEn: string | null; contestId: string }
+>();
 
-/** getMockCandidates 需要一個 Contest；清冊只有選區的骨架，補齊它用不到的欄位。 */
-function toContest(contest: RegisteredContest): Contest {
-  return {
-    id: contest.id,
-    jurisdictionId: contest.jurisdictionId,
-    name: contest.name,
-    area: contest.area,
-    seatCount: contest.seats,
-    view: contest.type,
-    // 下面三個只影響畫面上的示意數字，不影響候選人名單。
-    leader: 'KMT',
-    percentage: 0,
-    forecasts: 0,
-  };
+/** 啟動時載入一次（src/server/index.ts）；名單更新隨新版部署生效。 */
+export async function refreshCandidates() {
+  const rows = await prisma.candidate.findMany({
+    orderBy: [{ contestId: 'asc' }, { ballotNo: 'asc' }, { name: 'asc' }],
+  });
+  const nextTargets = new Map<string, PredictionTarget[]>();
+  const nextById = new Map<
+    string,
+    { label: string; partyId: string | null; nameEn: string | null; contestId: string }
+  >();
+
+  for (const row of rows) {
+    nextById.set(row.id, {
+      label: row.name,
+      partyId: row.partyId,
+      nameEn: row.nameEn,
+      contestId: row.contestId,
+    });
+    if (row.status === 'WITHDRAWN' || row.status === 'DISQUALIFIED') continue;
+    const list = nextTargets.get(row.contestId) ?? [];
+    list.push({
+      targetType: 'CANDIDATE',
+      targetId: row.id,
+      partyId: row.partyId,
+      label: row.name,
+      ballotNo: row.ballotNo,
+    });
+    nextTargets.set(row.contestId, list);
+  }
+
+  loadedCandidates = nextTargets;
+  byCandidateId = nextById;
+  return rows.length;
 }
 
 export function getPredictionTargets(contest: RegisteredContest): PredictionTarget[] {
-  const mode = getPredictionMode(contest.type, contest.seats, candidatesPublished);
+  const stored = loadedCandidates.get(contest.id);
+  if (stored) return stored;
+
+  const mode = getPredictionMode(contest.type, contest.seats, false);
   if (mode === 'party')
     return parties.map((party) => ({
       targetType: 'PARTY' as const,
@@ -50,7 +79,7 @@ export function getPredictionTargets(contest: RegisteredContest): PredictionTarg
       ballotNo: null,
     }));
 
-  return getMockCandidates(toContest(contest)).map((candidate) => ({
+  return getMockCandidates({ id: contest.id, seatCount: contest.seats }).map((candidate) => ({
     targetType: 'CANDIDATE' as const,
     targetId: candidate.id,
     partyId: candidate.partyId,
@@ -76,6 +105,20 @@ export function describeTarget(contest: RegisteredContest, targetType: string, t
     const party = target.partyId ? getParty(target.partyId as never) : null;
     return { label: target.label, partyId: target.partyId, color: party?.color ?? null };
   }
-  // 名單換過之後舊的統計列還在，至少要回得出一個能顯示的東西。
+
+  // 名單換過或候選人撤銷後，舊的統計列還在資料庫裡，至少要回得出名字，
+  // 不能只給前端一個 cuid。
+  const withdrawn = byCandidateId.get(targetId);
+  if (withdrawn) {
+    const party = withdrawn.partyId ? getParty(withdrawn.partyId as never) : null;
+    return { label: withdrawn.label, partyId: withdrawn.partyId, color: party?.color ?? null };
+  }
+
   return { label: targetId, partyId: null, color: null };
+}
+
+export function getCandidateAvatarUrl(contestId: string, candidateId: string) {
+  const candidate = byCandidateId.get(candidateId);
+  if (!candidate || candidate.contestId !== contestId || !candidate.partyId) return null;
+  return avatarUrl(contestId, candidate.partyId, candidate.nameEn ?? undefined);
 }

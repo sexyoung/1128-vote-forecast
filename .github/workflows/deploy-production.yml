@@ -1,0 +1,67 @@
+name: Vercel Production
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# 刻意不開 cancel-in-progress：正式部署跑到一半被砍掉，會留下「資料庫已經
+# migrate 了但程式沒上去」這個最難收拾的狀態。
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    # 整條流程唯一會改資料庫的一步。要不要人按一下放行，由 repo 的 environment
+    # 設定決定，不由這個檔案決定。
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Apply migrations
+        # migrate 要一條真正的 session 連線。transaction 模式的 pooler 會把
+        # advisory lock 切到不同連線上，鎖就不成立了，所以這裡走直連而不是
+        # runtime 用的那條 DATABASE_URL。
+        env:
+          DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production
+
+      - name: Build
+        run: vercel build --prod
+
+      - name: Deploy prebuilt output
+        id: deploy
+        run: echo "url=$(vercel deploy --prebuilt --prod --archive=tgz)" >> "$GITHUB_OUTPUT"
+
+      - name: Report
+        run: echo "Production -> ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

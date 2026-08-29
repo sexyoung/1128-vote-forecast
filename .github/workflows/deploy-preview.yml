@@ -1,0 +1,51 @@
+name: Vercel Preview
+
+# 推 tag 時 GitHub 送的 ref 是 refs/tags/*，配不到 branches，所以同一個 commit
+# 不會同時觸發這裡與 production 那一支。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-preview
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  # 用環境變數而不是 --token。官方對 CI 的建議，token 不會出現在 process list 裡。
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # --prebuilt 是把這台機器上裝好的 node_modules 原樣送上去，所以 Node 的
+      # major 版本與平台必須跟 Vercel runtime 對得起來。engines.node >= 22.12
+      # 在 Vercel 的對應表上落在 24.x。
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=preview
+
+      # preview build 不帶旗標；--prod 才是拿 Production 的環境變數。
+      - name: Build
+        run: vercel build
+
+      - name: Deploy prebuilt output
+        id: deploy
+        # --archive=tgz：public/ 底下光是地圖 SVG 就好幾十個檔案，逐檔上傳容易
+        # 碰到 files 上限。
+        run: echo "url=$(vercel deploy --prebuilt --archive=tgz)" >> "$GITHUB_OUTPUT"
+
+      - name: Report
+        run: echo "Preview -> ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

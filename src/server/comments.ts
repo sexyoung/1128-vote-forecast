@@ -1,5 +1,4 @@
 import type { Prisma } from '../generated/prisma/client.js';
-import { avatarUrl } from './avatars.js';
 import { prisma } from './db.js';
 
 /** 顯示用的短碼。系統配發、改不了，名字重複時靠它分辨。 */
@@ -29,7 +28,6 @@ function toPublicComment(comment: CommentWithAuthor) {
       id: comment.forecasterId,
       code: forecasterCode(comment.forecasterId),
       displayName: comment.forecaster.displayName,
-      avatarUrl: avatarUrl(comment.forecaster.avatarKey, comment.forecaster.avatarBlockedAt),
     },
   };
 }

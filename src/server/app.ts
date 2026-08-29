@@ -1,14 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { adminApp } from './admin.js';
 import { prisma } from './db.js';
 import { env, turnstileEnabled } from './env.js';
-import {
-  AvatarRejected,
-  assertUploadableType,
-  avatarUrl,
-  commitAvatar,
-  stagingKey,
-} from './avatars.js';
 import { CommentRejected, createComment, deleteOwnComment, listComments } from './comments.js';
 import { type ContestType, contestTypes, getRegisteredContest } from './contest-registry.js';
 import { IdentityRateLimited, type ResolvedForecaster, resolveForecaster } from './identity.js';
@@ -20,9 +14,8 @@ import {
   savePrediction,
 } from './predictions.js';
 import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
-import { createUploadUrl, deleteObject, storageEnabled } from './storage.js';
 import { readTrend } from './trends.js';
-import { fileReport, parseReportReason, parseReportTarget, requireAdmin } from './moderation.js';
+import { fileReport, parseReportReason, parseReportTarget } from './moderation.js';
 import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
@@ -32,12 +25,13 @@ type Variables = { forecaster: ResolvedForecaster };
 export const app = new Hono<{ Variables: Variables }>();
 
 // 身份靠 cookie，跨網域請求必須帶上它，所以不能用預設的 cors()。
-app.use(
-  '/api/*',
-  cors({
-    credentials: true,
-    origin: (origin) => origin ?? '*',
-  }),
+// 後台不在這組規則裡：下面這個 cors() 會把任何來源反射回去，後台端點若也適用，
+// 等於任何網站都能帶著使用者的 vf_admin cookie 替他操作後台（credentials:true
+// 加上反射的 Access-Control-Allow-Origin，evil.com 讀得到回應）。沒有這行，
+// 跨網域請求連 cookie 都不會被瀏覽器允許附上。
+const publicCors = cors({ credentials: true, origin: (origin) => origin ?? '*' });
+app.use('/api/*', (c, next) =>
+  c.req.path.startsWith('/api/admin/') ? next() : publicCors(c, next),
 );
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api' }));
@@ -45,6 +39,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api
 /**
  * 除了健康檢查以外，每個 /api 請求都先認出使用者。認不出來就開一個新身份——
  * 這一頁不需要登入，所以「還沒有身份」不是錯誤狀態。
+ *
  */
 app.use('/api/*', async (c, next) => {
   // 健康檢查與後台不需要身份，後台走自己的 token。
@@ -68,7 +63,6 @@ app.get('/api/session', async (c) => {
     forecaster: {
       id: forecaster.id,
       displayName: forecaster.displayName,
-      avatarUrl: avatarUrl(forecaster.avatarKey, forecaster.avatarBlockedAt),
       predictionCount,
       humanVerified: isHumanVerified(forecaster.humanVerifiedAt),
       blocked: forecaster.blockedAt !== null,
@@ -89,57 +83,6 @@ app.put('/api/me', async (c) => {
     data: { displayName: raw || null },
   });
   return c.json({ displayName: updated.displayName });
-});
-
-/** 拿一個上傳網址。前端直接 PUT 到物件儲存，圖片不經過這台伺服器。 */
-app.post('/api/me/avatar/upload-url', async (c) => {
-  if (!storageEnabled) return c.json({ error: '目前沒有開放上傳。' }, 503);
-  const forecaster = c.get('forecaster');
-  const body = (await c.req.json().catch(() => null)) as { contentType?: unknown } | null;
-  const contentType = typeof body?.contentType === 'string' ? body.contentType : '';
-
-  try {
-    assertUploadableType(contentType);
-    const key = stagingKey(forecaster.id);
-    return c.json({ key, uploadUrl: await createUploadUrl(key, contentType) });
-  } catch (error) {
-    if (error instanceof AvatarRejected) return c.json({ error: error.message }, 400);
-    throw error;
-  }
-});
-
-/** 上傳完成後把原檔轉成正式頭像。重新編碼是必要的，不是可選項。 */
-app.post('/api/me/avatar/commit', async (c) => {
-  if (!storageEnabled) return c.json({ error: '目前沒有開放上傳。' }, 503);
-  const forecaster = c.get('forecaster');
-  const body = (await c.req.json().catch(() => null)) as { key?: unknown } | null;
-  const key = typeof body?.key === 'string' ? body.key : '';
-
-  try {
-    const finalKey = await commitAvatar(forecaster.id, key);
-    const previous = forecaster.avatarKey;
-    await prisma.forecaster.update({
-      where: { id: forecaster.id },
-      data: { avatarKey: finalKey, avatarBlockedAt: null },
-    });
-    // 換了新的就把舊的刪掉，不要在 bucket 裡累積使用者的舊照片。
-    if (previous && previous !== finalKey) await deleteObject(previous);
-    return c.json({ avatarUrl: avatarUrl(finalKey, null) });
-  } catch (error) {
-    if (error instanceof AvatarRejected) return c.json({ error: error.message }, 400);
-    throw error;
-  }
-});
-
-/** 移除頭像。 */
-app.delete('/api/me/avatar', async (c) => {
-  const forecaster = c.get('forecaster');
-  if (forecaster.avatarKey) await deleteObject(forecaster.avatarKey);
-  await prisma.forecaster.update({
-    where: { id: forecaster.id },
-    data: { avatarKey: null },
-  });
-  return c.json({ avatarUrl: null });
 });
 
 /** 地圖首頁：22 個縣市的領先者。這是最熱的端點，永遠讀快照。 */
@@ -355,7 +298,7 @@ app.delete('/api/comments/:commentId', async (c) => {
   }
 });
 
-/** 檢舉留言或頭像。任何人都能送，處理在後台。 */
+/** 檢舉留言。任何人都能送，處理在後台。 */
 app.post('/api/reports', async (c) => {
   const forecaster = c.get('forecaster');
   const body = (await c.req.json().catch(() => null)) as {
@@ -382,54 +325,9 @@ app.post('/api/reports', async (c) => {
 });
 
 // --- 後台 ---------------------------------------------------------------
+// 認證與審核佇列都在 admin.ts；這裡只掛路徑。
 
-app.use('/api/admin/*', requireAdmin);
-
-app.get('/api/admin/reports', async (c) => {
-  const reports = await prisma.report.findMany({
-    where: { status: 'OPEN' },
-    orderBy: { createdAt: 'asc' },
-    take: 100,
-  });
-  return c.json({ reports });
-});
-
-app.post('/api/admin/comments/:commentId/hide', async (c) => {
-  const commentId = c.req.param('commentId');
-  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
-  if (!comment) return c.json({ error: '找不到這則留言。' }, 404);
-
-  await prisma.$transaction([
-    prisma.comment.update({ where: { id: commentId }, data: { status: 'HIDDEN' } }),
-    prisma.report.updateMany({
-      where: { targetType: 'COMMENT', targetId: commentId, status: 'OPEN' },
-      data: { status: 'ACTIONED', handledAt: new Date() },
-    }),
-  ]);
-  await cacheDelete(commentsKey(comment.contestId));
-  return c.json({ ok: true });
-});
-
-app.post('/api/admin/forecasters/:forecasterId/avatar-block', async (c) => {
-  const forecasterId = c.req.param('forecasterId');
-  await prisma.forecaster.update({
-    where: { id: forecasterId },
-    data: { avatarBlockedAt: new Date() },
-  });
-  await prisma.report.updateMany({
-    where: { targetType: 'AVATAR', targetId: forecasterId, status: 'OPEN' },
-    data: { status: 'ACTIONED', handledAt: new Date() },
-  });
-  return c.json({ ok: true });
-});
-
-app.post('/api/admin/forecasters/:forecasterId/block', async (c) => {
-  await prisma.forecaster.update({
-    where: { id: c.req.param('forecasterId') },
-    data: { blockedAt: new Date() },
-  });
-  return c.json({ ok: true });
-});
+app.route('/api/admin', adminApp);
 
 app.notFound((c) => c.json({ error: '找不到這個 API 路徑。' }, 404));
 app.onError((error, c) => {

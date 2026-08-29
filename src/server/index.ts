@@ -2,13 +2,24 @@ import { serve } from '@hono/node-server';
 import { app } from './app.js';
 import { prisma } from './db.js';
 import { assertProductionEnv, env } from './env.js';
+import { mountHtmlRoutes } from './html.js';
+import { refreshCandidates } from './prediction-targets.js';
 import { disconnectRedis } from './redis.js';
 import { refreshHotSnapshots } from './snapshots.js';
 import { captureDailySnapshot, hasSnapshotFor } from './trends.js';
 
 assertProductionEnv();
 
+// 開機就把候選人名單讀進記憶體，不要等第一個 API 請求才觸發刷新。
+await refreshCandidates();
+
 const port = env.port;
+
+if (env.isProduction) {
+  const { prodRenderer } = await import('./render-prod.js');
+  mountHtmlRoutes(app, prodRenderer);
+}
+
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Hono API 已啟動：http://localhost:${info.port}`);
 });
@@ -45,10 +56,12 @@ trendTimer.unref();
 function shutdown() {
   clearInterval(snapshotTimer);
   clearInterval(trendTimer);
-  server.close(async () => {
-    await prisma.$disconnect();
-    await disconnectRedis();
-    process.exit(0);
+  server.close(() => {
+    void (async () => {
+      await prisma.$disconnect();
+      await disconnectRedis();
+      process.exit(0);
+    })();
   });
 }
 

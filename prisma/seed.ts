@@ -1,22 +1,39 @@
-import { prisma } from '../src/server/db.js';
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.js';
+import { getMockCandidates } from '../src/shared/candidates.js';
+import { listRegisteredContests } from '../src/server/contest-registry.js';
 
-const forecastCount = await prisma.forecast.count();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error('缺少 DATABASE_URL。');
 
-if (forecastCount === 0) {
-  await prisma.forecast.createMany({
-    data: [
-      {
-        title: '市民公投案通過',
-        description: '根據目前樣本建立的初始預測。',
-        probability: 64,
-      },
-      {
-        title: '青年投票率突破 60%',
-        description: '示範用資料，可由首頁新增更多預測。',
-        probability: 48,
-      },
-    ],
-  });
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const candidates = listRegisteredContests().flatMap((contest) =>
+  getMockCandidates({ id: contest.id, seatCount: contest.seats }).map((candidate) => ({
+    id: candidate.id,
+    contestId: contest.id,
+    partyId: candidate.partyId,
+    name: candidate.name,
+    ballotNo: candidate.number,
+  })),
+);
+
+try {
+  const inserted = await prisma.$transaction(
+    async (tx) => {
+      if ((await tx.candidate.count()) > 0) return 0;
+      for (let index = 0; index < candidates.length; index += 500)
+        await tx.candidate.createMany({ data: candidates.slice(index, index + 500) });
+      return candidates.length;
+    },
+    { timeout: 300_000 },
+  );
+
+  console.log(
+    inserted > 0
+      ? `已建立 ${inserted.toLocaleString()} 位佔位候選人。`
+      : 'Candidate 已有資料，略過佔位名單。',
+  );
+} finally {
+  await prisma.$disconnect();
 }
-
-await prisma.$disconnect();

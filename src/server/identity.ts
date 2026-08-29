@@ -82,8 +82,6 @@ async function findByFingerprint(fingerprintHash: string) {
 export type ResolvedForecaster = {
   id: string;
   displayName: string | null;
-  avatarKey: string | null;
-  avatarBlockedAt: Date | null;
   humanVerifiedAt: Date | null;
   blockedAt: Date | null;
 };

@@ -5,3 +5,7 @@ dist/
 src/generated/
 .env
 *.log
+graphify-out/
+
+# vercel pull 會把環境變數的明文副本寫進這裡。
+.vercel/

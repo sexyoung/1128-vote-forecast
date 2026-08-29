@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getComments, getContest, getTrend, postComment } from '../api';
 import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
-import { type Contest, type Jurisdiction, findContest } from '../mock-election';
+import { type Contest, type Jurisdiction, findContest, getJurisdiction } from '../mock-election';
+import { useDocumentTitle } from '../use-document-title';
 
 type ResolvedContest = { contest: Contest; jurisdiction: Jurisdiction };
 import {
@@ -120,6 +121,17 @@ function TrendPanel({ contestId }: { contestId: string }) {
   );
 }
 
+// 留言的身份只剩名字的第一個字。整串都同一個深綠色時，二十則留言看起來像同一個人
+// 在自言自語，所以色相從 id 算出來——同一個人在哪一頁都是同一個顏色，重新整理也不會換。
+const authorColors = ['#173f33', '#3c5b7a', '#7a4a68', '#8a5a2b', '#2f6b5a', '#5b4a86'];
+
+function authorColor(id: string) {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1)
+    hash = (hash * 31 + id.charCodeAt(index)) % 9973;
+  return authorColors[hash % authorColors.length];
+}
+
 function CommentsPanel({ contestId }: { contestId: string }) {
   const queryClient = useQueryClient();
   const list = useQuery({
@@ -173,12 +185,11 @@ function CommentsPanel({ contestId }: { contestId: string }) {
       {!list.isPending && comments.length === 0 && <p className="method-note">還沒有人留言。</p>}
       {comments.map((comment) => (
         <article className="comment" key={comment.id}>
-          <div className="comment-avatar">
-            {comment.author.avatarUrl ? (
-              <img alt="" src={comment.author.avatarUrl} />
-            ) : (
-              (comment.author.displayName ?? '預').slice(0, 1)
-            )}
+          <div
+            className="comment-author-mark"
+            style={{ '--author-color': authorColor(comment.author.id) } as CSSProperties}
+          >
+            {(comment.author.displayName ?? '預').slice(0, 1)}
           </div>
           <div>
             <p>
@@ -196,6 +207,7 @@ function CommentsPanel({ contestId }: { contestId: string }) {
 // 圖資產生的選舉（鄉鎮市長、村里長）id 長 town-10002010-TOWNSHIP，靜態清單裡
 // 沒有，要照 id 帶的縣市碼把該縣市的圖層載回來。其他選舉照舊同步解出來。
 function useResolvedContest(contestId?: string) {
+  const queryClient = useQueryClient();
   const isShapeContest = !!contestId && !!parseShapeContestId(contestId);
   const [loaded, setLoaded] = useState<{ id: string; resolved: ResolvedContest | null } | null>(
     null,
@@ -213,6 +225,27 @@ function useResolvedContest(contestId?: string) {
   }, [contestId]);
 
   if (!isShapeContest) return findContest(contestId);
+
+  // SSR 已把完整選區放進同一個 query key。圖資產生的選區不用等瀏覽器下載 SVG
+  // 才能畫第一版；直接 client-side 導覽時沒有 seed，仍走原本的 effect。
+  const seeded = queryClient.getQueryData<import('../api').ContestDetail>(['contest', contestId]);
+  if (seeded) {
+    const contest = seeded.contest;
+    return {
+      contest: {
+        id: contest.id,
+        jurisdictionId: contest.jurisdictionId,
+        name: contest.name,
+        area: contest.area,
+        seatCount: contest.seats,
+        view: contest.type,
+        leader: 'IND' as const,
+        percentage: 0,
+        forecasts: seeded.tally.totalPredictions,
+      },
+      jurisdiction: getJurisdiction(contest.jurisdictionId),
+    };
+  }
   // 比對 id 而不是在 effect 裡先清空：換選區的當下自然就是「載入中」。
   return loaded?.id === contestId ? loaded.resolved : null;
 }
@@ -234,6 +267,12 @@ export function parseContestTab(value: string | null): ContestTab {
 export function ContestPage() {
   const { contestId } = useParams();
   const resolved = useResolvedContest(contestId);
+  const contestTitle = resolved
+    ? resolved.contest.name.startsWith(resolved.jurisdiction.name)
+      ? resolved.contest.name
+      : `${resolved.jurisdiction.name}${resolved.contest.name}`
+    : '選區';
+  useDocumentTitle(`${contestTitle}預測｜九合一選舉預測`);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseContestTab(searchParams.get('tab'));
   const setActiveTab = (tab: ContestTab) =>

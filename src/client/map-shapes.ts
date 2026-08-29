@@ -72,6 +72,7 @@ const countyCodeToMapLocation: Record<string, string> = {
 };
 
 export async function loadMapPaths(url: string, selector: string) {
+  if (typeof window === 'undefined') throw new Error('loadMapPaths() 只能在瀏覽器呼叫。');
   const response = await fetch(url);
   if (!response.ok) throw new Error('地圖資料載入失敗');
   const document = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');

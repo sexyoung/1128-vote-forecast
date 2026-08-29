@@ -31,22 +31,10 @@ import {
   toCandidateRows,
 } from './ElectionPrototypeShared';
 import { regionCounts } from '../region-counts';
+import { summariseArea } from '../../shared/area';
+import { useDocumentTitle } from '../use-document-title';
 
-// 最窄的卡片（.contest-grid 的 304px）文字欄約 170px，13px 中文一行約 13 字，
-// 兩行就是這個數。
-const areaTwoLineLimit = 26;
-
-// 區域清單的長度差距很大：92% 在 16 字內（一行就放得下），但最長的到 145 字——
-// 新竹市議員第一選舉區列了 36 個里。超過兩行的就收成「前兩項 等 N 個X」：把 145 字
-// 壓進兩行需要 3px 上下的字級，而中文低於 11px 就讀不動了，所以縮字級這條路走不通。
-export function summariseArea(area: string) {
-  const parts = area.split('、');
-  if (area.length <= areaTwoLineLimit || parts.length < 3) return area;
-  const units = new Set(parts.map((part) => part.slice(-1)));
-  // 單位從各項的最後一個字推：全是「里」就講里，混到鄉鎮市就退回中性的「區域」。
-  const unit = units.size === 1 ? `個${[...units][0]}` : '個區域';
-  return `${parts[0]}、${parts[1]} 等 ${parts.length} ${unit}`;
-}
+export { summariseArea } from '../../shared/area';
 
 function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestDetail['tally'] }) {
   const rowLimit = contest.view === 'COUNCIL' ? Math.max(4, contest.seatCount) : 4;
@@ -199,6 +187,11 @@ export function JurisdictionPage() {
   // 分頁狀態放在網址上，重新整理、上一頁、把連結貼給別人都會停在同一個分頁。
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseView(searchParams.get('view'));
+  const titleLabel =
+    view === 'EXECUTIVE'
+      ? '預測總覽'
+      : `${electionViews.find((item) => item.id === view)?.label ?? ''}預測`;
+  useDocumentTitle(`${jurisdiction.name}${titleLabel}｜九合一選舉預測`);
   const { state, error, enabled } = useShapeContests(jurisdiction, view);
   const [skeletonPhase, setSkeletonPhase] = useState<SkeletonPhase>('revealed');
   const skeletonRef = useRef<HTMLDivElement>(null);

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { type MapCell, getContest, getJurisdictionMap, getNationalMap } from '../api';
+import { useDocumentTitle } from '../use-document-title';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
   type TownshipShape,
@@ -516,6 +517,7 @@ function MapInspector({
 }
 
 export function ElectionHomePage() {
+  useDocumentTitle('九合一選舉預測｜2026.11.28 全臺 22 縣市預測地圖');
   const [selectedJurisdiction, setSelectedJurisdiction] = useState<Jurisdiction | null>(null);
   const [selectedContest, setSelectedContest] = useState<Contest | null>(null);
   const [detailMode, setDetailMode] = useState(false);
@@ -1409,7 +1411,11 @@ export function ElectionHomePage() {
           </svg>
 
           {countyShapes.length === 0 && (
-            <div className={`map-data-message ${mapError ? 'error' : ''}`}>
+            <div
+              aria-live="polite"
+              className={`map-data-message ${mapError ? 'error' : ''}`}
+              role="status"
+            >
               {mapError ?? '正在載入官方地圖…'}
             </div>
           )}

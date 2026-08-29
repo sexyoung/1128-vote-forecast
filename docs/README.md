@@ -12,13 +12,8 @@
   - 政黨 master data
   - 明確標示尚未逐筆官方核對的細分選區不可自行猜測
 
-- `2026-election-postgres-prisma.md`
-  - PostgreSQL / Prisma schema
-  - User / Prediction / Candidate / Party / Election / District
-  - 關聯設計
-  - PARTY → CANDIDATE 的階段切換
-  - invalidation / history 設計
-  - API 與 Codex 開發順序
+- `2026-election-backend.md`
+  - 現行後端資料流、API 與待補官方資料
 
 ## Important
 

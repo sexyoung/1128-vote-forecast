@@ -22,11 +22,7 @@ model Forecaster {
   id String @id @default(cuid())
 
   displayName String? @db.VarChar(24)
-  /// 物件儲存的 key，不存二進位內容。
-  avatarKey   String?
 
-  /// 頭像被檢舉下架的時間。
-  avatarBlockedAt DateTime?
   /// 最近一次通過 Turnstile；在有效期內不再要求驗證。
   humanVerifiedAt DateTime?
   /// 整個身份被封鎖的時間。
@@ -121,8 +117,7 @@ model PredictionPick {
   targetType   PredictionTargetType
   /// PARTY 時是政黨代號（KMT），CANDIDATE 時是候選人 id。
   targetId     String
-  /// 押的那一位的黨籍。中選會公告前 targetId 是佔位候選人（getMockCandidates
-  /// 產生的），名單進來後要靠這個欄位把舊預測對回真候選人；對不到就 INVALIDATED。
+  /// 押的那一位的黨籍；targetId 使用 Candidate id 或政黨代號。
   /// 由伺服器自己算，不採用前端送來的值。
   partyId      String?
 
@@ -220,7 +215,6 @@ model Comment {
 
 enum ReportTargetType {
   COMMENT
-  AVATAR
 }
 
 enum ReportReason {
@@ -237,7 +231,7 @@ enum ReportStatus {
   DISMISSED
 }
 
-/// 使用者產生的內容需要下架管道。targetId 視 targetType 是留言或預測者 id。
+/// 使用者產生的內容需要下架管道。targetId 是留言 id。
 model Report {
   id         String           @id @default(cuid())
   targetType ReportTargetType
@@ -256,4 +250,44 @@ model Report {
 
   @@index([targetType, targetId])
   @@index([status, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// 候選人與後台
+// ---------------------------------------------------------------------------
+
+enum CandidateStatus {
+  REGISTERED
+  CONFIRMED
+  WITHDRAWN
+  DISQUALIFIED
+}
+
+/// 可預測的候選人。正式名單前先放佔位資料；選區代號對到 election-contests.json。
+model Candidate {
+  id        String  @id @default(cuid())
+  contestId String
+  partyId   String?
+
+  name     String  @db.VarChar(40)
+  /// 英文拼音。照片檔名由它算出來（avatars.ts 的 avatarFileName），不存路徑：
+  /// 照片是 Git 管的靜態檔，資料庫再記一次就會有兩個互相矛盾的來源。
+  nameEn   String? @db.VarChar(80)
+  ballotNo Int?
+
+  status CandidateStatus @default(REGISTERED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 號次是同一選區內抽籤決定的，天生唯一。抽籤（2026-10-23）之前 ballotNo 是
+  /// null，PostgreSQL 的 unique 不管 null，所以沒有號次的名單也匯得進來。
+  @@unique([contestId, ballotNo])
+  /// 同一區同名視為同一個人，更新名單時不會多出重複資料。
+  @@unique([contestId, name])
+  /// 刻意不是 unique。文件第三節寫的 @@unique([contestId, partyId]) 對議員與
+  /// 代表不成立：這 354 個複數選區是 SNTV，同一個政黨會提名好幾位（臺北市第 6
+  /// 選舉區應選 13 席）。我們自己的 getMockCandidates 產生的佔位名單也早就是這樣
+  /// 了。
+  @@index([contestId, partyId])
+  @@index([contestId])
 }

@@ -1,13 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  getMyPredictions,
-  getSession,
-  removeAvatar,
-  updateDisplayName,
-  uploadAvatar,
-} from '../api';
+import { getMyPredictions, getSession, updateDisplayName } from '../api';
+import { useDocumentTitle } from '../use-document-title';
 import {
   CandidateList,
   CardCover,
@@ -25,35 +20,19 @@ function forecasterCode(id: string) {
 
 function IdentityDialog({
   name,
-  avatar,
   saving,
   error,
   onSave,
   onClose,
 }: {
   name: string;
-  avatar: string | null;
   saving: boolean;
   error: string;
-  onSave: (name: string, photo: File | null, removePhoto: boolean) => void;
+  onSave: (name: string) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(name);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [removed, setRemoved] = useState(false);
   const trimmed = draft.trim();
-  const changed = trimmed !== name || photo !== null || removed;
-  // 送出前先在本地預覽，不必等上傳完才看得到自己選了哪張。網址在 render 時就算好，
-  // effect 只負責釋放，避免多跑一次 render。
-  const objectUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
-  const preview = removed ? null : (objectUrl ?? avatar);
-
-  useEffect(
-    () => () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    },
-    [objectUrl],
-  );
 
   // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
   useEffect(() => {
@@ -83,35 +62,7 @@ function IdentityDialog({
             <Icon name="close" />
           </button>
         </header>
-        <p>留言與排行榜上其他人看到的名字與照片。後面的編號是系統配發的，不會跟著改。</p>
-        <div className="identity-photo">
-          <i>{preview ? <img alt="" src={preview} /> : <Icon name="user" />}</i>
-          <span>
-            <label className="button button-glass button-small">
-              上傳照片
-              <input
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => {
-                  setPhoto(event.target.files?.[0] ?? null);
-                  setRemoved(false);
-                }}
-                type="file"
-              />
-            </label>
-            {preview && (
-              <button
-                className="text-action"
-                onClick={() => {
-                  setPhoto(null);
-                  setRemoved(true);
-                }}
-                type="button"
-              >
-                移除
-              </button>
-            )}
-          </span>
-        </div>
+        <p>留言與排行榜上其他人看到的名字。後面的編號是系統配發的，不會跟著改。</p>
         <div className="identity-field">
           <input
             aria-label="顯示名稱"
@@ -125,19 +76,20 @@ function IdentityDialog({
         {error && <p className="identity-error">{error}</p>}
         <button
           className="button button-dark button-wide"
-          disabled={!changed || saving}
-          onClick={() => onSave(trimmed, photo, removed)}
+          disabled={trimmed === name || saving}
+          onClick={() => onSave(trimmed)}
           type="button"
         >
           {saving ? '儲存中…' : '儲存'}
         </button>
-        <small>編號不會變，換名字或照片也不會影響已送出的預測。</small>
+        <small>編號不會變，換名字也不會影響已送出的預測。</small>
       </section>
     </div>
   );
 }
 
 export function MyPredictionsPage() {
+  useDocumentTitle('我的預測｜九合一選舉預測');
   const queryClient = useQueryClient();
   const session = useQuery({ queryKey: ['session'], queryFn: getSession });
   const mine = useQuery({ queryKey: ['my-predictions'], queryFn: getMyPredictions });
@@ -150,13 +102,7 @@ export function MyPredictionsPage() {
   const items = mine.data?.predictions ?? [];
 
   const save = useMutation({
-    mutationFn: async (input: { name: string; photo: File | null; removePhoto: boolean }) => {
-      // 名字與照片是兩個端點，但對使用者是同一次「儲存」。
-      if (input.name !== (forecaster?.displayName ?? defaultForecasterName))
-        await updateDisplayName(input.name === defaultForecasterName ? null : input.name);
-      if (input.photo) await uploadAvatar(input.photo);
-      else if (input.removePhoto) await removeAvatar();
-    },
+    mutationFn: (next: string) => updateDisplayName(next === defaultForecasterName ? null : next),
     onSuccess: async () => {
       setError('');
       setEditing(false);
@@ -180,11 +126,7 @@ export function MyPredictionsPage() {
             onClick={() => setEditing((open) => !open)}
             type="button"
           >
-            {forecaster?.avatarUrl ? (
-              <img alt="" src={forecaster.avatarUrl} />
-            ) : (
-              <Icon name="user" />
-            )}
+            <Icon name="user" />
             {name} {code}
           </button>
           <span className="page-stat">
@@ -194,16 +136,13 @@ export function MyPredictionsPage() {
 
         {editing && forecaster && (
           <IdentityDialog
-            avatar={forecaster.avatarUrl}
             error={error}
             name={name}
             onClose={() => {
               setError('');
               setEditing(false);
             }}
-            onSave={(nextName, photo, removePhoto) =>
-              save.mutate({ name: nextName, photo, removePhoto })
-            }
+            onSave={(nextName) => save.mutate(nextName)}
             saving={save.isPending}
           />
         )}

@@ -1,9 +1,6 @@
 # 2026 地方選舉預測 — 後端設計
 
-這份文件描述前端已經做完之後，後端要長成什麼樣子。它取代不了
-`2026-election-postgres-prisma.md`，而是接在它後面：那份談的是「固定選舉資料留在
-Git、動態資料進 PostgreSQL」的分界，這份把分界落到具體的 schema、Redis 用法、
-身份辨識與上傳流程。
+這份文件記錄目前的後端資料邊界、schema、Redis 用法與身份辨識。
 
 前提條件有三個，會反覆出現在下面的設計裡：
 
@@ -116,8 +113,6 @@ Git、動態資料進 PostgreSQL」的分界，這份把分界落到具體的 sc
 model Forecaster {
   id              String    @id @default(cuid())
   displayName     String?   @db.VarChar(24)
-  avatarKey       String?   // 物件儲存的 key，不存二進位內容
-  avatarBlockedAt DateTime? // 頭像被下架的時間
   humanVerifiedAt DateTime? // 最近一次通過 Turnstile
   blockedAt       DateTime?
   createdAt       DateTime  @default(now())
@@ -243,12 +238,8 @@ model PredictionRevision {
 
 ### 名單公布前存什麼
 
-前端現在對每一種選舉都是候選人模式（`usesPreAnnouncementCandidateTargets`），送出的
-`targetId` 是 `getMockCandidates()` 產生的佔位人選，例如 `TPE-EXECUTIVE-1-CANDIDATE-1`。
-
-決定是**照原樣存下來，另外記黨籍**：`targetType=CANDIDATE`、`targetId` 是佔位 id、
-`partyId` 由伺服器 import 同一支純函式自己算。這樣主鍵不用改（不同佔位人是不同 id），
-前端顯示不用改，名單公布時靠 `partyId` 對回真候選人，對不到就 `INVALIDATED`。
+每種選舉都使用候選人模式。`prisma/seed.ts` 先把 `getMockCandidates()` 產生的佔位人選
+寫入 Candidate，API 與正式候選人走同一條資料路徑。正式名單在上線前直接替換這些資料。
 
 另一個選項是換算成政黨再存，但複數席次會押到同一個政黨兩次，`PredictionPick` 的主鍵
 放不下，而且 `/mine` 標不回使用者選的那一列。
@@ -258,9 +249,6 @@ model PredictionRevision {
 
 - `PARTY` — `targetId` 必須是已知政黨。
 - `CANDIDATE` — 候選人必須存在，而且屬於這個選區。
-
-候選人名單公布後，某政黨在該選區沒有推人的舊預測標 `INVALIDATED`
-（`PARTY_HAS_NO_CANDIDATE`），不刪除。這是稽核資料。
 
 ### 寫入流程
 
@@ -368,22 +356,9 @@ PostgreSQL 就好。
 
 ---
 
-## 六、圖片上傳
+## 六、候選人照片
 
-使用者頭像不進 PostgreSQL，走物件儲存（R2 / S3 / MinIO 皆可）：
-
-1. `POST /api/me/avatar/upload-url` — 驗證 MIME 與大小上限（5 MB），回傳 presigned
-   PUT，key 落在 `staging/{forecasterId}/{uuid}`。
-2. 前端直接 PUT 到物件儲存。
-3. `POST /api/me/avatar/commit` — 伺服器用 sharp 重新編碼成 256×256 webp，順便清掉
-   EXIF 與可能夾帶的酬載，寫到 `avatars/{forecasterId}.webp`，刪掉 staging 物件，
-   更新 `Forecaster.avatarKey`。
-
-重新編碼不是可選項：直接把使用者上傳的檔案原樣公開，等於把任意二進位內容掛在
-自己的網域下。
-
-候選人照片仍由 Git 管理（`public/avatars/`，檔名規則見該目錄的 README）。等中選會
-公布正式名單後再考慮搬進 `Candidate.photoKey`。
+候選人照片由 Git 管理（`public/avatars/`，檔名規則見該目錄的 README），逐張確認授權。
 
 ---
 
@@ -413,7 +388,6 @@ model Comment {
 
 enum ReportTargetType {
   COMMENT
-  AVATAR
 }
 
 enum ReportReason {
@@ -433,7 +407,7 @@ enum ReportStatus {
 model Report {
   id         String           @id @default(cuid())
   targetType ReportTargetType
-  targetId   String // commentId 或 forecasterId
+  targetId   String // commentId
   reporterId String
   reason     ReportReason
   note       String?          @db.VarChar(500)
@@ -447,7 +421,7 @@ model Report {
 }
 ```
 
-留言與使用者頭像都是使用者產生的內容，v1 至少要有檢舉入口與後台下架。後台端點用
+留言是使用者產生的內容，v1 至少要有檢舉入口與後台下架。後台端點用
 獨立的 admin token 保護，不共用一般身份。
 
 ---
@@ -455,10 +429,8 @@ model Report {
 ## 八、API
 
 ```
-GET  /api/session                        身份、暱稱、頭像、已預測數
+GET  /api/session                        身份、暱稱、已預測數
 PUT  /api/me                             改暱稱
-POST /api/me/avatar/upload-url
-POST /api/me/avatar/commit
 
 GET  /api/map/national                   22 縣市摘要
 GET  /api/map/:jurisdictionId?level=     鄉鎮市區／村里層
@@ -472,6 +444,7 @@ GET  /api/contests/:id/comments
 POST /api/contests/:id/comments
 POST /api/reports
 
+GET  /api/admin/reports                  admin token
 POST /api/admin/comments/:id/hide        admin token
 POST /api/admin/forecasters/:id/block    admin token
 ```
@@ -488,14 +461,12 @@ POST /api/admin/forecasters/:id/block    admin token
 3. ✅ **身份層**：cookie 發放、指紋 HMAC 回收、Turnstile、Redis 速率限制。
 4. ✅ **預測寫入**：單一 transaction 的 upsert ＋ tally ＋ summary ＋ revision。
 5. ✅ **讀取 API 與快照 cron**。
-6. ✅ **頭像上傳**：presigned PUT ＋ sharp 重編碼。
-7. ✅ **留言、檢舉、後台**。
-8. ✅ **趨勢每日 cron**。
-9. ✅ **前端接線**：地圖、抽屜、`/contest`、`/regions`、`/region`、`/mine` 全部改讀
+6. ✅ **留言、檢舉、後台**。
+7. ✅ **趨勢每日 cron**。
+8. ✅ **前端接線**：地圖、抽屜、`/contest`、`/regions`、`/region`、`/mine` 全部改讀
    API。前端已經不再自己算任何預測數字——`getResultRows`、`getForecastInputMode`
    與原型的階段切換器都移除了。
-10. ⬜ **候選人匯入**（等中選會 2026-11 公告）：做法見
-    `2026-candidate-import.md`。
+9. 🟡 **候選人資料**：佔位名單已由 seed 寫入 DB；正式名單收到後替換，上線前完成。
 
 沒有人預測的選區在地圖上是灰的。用示意數字上色會讓畫面出現「看起來像預測、其實
 沒人送出過」的顏色。
@@ -508,6 +479,5 @@ POST /api/admin/forecasters/:id/block    admin token
   市長、代表與村里長的公告，取得後把 `seatsSource` 從 `PLACEHOLDER` 換成
   `OFFICIAL`。在那之前這兩種選舉的席次是估的。
 - **候選人名單**。中選會預定 2026-11 公告，在那之前前端與伺服器都用
-  `getMockCandidates()` 產生的佔位名稱（「國民黨候選人 1」）。名單進來後的匯入與
-  遷移步驟寫在 `2026-candidate-import.md`。
-- **代表席次**。取得那份公告後把清冊的 `seatsSource` 換成 `OFFICIAL`。
+  `getMockCandidates()` 產生並寫入 DB 的佔位名稱（「國民黨候選人 1」）。正式名單
+  收到後直接替換 Candidate，不做後台匯入或舊預測遷移。

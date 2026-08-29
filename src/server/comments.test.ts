@@ -197,19 +197,6 @@ describe('reports and takedown', () => {
     expect(response.status).toBe(401);
   });
 
-  it('blocks an avatar without touching the identity', async () => {
-    const visitor = await newVisitor();
-    const response = await app.request(`/api/admin/forecasters/${visitor.id}/avatar-block`, {
-      method: 'POST',
-      headers: admin,
-    });
-    expect(response.status).toBe(200);
-
-    const stored = await prisma.forecaster.findUnique({ where: { id: visitor.id } });
-    expect(stored?.avatarBlockedAt).not.toBeNull();
-    expect(stored?.blockedAt).toBeNull();
-  });
-
   it('stops a blocked identity from commenting', async () => {
     const visitor = await newVisitor();
     await app.request(`/api/admin/forecasters/${visitor.id}/block`, {

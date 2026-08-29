@@ -1,6 +1,8 @@
 import { getCouncilDistricts } from './council-districts';
+import { getMockCandidates, getParty, parties, type PartyId } from '../shared/candidates';
 
-export type PartyId = 'KMT' | 'DPP' | 'TPP' | 'IND';
+export { getMockCandidates, getParty, parties };
+export type { PartyId };
 
 export type ElectionView = 'EXECUTIVE' | 'COUNCIL' | 'TOWNSHIP' | 'REPRESENTATIVE' | 'VILLAGE';
 
@@ -25,14 +27,6 @@ export type Contest = {
   percentage: number;
   forecasts: number;
 };
-
-export const parties = [
-  { id: 'KMT' as const, name: '中國國民黨', shortName: '國民黨', color: '#3f69b1' },
-  { id: 'DPP' as const, name: '民主進步黨', shortName: '民進黨', color: '#2c8a64' },
-  { id: 'TPP' as const, name: '台灣民眾黨', shortName: '民眾黨', color: '#28a5a5' },
-  // 無黨籍不是政黨，給中性灰，不跟三個政黨的識別色混在一起。
-  { id: 'IND' as const, name: '無黨籍／其他', shortName: '無黨籍', color: '#8b8f8a' },
-];
 
 export const electionViews: { id: ElectionView; label: string; shortLabel: string }[] = [
   { id: 'EXECUTIVE', label: '縣市長', shortLabel: '首長' },
@@ -243,10 +237,6 @@ export const jurisdictions: Jurisdiction[] = [
   },
 ];
 
-export function getParty(id: PartyId) {
-  return parties.find((party) => party.id === id) ?? parties[3];
-}
-
 export function getJurisdiction(id?: string) {
   return jurisdictions.find((jurisdiction) => jurisdiction.id === id) ?? jurisdictions[3];
 }
@@ -300,25 +290,4 @@ export function findContest(contestId?: string) {
     if (contest) return { contest, jurisdiction };
   }
   return { contest: getContests(jurisdiction, 'EXECUTIVE')[0], jurisdiction };
-}
-
-export function getMockCandidates(contest: Contest) {
-  const partyOrder: PartyId[] = ['KMT', 'DPP', 'TPP', 'IND'];
-  // 只有一席的選舉（縣市長、鄉鎮市長、村里長）每個政黨只會推一個人，名單就是
-  // 四個政黨各一位，也不必編號；多席次才會出現同黨多人。
-  const singleSeat = contest.seatCount === 1;
-  const candidateCount = singleSeat ? partyOrder.length : Math.max(4, contest.seatCount + 4);
-  const partyCounts: Record<PartyId, number> = { KMT: 0, DPP: 0, TPP: 0, IND: 0 };
-
-  return Array.from({ length: candidateCount }, (_, index) => {
-    const partyId = partyOrder[index % partyOrder.length];
-    const shortName = getParty(partyId).shortName;
-    partyCounts[partyId] += 1;
-    return {
-      id: `${contest.id}-CANDIDATE-${index + 1}`,
-      name: singleSeat ? `${shortName}候選人` : `${shortName}候選人 ${partyCounts[partyId]}`,
-      partyId,
-      number: index + 1,
-    };
-  });
 }

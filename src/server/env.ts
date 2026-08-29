@@ -13,6 +13,7 @@ function optional(name: string, fallback: string) {
 export const env = {
   isProduction: process.env.NODE_ENV === 'production',
   port: Number(optional('PORT', '8787')),
+  publicSiteUrl: optional('PUBLIC_SITE_URL', '').replace(/\/$/, ''),
   databaseUrl: required('DATABASE_URL'),
   redisUrl: optional('REDIS_URL', ''),
 
@@ -26,14 +27,17 @@ export const env = {
   turnstileSecretKey: optional('TURNSTILE_SECRET_KEY', ''),
 
   adminToken: optional('ADMIN_TOKEN', ''),
-
-  s3Endpoint: optional('S3_ENDPOINT', ''),
-  s3Region: optional('S3_REGION', 'us-east-1'),
-  s3Bucket: optional('S3_BUCKET', ''),
-  s3AccessKeyId: optional('S3_ACCESS_KEY_ID', ''),
-  s3SecretAccessKey: optional('S3_SECRET_ACCESS_KEY', ''),
-  s3PublicBaseUrl: optional('S3_PUBLIC_BASE_URL', ''),
+  /** 後台 cookie 的簽章金鑰。換掉等於把後台登出，這就是撤銷機制，不維護 session 表。 */
+  adminSessionSecret: optional('ADMIN_SESSION_SECRET', ''),
+  adminSessionHours: Number(optional('ADMIN_SESSION_HOURS', '12')),
+  /** 沒有 pooler 的直連字串，只給本機維護與資料庫 migration。留空就退回 databaseUrl。 */
+  directDatabaseUrl: optional('DIRECT_DATABASE_URL', ''),
 };
+
+/** Preview 與未綁定正式網域的環境都不允許收錄。 */
+export const seoIndexable =
+  Boolean(env.publicSiteUrl) &&
+  (process.env.VERCEL_ENV === 'production' || (!process.env.VERCEL_ENV && env.isProduction));
 
 /**
  * Turnstile 沒設定就整個關掉，而不是擋住所有寫入。開發環境不必為了送一筆預測
@@ -48,7 +52,9 @@ export function assertProductionEnv() {
   if (!env.redisUrl) missing.push('REDIS_URL');
   if (!env.turnstileSecretKey) missing.push('TURNSTILE_SECRET_KEY');
   if (!env.adminToken) missing.push('ADMIN_TOKEN');
-  if (!env.s3Bucket) missing.push('S3_BUCKET');
+  if (!env.adminSessionSecret) missing.push('ADMIN_SESSION_SECRET');
+  if (!env.publicSiteUrl && process.env.VERCEL_ENV === 'production')
+    missing.push('PUBLIC_SITE_URL');
   if (env.forecasterPepper === 'change-me') missing.push('FORECASTER_PEPPER（還是預設值）');
   if (missing.length > 0) throw new Error(`正式環境缺少設定：${missing.join('、')}`);
 }

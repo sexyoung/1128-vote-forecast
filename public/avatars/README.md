@@ -13,22 +13,22 @@
 
 **政黨英文簡稱**用 `src/client/mock-election.ts` 裡的 `PartyId`，只有這四個：
 
-| 代號 | 政黨 |
-|------|------|
-| `KMT` | 中國國民黨 |
-| `DPP` | 民主進步黨 |
-| `TPP` | 台灣民眾黨 |
+| 代號  | 政黨         |
+| ----- | ------------ |
+| `KMT` | 中國國民黨   |
+| `DPP` | 民主進步黨   |
+| `TPP` | 台灣民眾黨   |
 | `IND` | 無黨籍／其他 |
 
 **選區代號**是 `Contest['id']`，依選舉種類有三種長相：
 
-| 選舉 | 樣子 | 來源 |
-|------|------|------|
-| 縣市長 | `TPE-EXECUTIVE-1` | `getContests()` |
-| 議員 | `NTP-COUNCIL-2` | `council-districts.ts`，中選會公告 |
-| 鄉鎮市長 | `town-10002040-TOWNSHIP` | 圖資，`map-shapes.ts` |
-| 鄉鎮市民代表 | `town-10002040-REPRESENTATIVE` | 同上 |
-| 村里長 | `vill-10002040001-VILLAGE` | 同上 |
+| 選舉         | 樣子                           | 來源                               |
+| ------------ | ------------------------------ | ---------------------------------- |
+| 縣市長       | `TPE-EXECUTIVE-1`              | `getContests()`                    |
+| 議員         | `NTP-COUNCIL-2`                | `council-districts.ts`，中選會公告 |
+| 鄉鎮市長     | `town-10002040-TOWNSHIP`       | 圖資，`map-shapes.ts`              |
+| 鄉鎮市民代表 | `town-10002040-REPRESENTATIVE` | 同上                               |
+| 村里長       | `vill-10002040001-VILLAGE`     | 同上                               |
 
 例子：
 
