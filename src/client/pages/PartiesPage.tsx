@@ -53,25 +53,43 @@ function RegionGridSkeleton({ count }: { count: number }) {
   );
 }
 
-// 候選人卡片跟 JurisdictionPage 的 ContestCard 共用同一種卡面（照片＋標籤＋標題），
-// 所以沿用同一套 skeleton-card-cover 骨架形狀，不必自己另外設計一套。
-function CandidateGridSkeleton({ count }: { count: number }) {
+// 骨架直接沿用真實結構的 class（party-region-group／section-heading／
+// election-tabs／contest-card／card-cover），只把文字節點換成灰條。尺寸因此是同一
+// 套 CSS 算出來的，不必自己再維護一份「長得像」的形狀——之前用 skeleton-card-cover
+// 另外湊一套，結果卡片高度、照片大小、分頁列都跟真的對不上。
+//
+// 分頁導覽（party-pagination）刻意不放：它只有在 totalPages > 1 時才會出現，
+// 事先猜錯的話反而多晃一下。
+function CandidateRegionSkeleton({ count }: { count: number }) {
   return (
-    <>
-      {Array.from({ length: count }, (_, index) => (
-        <div className="contest-card party-candidate-card skeleton-card" key={index}>
-          <span className="skel-bar skel-bar-float" />
-          <div className="skeleton-card-cover">
-            <i />
-            <span>
-              <b />
-              <b />
-              <b />
-            </span>
+    <section className="party-region-group">
+      <div className="section-heading">
+        <span className="skel-bar skel-bar-heading" />
+        <span className="skel-bar skel-bar-heading-meta" />
+      </div>
+      {/* 有幾個分頁要等資料才知道，取四個：多數行政區是縣市長、議員、里長再加一個。 */}
+      <div className="election-tabs">
+        {Array.from({ length: 4 }, (_, index) => (
+          <span className="skel-bar skel-bar-tab" key={index} />
+        ))}
+      </div>
+      <div className="contest-grid">
+        {Array.from({ length: count }, (_, index) => (
+          <div className="contest-card party-candidate-card" key={index}>
+            <span className="skel-bar skel-bar-float" />
+            <div className="card-cover">
+              {/* 空的 <i> 就是 card-cover 那顆 104px 正方形照片框，尺寸不用自己算。 */}
+              <i />
+              <div>
+                <span className="skel-bar skel-bar-tag" />
+                <strong className="skel-bar skel-bar-title" />
+                <small className="skel-bar skel-bar-line" />
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
-    </>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -191,8 +209,7 @@ export function PartiesPage() {
           <SkeletonSwap
             pending={contests.isPending}
             resetKey={`${partyId}:${regionId}:${view}:${page}`}
-            skeleton={<CandidateGridSkeleton count={6} />}
-            skeletonClassName="contest-grid"
+            skeleton={<CandidateRegionSkeleton count={6} />}
             wrapperClassName="skel-grid-swap party-candidate-swap"
           >
             {contests.isPending ? null : selectedRegion && data?.items.length ? (

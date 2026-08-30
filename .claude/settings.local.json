@@ -4,7 +4,9 @@
       "WebFetch(domain:taiwan.md)",
       "WebSearch",
       "Bash(*)",
-      "Bash(timeout 200 npx vp check --fix src/client/pages/ElectionPrototypePage.tsx src/client/styles.css)"
+      "Bash(timeout 200 npx vp check --fix src/client/pages/ElectionPrototypePage.tsx src/client/styles.css)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:github.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

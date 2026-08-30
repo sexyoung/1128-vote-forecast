@@ -10,7 +10,10 @@ type SkeletonPhase = 'loading' | 'resetting' | 'revealed';
 // 往回播、很突兀；所以先無動畫地退回骨架（resetting，關掉 transition），
 // 下一個 frame 才進 loading、恢復 transition，讓新一輪的淡出正常播放。
 export function useSkeletonSwap(pending: boolean, resetKey: unknown = null) {
-  const [phase, setPhase] = useState<SkeletonPhase>('revealed');
+  // 初始相位直接看「現在有沒有資料」。這一頁的資料多半在 SSR 就 seed 進 query
+  // cache 了（見 src/server/html.ts），第一次 render 的 pending 就是 false——
+  // 那種情況一格骨架都不該出現。只有真的在等，才從 loading 開始。
+  const [phase, setPhase] = useState<SkeletonPhase>(pending ? 'loading' : 'revealed');
   const skeletonRef = useRef<HTMLDivElement>(null);
   const resetFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(false);
@@ -21,6 +24,11 @@ export function useSkeletonSwap(pending: boolean, resetKey: unknown = null) {
       mountedRef.current = true;
       return;
     }
+    // 換到已經讀過的資料時什麼都不做。TanStack Query 命中快取的那一輪 pending
+    // 直接就是 false，沒有任何東西要等；照樣跑重置的話，會把已經有資料的畫面
+    // 退回骨架再等滿一個 --pulse-dur 才揭露——使用者看到的是讀過的頁面莫名其妙
+    // 又閃一次骨架。骨架是給「還沒有資料」用的。
+    if (!pending) return;
     setPhase('resetting');
     if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
     resetFrameRef.current = requestAnimationFrame(() => {
@@ -29,6 +37,13 @@ export function useSkeletonSwap(pending: boolean, resetKey: unknown = null) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
+
+  // 這是整個機制的不變式：相位只有在「真的在等」的時候才離開 revealed。
+  // 少了這一條，任何把相位推去 loading 的路徑（resetKey 改變、StrictMode 在開發
+  // 模式下把 effect 跑第二次）都會讓已經有資料的畫面莫名其妙退回骨架。
+  useEffect(() => {
+    if (pending) setPhase((current) => (current === 'revealed' ? 'loading' : current));
+  }, [pending]);
 
   useEffect(() => {
     // 資料還沒到就不急著算揭露時間；等資料到了，骨架至少要脈動完一輪，

@@ -3952,6 +3952,23 @@ a:focus-visible {
 .skel-grid-swap > .t-skel-skeleton {
   pointer-events: none;
 }
+/* 骨架的列高一律照內容算，不要被容器撐開。
+   兩層疊在同一個 grid 格，所以那一格的高度是「內容層」決定的——資料一到，內容
+   變高，骨架層身為 grid item 會被 stretch 到一樣高；而骨架層自己也是 grid，
+   align-content 的初始值 normal 在格線容器裡等同 stretch，於是它把自動高度的
+   列一起撐開，卡片就跟著爆長。資料到了到淡出之間有整整一個 --pulse-dur，
+   這段期間看得一清二楚。 */
+.skel-grid-swap > .t-skel-skeleton {
+  align-content: start;
+}
+/* 揭露之後把骨架抽離排版。兩層都是 relative 疊在同一格時，容器高度會是
+   max(骨架, 內容)——骨架淡到 opacity 0 之後still佔著那段高度，骨架比內容高的
+   時候（張數是猜的，本來就不會剛好）底下就留一塊撐開的空白。改成 absolute 之後
+   它只是蓋在上面淡出，高度完全由內容決定。 */
+.skel-grid-swap.is-revealed > .t-skel-skeleton {
+  inset: 0;
+  position: absolute;
+}
 .skel-bar {
   background: #e4e1da;
   border-radius: 99px;
@@ -3986,6 +4003,29 @@ a:focus-visible {
   right: 18px;
   top: 18px;
   width: 56px;
+}
+/* 區段標題那一列：左邊是 22px 的縣市名，右邊是 13px 的「返回行政區 · N 位候選人」。
+   section-heading 本身是 flex + space-between，兩條長條直接照真的位置站好。 */
+.skel-bar-heading {
+  height: 22px;
+  width: 120px;
+}
+.skel-bar-heading-meta {
+  align-self: center;
+  height: 12px;
+  width: 150px;
+}
+/* 分頁列的按鈕是 padding 15px/21px 的 14px 文字，換算起來大約這個高度；
+   election-tabs 的底線是真的，留著才不會在骨架與內容之間跳一條線出來。 */
+.skel-bar-tab {
+  height: 14px;
+  margin: 15px 21px 16px;
+  width: 48px;
+}
+/* card-cover 的照片框本來就有底色，但那是內容用的淺色；在骨架層裡要跟其他
+   長條同一個灰，不然一顆特別亮的方塊會比文字更搶眼。 */
+.t-skel-skeleton .card-cover > i {
+  background: #e4e1da;
 }
 .skeleton-feature-card {
   align-items: flex-start;
