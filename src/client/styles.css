@@ -1281,6 +1281,9 @@ a:focus-visible {
   height: 10px;
   width: 86%;
 }
+.skeleton-region-card-heading b:nth-child(3) {
+  width: 72%;
+}
 .skeleton-card-cover {
   display: grid;
   gap: 12px;
@@ -1347,10 +1350,6 @@ a:focus-visible {
 /* 卡片桌機維持四列等高；第五名之後留在 DOM，手機再依當選狀態展開。 */
 .contest-card .candidate-list li:nth-child(n + 5) {
   display: none;
-}
-/* /mine：自己押的那一位就算排在第五名之後也要看得到。 */
-.contest-card .candidate-list li.mine {
-  display: grid;
 }
 /* transitions.dev texts reveal。卡片外層負責進場，不覆蓋卡片本身的 hover transition。 */
 .t-stagger-line {
@@ -1526,6 +1525,10 @@ a:focus-visible {
   line-height: 1.5;
   margin: 4px 0 0;
   white-space: normal;
+}
+.contest-card > .mine-card-heading > small:last-child {
+  color: var(--ink);
+  font-weight: 650;
 }
 .card-cover > div {
   display: flex;

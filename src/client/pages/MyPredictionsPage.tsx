@@ -5,13 +5,7 @@ import { getMyPredictions, getSession, updateDisplayName } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { track } from '../analytics';
 import { SkeletonSwap } from './SkeletonSwap';
-import {
-  CandidateList,
-  CardCover,
-  Icon,
-  PageShell,
-  toCandidateRows,
-} from './ElectionPrototypeShared';
+import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
 
 const defaultForecasterName = '預測者';
 
@@ -20,22 +14,17 @@ export function predictionMeta(status: string, labels: string[], mineIsLeading: 
   return `我預測 ${labels.join('、')} · ${mineIsLeading ? '目前領先' : '目前落後'}`;
 }
 
-// 這一頁的卡片跟 /region 的選區卡是同一型（封面＋候選人列），所以骨架直接沿用
-// JurisdictionPage 那套 skeleton-card 形狀，不另外設計——尺寸本來就是為這種卡
-// 調的，包含 min-height: 350px。
+// 這一頁的卡片跟 /region 的選區卡是同一型（標題＋候選人列），骨架也沿用同一組。
 function MinePredictionsSkeleton({ count }: { count: number }) {
   return (
     <div className="contest-grid">
       {Array.from({ length: count }, (_, index) => (
         <div className="contest-card skeleton-card" key={index}>
           <span className="skel-bar skel-bar-float" />
-          <div className="skeleton-card-cover">
-            <i />
-            <span>
-              <b />
-              <b />
-              <b />
-            </span>
+          <div className="skeleton-region-card-heading mine-card-heading">
+            <b />
+            <b />
+            <b />
           </div>
           {Array.from({ length: 4 }, (_, row) => (
             <div className="skeleton-candidate" key={row}>
@@ -206,8 +195,7 @@ export function MyPredictionsPage() {
           <span>{mine.isPending ? '載入中…' : `共 ${items.length} 筆`}</span>
         </div>
 
-        {/* 跟 /regions、/region 同一組卡片：桌機多欄、手機自然收成單欄條列。
-            封面寫的是自己押了誰而不是領先者——這一頁的主角是我的預測。 */}
+        {/* 跟 /regions、/region 同一組卡片：桌機多欄、手機自然收成單欄條列。 */}
         <SkeletonSwap pending={mine.isPending} skeleton={<MinePredictionsSkeleton count={4} />}>
           {mine.isPending ? null : items.length === 0 ? (
             <p className="view-note">
@@ -223,15 +211,17 @@ export function MyPredictionsPage() {
                     <span className="card-link">
                       {tally.totalPredictions.toLocaleString()} 份 <Icon name="chevron" />
                     </span>
-                    <CardCover
-                      kicker={contest.area}
-                      meta={predictionMeta(
-                        status,
-                        picks.map(({ label }) => label),
-                        mineIsLeading,
-                      )}
-                      title={contest.name}
-                    />
+                    <header className="region-card-heading mine-card-heading">
+                      <strong>{contest.name}</strong>
+                      <small>{contest.area}</small>
+                      <small>
+                        {predictionMeta(
+                          status,
+                          picks.map(({ label }) => label),
+                          mineIsLeading,
+                        )}
+                      </small>
+                    </header>
                     <CandidateList
                       forecasts={tally.totalPicks}
                       highlightIds={picks.map(({ targetId }) => targetId)}
