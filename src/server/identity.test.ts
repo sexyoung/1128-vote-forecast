@@ -49,6 +49,7 @@ describe('forecaster identity', () => {
 
     expect(response.status).toBe(200);
     expect(body.forecaster.id).toMatch(/^c/);
+    expect(body.forecaster.displayName).toMatch(/^[\u3400-\u9fff]{2,3}$/);
     expect(body.forecaster.predictionCount).toBe(0);
     expect(cookie).not.toBe('');
     // cookie 只能給伺服器看，前端不該讀得到它。

@@ -4,6 +4,7 @@ import { getCookie, setCookie } from 'hono/cookie';
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { cacheDelete, cacheGet, cacheSet, hitCounter } from './redis.js';
+import { randomChineseName } from '../shared/display-name.js';
 
 export const forecasterCookieName = 'vf_fid';
 
@@ -129,9 +130,12 @@ export async function resolveForecaster(c: Context): Promise<ResolvedForecaster>
   if (fingerprintHash) await touchSignal(forecaster.id, 'FINGERPRINT', fingerprintHash);
   if (ipHash) await touchSignal(forecaster.id, 'IP', ipHash);
 
-  await prisma.forecaster.update({
+  forecaster = await prisma.forecaster.update({
     where: { id: forecaster.id },
-    data: { lastSeenAt: new Date() },
+    data: {
+      lastSeenAt: new Date(),
+      ...(!forecaster.displayName ? { displayName: randomChineseName() } : {}),
+    },
   });
 
   return forecaster;

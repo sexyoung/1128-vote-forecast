@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { predictionMeta } from './MyPredictionsPage';
+import { diceDots, predictionMeta } from './MyPredictionsPage';
+
+describe('diceDots', () => {
+  it('draws faces one through six with a centered single dot', () => {
+    expect([1, 2, 3, 4, 5, 6].map((face) => diceDots(face).length)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(diceDots(1)).toEqual([[12, 12]]);
+  });
+});
 
 describe('predictionMeta', () => {
   it('asks for a new prediction after the candidate list changes', () => {

@@ -54,6 +54,9 @@ body {
 body.sheet-open {
   overflow: hidden;
 }
+body.sheet-open .flowing-background > main {
+  z-index: 101;
+}
 button,
 input {
   font: inherit;
@@ -87,11 +90,142 @@ a {
 }
 
 .app-shell {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+.app-shell > main {
+  width: 100%;
+}
+.site-footer {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px 22px;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: 22px max(24px, calc((100vw - 1360px) / 2));
+}
+.site-footer a {
+  color: var(--green);
+  font-weight: 700;
+}
+.flowing-background {
+  background: #f1eee7;
+  isolation: isolate;
+  position: relative;
+}
+.flowing-background::before,
+.flowing-background::after {
+  content: '';
+  inset: -20%;
+  pointer-events: none;
+  position: fixed;
+  will-change: transform;
+  z-index: 0;
+}
+.flowing-background::before {
+  animation: organic-flow-a 15s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse 28% 24% at 18% 24%, rgb(223 97 73 / 14%), transparent 68%),
+    radial-gradient(ellipse 31% 22% at 79% 18%, rgb(40 200 200 / 20%), transparent 70%),
+    radial-gradient(ellipse 27% 30% at 73% 80%, rgb(27 148 49 / 15%), transparent 68%),
+    radial-gradient(ellipse 30% 23% at 26% 76%, rgb(251 190 1 / 12%), transparent 70%),
+    radial-gradient(ellipse 24% 30% at 52% 46%, rgb(128 128 200 / 10%), transparent 72%);
+  filter: url('#flowing-water') blur(42px);
+  opacity: 0.66;
+}
+.flowing-background::after {
+  animation: organic-flow-b 19s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse 32% 18% at 22% 36%, rgb(255 255 255 / 62%), transparent 72%),
+    radial-gradient(ellipse 25% 32% at 68% 22%, rgb(176 225 218 / 16%), transparent 70%),
+    radial-gradient(ellipse 35% 20% at 76% 72%, rgb(255 255 255 / 48%), transparent 72%),
+    radial-gradient(ellipse 24% 30% at 34% 78%, rgb(236 184 169 / 7%), transparent 68%);
+  filter: url('#flowing-water') blur(30px);
+  opacity: 0.58;
+}
+.flowing-background > * {
+  position: relative;
+  z-index: 1;
+}
+.flowing-background :is(
+    .contest-card,
+    .feature-card,
+    .candidate-ranking-list > li > a,
+    .summary-card,
+    .results-panel,
+    .trend-panel,
+    .comments-panel,
+    .contest-aside
+  ) {
+  background: rgb(255 253 248 / 50%);
+  border-color: rgb(255 255 255 / 58%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 48%),
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 14px 36px rgb(31 43 39 / 7%);
+  -webkit-backdrop-filter: blur(24px) saturate(1.12);
+  backdrop-filter: blur(24px) saturate(1.12);
+}
+.flowing-background :is(
+    .contest-card,
+    .feature-card,
+    .candidate-ranking-list > li > a
+  ) {
+  transition:
+    background-color 0.28s ease,
+    border-color 0.18s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s ease;
+}
+.flowing-background :is(
+    .contest-card,
+    .feature-card,
+    .candidate-ranking-list > li > a
+  ):hover {
+  background: var(--card);
+  border-color: rgb(255 255 255 / 90%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 55%),
+    inset 0 1px 0 #fff,
+    0 22px 52px rgb(31 43 39 / 24%);
+}
+@keyframes organic-flow-a {
+  0%,
+  100% {
+    transform: translate3d(-10%, -7%, 0) rotate(-8deg) scale(0.96);
+  }
+  33% {
+    transform: translate3d(8%, -4%, 0) rotate(4deg) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-3%, 10%, 0) rotate(10deg) scale(1.01);
+  }
+}
+@keyframes organic-flow-b {
+  0%,
+  100% {
+    transform: translate3d(12%, -10%, 0) rotate(7deg) scale(1.04);
+  }
+  42% {
+    transform: translate3d(-12%, 3%, 0) rotate(-6deg) scale(0.96);
+  }
+  72% {
+    transform: translate3d(5%, 11%, 0) rotate(2deg) scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flowing-background::before,
+  .flowing-background::after {
+    animation: none;
+  }
 }
 .app-header {
   align-items: center;
-  background: rgb(255 253 248 / 90%);
+  background: rgb(255 253 248 / 48%);
   border-bottom: 1px solid rgb(31 43 39 / 9%);
   display: grid;
   gap: 32px;
@@ -101,7 +235,8 @@ a {
   position: sticky;
   top: 0;
   z-index: 40;
-  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  backdrop-filter: blur(12px) saturate(1.08);
 }
 .brand {
   align-items: center;
@@ -234,10 +369,11 @@ a {
    免得深色的縣市底下讀不出來。 */
 .app-header-overlay .header-search,
 .app-header-overlay .header-nav {
-  background: rgb(255 253 248 / 94%);
+  background: rgb(255 253 248 / 48%);
   border: 1px solid rgb(31 43 39 / 11%);
   box-shadow: 0 9px 24px rgb(31 43 39 / 9%);
-  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  backdrop-filter: blur(12px) saturate(1.08);
 }
 /* 直接接手地圖原本那三顆圓鈕的位置（right 22 / top 20），而不是待在頁首格線的
    第三欄裡垂直置中——那樣在寬螢幕上會離角落有一段距離。 */
@@ -501,19 +637,6 @@ a:focus-visible {
 .election-tabs button.active > span {
   background: color-mix(in srgb, var(--accent) 18%, #fff);
   color: var(--accent-dark);
-}
-.election-tabs .indigenous-tab {
-  border: 1px solid #d3d4ce;
-  border-radius: 999px;
-  margin-left: auto;
-  padding: 8px 13px;
-}
-.indigenous-tab span {
-  background: #e5e3dc;
-  border-radius: 999px;
-  font-size: 9px;
-  margin-left: 4px;
-  padding: 3px 6px;
 }
 .party-legend {
   align-items: center;
@@ -843,18 +966,12 @@ a:focus-visible {
   margin: 0;
 }
 .page-tag {
-  background: linear-gradient(#fff, #ececea);
-  border: 1px solid #cfcfca;
-  border-bottom-color: #bcbcb6;
-  border-radius: 999px;
-  box-shadow:
-    0 1px 2px rgb(31 43 39 / 12%),
-    inset 0 1px 0 #fff;
-  color: #4a534f;
+  background: #e5e5e2;
+  border-radius: 6px;
+  color: var(--muted);
   font-size: 13px;
   font-weight: 700;
   padding: 5px 11px;
-  text-shadow: 0 1px 0 #fff;
 }
 .page-stat {
   color: var(--muted);
@@ -978,10 +1095,25 @@ a:focus-visible {
   margin: 4px 0 0;
 }
 .party-grid .feature-card {
-  border-left: 6px solid var(--party-color);
   margin: 0;
   padding-right: 50px;
   position: relative;
+}
+.party-grid .feature-card h2 {
+  display: inline-block;
+  position: relative;
+}
+.party-grid .feature-card h2::after {
+  border-radius: 50%;
+  border-top: 3px solid var(--party-color);
+  bottom: -5px;
+  content: '';
+  height: 6px;
+  left: -3px;
+  opacity: 0.82;
+  position: absolute;
+  right: -7px;
+  transform: rotate(-1.5deg) skewX(-12deg);
 }
 .party-grid .feature-card > .icon {
   color: var(--party-color);
@@ -1716,8 +1848,11 @@ a:focus-visible {
   transform: translateY(-6px);
 }
 .candidate-list li > em > s {
+  animation: t-progress-fill 500ms var(--ease-smooth-out) both;
   display: block;
   height: 100%;
+  transform-origin: left center;
+  transition: width 500ms var(--ease-smooth-out);
 }
 /* /mine：自己押的那一列。只加重量與一圈光暈，不動格線——封面那行已經寫了
    「我預測 ⋯」，這裡只要讓眼睛在清單裡找得到它。 */
@@ -2202,13 +2337,15 @@ a:focus-visible {
 }
 /* 目前佔比沿著選項底部顯示，直接使用政黨色，不混白或套透明度。 */
 .forecast-options label::before {
+  animation: t-progress-fill 500ms var(--ease-smooth-out) both;
   background: var(--share-color, transparent);
   content: '';
   height: 5px;
   inset: auto auto 0 0;
   pointer-events: none;
   position: absolute;
-  transition: width 0.2s ease;
+  transform-origin: left center;
+  transition: width 500ms var(--ease-smooth-out);
   width: var(--share, 0%);
   z-index: -1;
 }
@@ -2415,6 +2552,29 @@ a:focus-visible {
   padding: 0 10px;
   width: 100%;
 }
+.identity-field .identity-random {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: none;
+  height: 40px;
+  width: 40px;
+}
+.identity-field .identity-random .icon {
+  width: 27px;
+}
+.identity-field .identity-random.rolling .icon {
+  animation: dice-shake 0.12s ease-in-out infinite alternate;
+}
+@keyframes dice-shake {
+  from {
+    transform: translateX(-3px) rotate(-8deg);
+  }
+  to {
+    transform: translateX(3px) rotate(8deg);
+  }
+}
 /* 編號改不了，所以做成輸入框內的固定尾綴，而不是另一個看起來可以填的欄位。 */
 .identity-field > span {
   color: var(--muted);
@@ -2470,42 +2630,6 @@ a:focus-visible {
   right: 22px;
   top: 82px;
   z-index: 12;
-}
-/* 桌機掛了浮動頁首之後地圖上的品牌是重複的。搜尋／選區／我的那組圓鈕不在這裡
-   處理——它們在桌機是整組不 render 的，見 ElectionHomePage 的 useCompactChrome。
-   頁首不帶品牌，左欄是空的，所以「目前顯示哪一層」與「回上一層」維持原本的
-   位置就好，不必往下讓。 */
-@media (min-width: 1001px) {
-  .map-app .map-brand {
-    display: none;
-  }
-}
-.map-brand {
-  align-items: center;
-  background: var(--green);
-  border-radius: 14px;
-  box-shadow: 0 10px 26px rgb(23 63 51 / 19%);
-  color: #fff;
-  display: flex;
-  gap: 8px;
-  height: 46px;
-  padding: 0 15px 0 10px;
-}
-.map-brand > span {
-  align-items: center;
-  background: rgb(255 255 255 / 12%);
-  border-radius: 9px;
-  display: flex;
-  height: 29px;
-  justify-content: center;
-  width: 29px;
-}
-.map-brand .icon {
-  width: 17px;
-}
-.map-brand strong {
-  font-size: 15px;
-  letter-spacing: 0.08em;
 }
 .map-context {
   align-items: center;
@@ -3190,6 +3314,11 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-bottom: 92px;
+  }
   .social-share > span,
   .social-share button > span {
     display: none;
@@ -3335,9 +3464,6 @@ a:focus-visible {
     font-size: 12px;
     padding: 13px 15px 11px;
   }
-  .election-tabs .indigenous-tab {
-    margin-left: 5px;
-  }
   .party-legend {
     gap: 11px;
     justify-content: flex-start;
@@ -3387,7 +3513,7 @@ a:focus-visible {
     min-height: 54px;
   }
   .mobile-nav {
-    background: rgb(255 253 248 / 95%);
+    background: rgb(255 253 248 / 52%);
     border-top: 1px solid #d9d7cf;
     bottom: 0;
     display: grid;
@@ -3398,7 +3524,8 @@ a:focus-visible {
     position: fixed;
     right: 0;
     z-index: 80;
-    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+    backdrop-filter: blur(12px) saturate(1.08);
   }
   .mobile-nav a {
     align-items: center;
@@ -3529,19 +3656,6 @@ a:focus-visible {
     left: 11px;
     max-width: calc(100vw - 199px);
     top: 10px;
-  }
-  .map-brand {
-    border-radius: 12px;
-    height: 42px;
-    padding: 0 10px;
-  }
-  .map-brand > span {
-    background: transparent;
-    height: 24px;
-    width: 24px;
-  }
-  .map-brand strong {
-    display: none;
   }
   .map-context {
     border-radius: 12px;
@@ -3862,6 +3976,21 @@ a:focus-visible {
   text-align: left;
   white-space: nowrap;
 }
+.admin-pagination {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 24px;
+}
+.admin-pagination a {
+  color: var(--accent);
+  font-weight: 750;
+}
+.admin-pagination span {
+  color: var(--muted);
+  font-size: 13px;
+}
 .admin-replacement-list {
   margin: 24px 0;
 }
@@ -4144,6 +4273,8 @@ a:focus-visible {
 .t-skel-skeleton .candidate-ranking-avatar {
   background: #e4e1da;
   border-color: #e4e1da;
+  height: 56px;
+  width: 56px;
 }
 /* 排行榜一列裡的五個欄位。高度照真的字級抓（名次 22px、姓名 19px、其餘 12px），
    間距用 margin 而不是 gap——person 與 score 兩欄是 flex column，真的那邊也是

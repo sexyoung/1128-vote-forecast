@@ -6,10 +6,12 @@ import { CandidateImportPage } from './CandidateImportPage';
 import { LoginPage } from './LoginPage';
 import { ModerationPage } from './ModerationPage';
 import { OverviewPage } from './OverviewPage';
+import { ForecastersPage } from './ForecastersPage';
 
 const navItems = [
   { to: '/admin', label: '總覽', end: true },
   { to: '/admin/candidates', label: '候選人' },
+  { to: '/admin/forecasters', label: '預測使用者' },
   { to: '/admin/moderation', label: '檢舉／留言' },
   { to: '/admin/announcement', label: '公告' },
 ];
@@ -95,6 +97,7 @@ export default function AdminApp() {
           <Route element={<OverviewPage />} index />
           <Route element={<LoginPage />} path="login" />
           <Route element={<CandidateImportPage />} path="candidates" />
+          <Route element={<ForecastersPage />} path="forecasters" />
           <Route element={<ModerationPage />} path="moderation" />
           <Route element={<AnnouncementPage />} path="announcement" />
           <Route element={<Navigate replace to="/admin" />} path="*" />

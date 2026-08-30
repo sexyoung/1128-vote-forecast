@@ -312,17 +312,6 @@ function mapLabel(name: string, cell: MapCell | undefined) {
   return `${name}，${getParty(cell.party as PartyId).shortName} ${cell.percent}%`;
 }
 
-function MapBrand() {
-  return (
-    <Link className="map-brand" to="/">
-      <span>
-        <Icon name="spark" />
-      </span>
-      <strong>九合一選舉預測</strong>
-    </Link>
-  );
-}
-
 // 模擬資料的預測份數落在 80–799（見 getShapeResult），門檻設在這個區間的低段，
 // 讓「樣本太少」這個狀態在原型裡真的走得到。正式版應該改成依選區規模決定。
 const lowSampleThreshold = 150;
@@ -1267,7 +1256,6 @@ export function ElectionHomePage() {
         <section className="map-stage" ref={mapStageRef}>
           <SocialShare className="map-share" />
           <div className="map-floating-top">
-            <MapBrand />
             <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>
               <Icon name="map" />
               <span>{selectedJurisdiction ? `${selectedJurisdiction.name} ›` : '全臺 ›'}</span>

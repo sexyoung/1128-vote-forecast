@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyPredictions, getSession, updateDisplayName } from '../api';
 import { useDocumentTitle } from '../use-document-title';
@@ -7,7 +7,31 @@ import { track } from '../analytics';
 import { SkeletonSwap } from './SkeletonSwap';
 import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
 
-const defaultForecasterName = '預測者';
+const anonymousFallback = '預測者';
+
+const diceDotPositions = {
+  1: [[12, 12]],
+  2: [[9, 9], [15, 15]],
+  3: [[9, 9], [12, 12], [15, 15]],
+  4: [[9, 9], [15, 9], [9, 15], [15, 15]],
+  5: [[9, 9], [15, 9], [12, 12], [9, 15], [15, 15]],
+  6: [[9, 8], [9, 12], [9, 16], [15, 8], [15, 12], [15, 16]],
+} as const;
+
+export function diceDots(face: number) {
+  return diceDotPositions[face as keyof typeof diceDotPositions] ?? diceDotPositions[1];
+}
+
+function DiceIcon({ face }: { face: number }) {
+  return (
+    <svg aria-hidden="true" className="icon" fill="none" viewBox="0 0 24 24">
+      <rect height="16" rx="3" stroke="currentColor" strokeWidth="1.8" width="16" x="4" y="4" />
+      {diceDots(face).map(([cx, cy]) => (
+        <circle cx={cx} cy={cy} fill={face === 1 ? '#e4141e' : 'currentColor'} key={`${cx}-${cy}`} r="1.25" />
+      ))}
+    </svg>
+  );
+}
 
 export function predictionMeta(status: string, labels: string[], mineIsLeading: boolean) {
   if (status === 'INVALIDATED') return '候選人名單已更新，請重新預測';
@@ -60,6 +84,9 @@ function IdentityDialog({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(name);
+  const [diceFace, setDiceFace] = useState(2);
+  const [rolling, setRolling] = useState(false);
+  const diceInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const trimmed = draft.trim();
 
   // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
@@ -72,8 +99,35 @@ function IdentityDialog({
     return () => {
       document.removeEventListener('keydown', closeOnEscape);
       document.body.classList.remove('sheet-open');
+      if (diceInterval.current) clearInterval(diceInterval.current);
     };
   }, [onClose]);
+
+  function rollName() {
+    const nextName = import('../../shared/display-name').then(({ randomChineseName }) =>
+      randomChineseName(),
+    );
+    setRolling(true);
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDiceFace(Math.floor(Math.random() * 6) + 1);
+      void nextName.then(setDraft).finally(() => setRolling(false));
+      return;
+    }
+
+    let step = 0;
+    setDiceFace(1);
+    diceInterval.current = setInterval(() => {
+      step += 1;
+      setDiceFace((step % 6) + 1);
+      if (step === 12) {
+        clearInterval(diceInterval.current!);
+        diceInterval.current = null;
+        setDiceFace(Math.floor(Math.random() * 6) + 1);
+        void nextName.then(setDraft).finally(() => setRolling(false));
+      }
+    }, 55);
+  }
 
   return (
     <div className="sheet-backdrop centered" onMouseDown={onClose} role="presentation">
@@ -97,14 +151,24 @@ function IdentityDialog({
             autoFocus
             maxLength={12}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder={defaultForecasterName}
+            placeholder="輸入顯示名稱"
             value={draft}
           />
+          <button
+            aria-label={rolling ? '正在隨機產生中文名字' : '隨機產生中文名字'}
+            className={`icon-button identity-random ${rolling ? 'rolling' : ''}`}
+            disabled={saving || rolling}
+            onClick={rollName}
+            title="換一個名字"
+            type="button"
+          >
+            <DiceIcon face={diceFace} />
+          </button>
         </div>
         {error && <p className="identity-error">{error}</p>}
         <button
           className="button button-dark button-wide"
-          disabled={trimmed === name || saving}
+          disabled={trimmed === name || saving || rolling}
           onClick={() => onSave(trimmed)}
           type="button"
         >
@@ -125,19 +189,18 @@ export function MyPredictionsPage() {
   const [error, setError] = useState('');
 
   const forecaster = session.data?.forecaster;
-  const name = forecaster?.displayName ?? defaultForecasterName;
+  const name = forecaster?.displayName ?? anonymousFallback;
   const code = forecaster ? forecasterCode(forecaster.id) : '';
   const items = mine.data?.predictions ?? [];
 
   const save = useMutation({
-    mutationFn: (next: string) => updateDisplayName(next === defaultForecasterName ? null : next),
+    mutationFn: (next: string) => updateDisplayName(next),
     onSuccess: async (_data, next) => {
       setError('');
       setEditing(false);
-      // 不送名字本身：只送長度，以及是不是改回預設值（=清掉自訂名稱）。
+      // 不送名字本身，只送長度。
       track('display_name_saved', {
         name_length: next.length,
-        cleared: next === defaultForecasterName,
       });
       await queryClient.invalidateQueries({ queryKey: ['session'] });
     },

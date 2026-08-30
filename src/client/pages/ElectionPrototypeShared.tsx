@@ -1,5 +1,5 @@
 import { type CSSProperties, type FormEvent, type ReactNode, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { PredictionTarget, TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
 import { track } from '../analytics';
@@ -231,10 +231,53 @@ function MobileNav() {
 }
 
 export function PageShell({ children, header }: { children: ReactNode; header?: ReactNode }) {
+  const { pathname } = useLocation();
+  const hasFlowingBackground =
+    pathname === '/regions' ||
+    pathname.startsWith('/region/') ||
+    pathname.startsWith('/contest/') ||
+    pathname === '/parties' ||
+    pathname.startsWith('/parties/') ||
+    pathname === '/rankings' ||
+    pathname.startsWith('/rankings/') ||
+    pathname === '/mine' ||
+    pathname.startsWith('/mine/');
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${hasFlowingBackground ? 'flowing-background' : ''}`.trim()}>
+      {hasFlowingBackground && (
+        <svg aria-hidden="true" className="flowing-filter-defs" height="0" width="0">
+          <filter id="flowing-water" height="150%" width="150%" x="-25%" y="-25%">
+            <feTurbulence
+              baseFrequency="0.006 0.014"
+              numOctaves="2"
+              result="noise"
+              seed="17"
+              type="fractalNoise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale="86"
+              xChannelSelector="R"
+              yChannelSelector="B"
+            />
+          </filter>
+        </svg>
+      )}
       {header ?? <AppHeader />}
       {children}
+      <footer className="site-footer">
+        <span>
+          主要作者：寫詩羊
+        </span>
+        <span>
+          若發現資料或內容有誤，請透過{' '}
+          <a href="https://www.threads.com/@ben198515" rel="noreferrer" target="_blank">
+            Threads @ben198515
+          </a>{' '}
+          聯絡
+        </span>
+      </footer>
       <MobileNav />
     </div>
   );
@@ -247,13 +290,11 @@ export function ElectionTabs({
   available = () => true,
   // 每個分頁底下有幾個選區。縣市長只有一場，回 null 就不顯示。
   count = () => null,
-  showIndigenous = true,
 }: {
   value: ElectionView;
   onChange: (value: ElectionView) => void;
   available?: (view: ElectionView) => boolean;
   count?: (view: ElectionView) => number | null;
-  showIndigenous?: boolean;
 }) {
   return (
     <div className="election-tabs" role="tablist" aria-label="選舉種類">
@@ -275,11 +316,6 @@ export function ElectionTabs({
             </button>
           );
         })}
-      {showIndigenous && (
-        <button className="indigenous-tab" type="button">
-          原住民選區 <span>獨立圖層</span>
-        </button>
-      )}
     </div>
   );
 }

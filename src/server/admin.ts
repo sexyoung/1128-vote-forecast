@@ -121,6 +121,42 @@ adminApp.get('/overview', async (c) => {
   });
 });
 
+// --- 預測使用者 -------------------------------------------------------------
+
+adminApp.get('/forecasters', async (c) => {
+  const requestedPage = Number.parseInt(c.req.query('page') ?? '1', 10);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = 50;
+  const [total, forecasters] = await Promise.all([
+    prisma.forecaster.count(),
+    prisma.forecaster.findMany({
+      orderBy: [{ lastSeenAt: 'desc' }, { id: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        displayName: true,
+        blockedAt: true,
+        createdAt: true,
+        lastSeenAt: true,
+        _count: { select: { predictions: true } },
+      },
+    }),
+  ]);
+
+  return c.json({
+    items: forecasters.map(({ _count, ...forecaster }) => ({
+      ...forecaster,
+      code: forecasterCode(forecaster.id),
+      predictionCount: _count.predictions,
+    })),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
+});
+
 // --- 候選人 CSV ------------------------------------------------------------
 
 adminApp.get('/candidates', async (c) => {

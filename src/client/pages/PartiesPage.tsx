@@ -241,7 +241,6 @@ export function PartiesPage() {
                       onChange={(next) =>
                         setSearchParams({ region: regionId, view: next.toLowerCase() })
                       }
-                      showIndigenous={false}
                       value={data.activeType as ElectionView}
                     />
                   )}

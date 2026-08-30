@@ -65,6 +65,29 @@ export type AdminOverview = {
 
 export const getAdminOverview = () => request<AdminOverview>('/api/admin/overview');
 
+// --- 預測使用者 ------------------------------------------------------------
+
+export type AdminForecaster = {
+  id: string;
+  code: string;
+  displayName: string | null;
+  predictionCount: number;
+  blockedAt: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+};
+
+export type AdminForecastersPage = {
+  items: AdminForecaster[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export const getAdminForecasters = (page: number) =>
+  request<AdminForecastersPage>(`/api/admin/forecasters?page=${page}`);
+
 // --- 候選人 CSV -------------------------------------------------------------
 
 export type CandidateImportSummary = {
