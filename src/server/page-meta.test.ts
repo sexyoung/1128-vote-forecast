@@ -40,6 +40,19 @@ describe('page metadata', () => {
     expect(renderHead(withImage)).toContain('content="https://vote.example/avatars/candidate.jpg"');
   });
 
+  it('keeps single-seat contest metadata stable when the leader changes', () => {
+    const meta = resolvePageMeta('/contest/TPE-EXECUTIVE-1', new URLSearchParams(), {
+      origin,
+      indexable: true,
+      ogImage: '/avatars/leader.webp',
+    });
+
+    expect(meta.title).toBe('臺北市長最多人預測的是.....｜九合一選舉預測');
+    expect(meta.description).toContain('看看目前最多人預測誰會勝出');
+    expect(meta.ogTitle).toBe('臺北市長最多人預測的是.....');
+    expect(meta.ogImage).toBe(`${origin}/avatars/leader.webp`);
+  });
+
   it('publishes party index and detail metadata', () => {
     expect(
       resolvePageMeta('/parties', new URLSearchParams(), { origin, indexable: true }),

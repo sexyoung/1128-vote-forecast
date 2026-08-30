@@ -435,7 +435,9 @@ export function ContestPage() {
       ? resolved.contest.name
       : `${resolved.jurisdiction.name}${resolved.contest.name}`
     : '選區';
-  useDocumentTitle(`${contestTitle}預測｜九合一選舉預測`);
+  useDocumentTitle(
+    `${resolved?.contest.seatCount === 1 ? `${contestTitle}最多人預測的是.....` : `${contestTitle}預測`}｜九合一選舉預測`,
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseContestTab(searchParams.get('tab'));
   // 分頁寫在網址上，但那是 replace 的，不算換頁；要知道有沒有人看趨勢與留言只能靠這裡。

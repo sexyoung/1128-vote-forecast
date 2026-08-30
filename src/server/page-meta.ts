@@ -52,7 +52,11 @@ function absolute(origin: string, path: string) {
 export function resolvePageMeta(
   pathname: string,
   search: URLSearchParams,
-  options: { origin: string; indexable?: boolean; ogImage?: string },
+  options: {
+    origin: string;
+    indexable?: boolean;
+    ogImage?: string;
+  },
 ): PageMeta {
   const origin = options.origin.replace(/\/$/, '');
   const canIndex = options.indexable ?? seoIndexable;
@@ -167,6 +171,7 @@ export function resolvePageMeta(
     const jurisdiction = contest ? findJurisdiction(contest.jurisdictionId) : null;
     if (!contest || !jurisdiction) return notFound();
     const name = qualify(contest, jurisdiction.name);
+    const singleSeatTitle = `${name}最多人預測的是.....`;
     const seats = seatsLabel(contest);
     const seatSentence =
       contest.seatsSource === 'PLACEHOLDER'
@@ -175,10 +180,16 @@ export function resolvePageMeta(
           ? '選出你認為最可能勝出的人'
           : `預測 ${contest.seats} 席最終歸屬`;
     return finish({
-      title: `${name}預測${seats ? `｜${seats}` : ''}｜${siteName}`,
-      description: `${name}（${summariseArea(contest.area)}）的群眾預測分布，${seatSentence}。匿名就能押，每個身份在本選區只計一份，可隨時修改。`,
-      ogTitle: `${name}預測`,
-      ogDescription: `${summariseArea(contest.area)}。看 2026 九合一選舉這一區的群眾預測分布。`,
+      title: `${contest.seats === 1 ? singleSeatTitle : `${name}預測${seats ? `｜${seats}` : ''}`}｜${siteName}`,
+      description:
+        contest.seats === 1
+          ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出，也留下你的選擇。這是群眾預測，不是民調。`
+          : `${name}（${summariseArea(contest.area)}）的群眾預測分布，${seatSentence}。匿名就能押，每個身份在本選區只計一份，可隨時修改。`,
+      ogTitle: contest.seats === 1 ? singleSeatTitle : `${name}預測`,
+      ogDescription:
+        contest.seats === 1
+          ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出。`
+          : `${summariseArea(contest.area)}。看 2026 九合一選舉這一區的群眾預測分布。`,
       canonical: absolute(origin, `/contest/${contest.id}`),
       robots: indexableTypes.has(contest.type) ? indexRobots : 'noindex,follow',
       status: 200,

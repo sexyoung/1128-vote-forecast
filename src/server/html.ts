@@ -7,11 +7,7 @@ import {
   getRegisteredContest,
   getRegisteredContests,
 } from './contest-registry.js';
-import {
-  describeTarget,
-  getCandidateAvatarUrl,
-  getPredictionTargets,
-} from './prediction-targets.js';
+import { describeTarget, getPredictionTargets } from './prediction-targets.js';
 import { readContestTallies } from './predictions.js';
 import { readContestSnapshot } from './snapshots.js';
 import { env, seoIndexable } from './env.js';
@@ -72,7 +68,10 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
   async function send(
     c: Context<E>,
     seeds: QuerySeed[],
-    options: { head?: string; ogImage?: string } = {},
+    options: {
+      head?: string;
+      ogImage?: string;
+    } = {},
   ) {
     const url = new URL(c.req.url);
     const origin =
@@ -177,13 +176,7 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
       // mine 綁在 cookie 上，SSR 不讀；0 讓瀏覽器掛上去後立刻重拉自己的資料。
       updatedAt: 0,
     };
-    const leader = tally.rows[0];
-    const uniqueLeader = leader && tally.rows[1]?.count !== leader.count ? leader : null;
-    const ogImage =
-      uniqueLeader?.targetType === 'CANDIDATE'
-        ? (getCandidateAvatarUrl(contest.id, uniqueLeader.targetId) ?? undefined)
-        : undefined;
-    return send(c, [seed], { ogImage });
+    return send(c, [seed]);
   });
 
   app.get('/parties', async (c) =>
