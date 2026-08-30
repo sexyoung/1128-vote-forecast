@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { buildSocialShareUrl, forecastAsideTitle } from './ContestPage';
+import { buildSocialShareUrl } from '../SocialShare';
+import { forecastAsideTitle } from './ContestPage';
 
 describe('contest forecast prompt', () => {
   it('distinguishes no prediction, a partial prediction, and a full prediction', () => {
@@ -18,7 +19,7 @@ describe('contest social sharing', () => {
     const line = new URL(buildSocialShareUrl('line', page, '分享文字', timestamp));
     const threads = new URL(buildSocialShareUrl('threads', page, '分享文字', timestamp));
     const twitter = new URL(buildSocialShareUrl('twitter', page, '分享文字', timestamp));
-    const sharedPage = `https://vote.example/contest/TPE-EXECUTIVE-1?t=${timestamp}`;
+    const sharedPage = `https://vote.example/contest/TPE-EXECUTIVE-1?tab=comments&t=${timestamp}`;
 
     expect(facebook.searchParams.get('u')).toBe(sharedPage);
     expect(line.searchParams.get('url')).toBe(sharedPage);

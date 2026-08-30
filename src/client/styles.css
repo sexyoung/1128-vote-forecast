@@ -867,18 +867,18 @@ a:focus-visible {
   font-size: 17px;
   font-weight: 500;
 }
-.contest-share {
+.social-share {
   align-items: center;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   margin: -10px 0 18px;
 }
-.contest-share > span {
+.social-share > span {
   color: var(--muted);
   font-size: 12px;
 }
-.contest-share button {
+.social-share button {
   align-items: center;
   background: var(--card);
   border: 1px solid var(--line);
@@ -892,21 +892,21 @@ a:focus-visible {
   gap: 5px;
   padding: 7px 11px;
 }
-.contest-share .social-icon {
+.social-share .social-icon {
   height: 15px;
   width: 15px;
 }
-.contest-share button:hover {
+.social-share button:hover {
   border-color: currentColor;
 }
-.contest-share button.facebook {
+.social-share button.facebook {
   color: #0866ff;
 }
-.contest-share button.threads,
-.contest-share button.twitter {
+.social-share button.threads,
+.social-share button.twitter {
   color: #111;
 }
-.contest-share button.line {
+.social-share button.line {
   color: #06c755;
 }
 .success-banner {
@@ -2464,6 +2464,13 @@ a:focus-visible {
   left: 22px;
   top: 20px;
 }
+.map-share {
+  margin: 0;
+  position: absolute;
+  right: 22px;
+  top: 82px;
+  z-index: 12;
+}
 /* 桌機掛了浮動頁首之後地圖上的品牌是重複的。搜尋／選區／我的那組圓鈕不在這裡
    處理——它們在桌機是整組不 render 的，見 ElectionHomePage 的 useCompactChrome。
    頁首不帶品牌，左欄是空的，所以「目前顯示哪一層」與「回上一層」維持原本的
@@ -3183,15 +3190,19 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .contest-share > span,
-  .contest-share button > span {
+  .social-share > span,
+  .social-share button > span {
     display: none;
   }
-  .contest-share button {
+  .social-share button {
     height: 34px;
     justify-content: center;
     padding: 0;
     width: 34px;
+  }
+  .map-share {
+    right: 11px;
+    top: 62px;
   }
   .candidate-ranking-list {
     grid-template-columns: 1fr;

@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getPartyCandidateCounts, getPartyContests } from '../api';
 import { candidateParties } from '../../shared/candidates';
 import { useDocumentTitle } from '../use-document-title';
+import { SocialShare } from '../SocialShare';
 import { type ElectionView, getJurisdiction, jurisdictions } from '../mock-election';
 import { CardCover, ElectionTabs, Icon, PageShell } from './ElectionPrototypeShared';
 import { summariseArea } from '../../shared/area';
@@ -139,6 +140,7 @@ export function PartiesPage() {
             <h1>政黨一覽</h1>
             <span className="page-tag">{candidateParties.length} 個政黨</span>
           </section>
+          <SocialShare />
           <div className="contest-grid party-grid">
             {candidateParties.map((item) => (
               <Link
@@ -208,6 +210,7 @@ export function PartiesPage() {
             共 {data?.candidateTotal.toLocaleString() ?? '—'} 位候選人
           </span>
         </section>
+        <SocialShare />
         {regionId ? (
           // 頁面／地區／子分頁任何一個變了，query key 就變了，isPending 會重新變 true，
           // 這裡的 resetKey 跟那把 key 對齊，讓骨架跟著同一節奏重置。

@@ -3,6 +3,7 @@ import { type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { getCandidateRankings } from '../api';
 import { useDocumentTitle } from '../use-document-title';
+import { SocialShare } from '../SocialShare';
 import { CandidatePhoto, Icon, PageShell } from './ElectionPrototypeShared';
 import { SkeletonSwap } from './SkeletonSwap';
 import { summariseArea } from '../../shared/area';
@@ -66,6 +67,7 @@ export function CandidateRankingsPage() {
           <span className="page-tag">預測次數前 50 名</span>
           <span className="page-stat">目前 {rankings.data?.candidates.length ?? '—'} 位</span>
         </section>
+        <SocialShare />
         <SkeletonSwap pending={rankings.isPending} skeleton={<RankingListSkeleton count={8} />}>
           {rankings.isPending ? null : rankings.data?.candidates.length ? (
             <ol className="candidate-ranking-list">

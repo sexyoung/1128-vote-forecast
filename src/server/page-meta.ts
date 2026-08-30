@@ -62,11 +62,16 @@ export function resolvePageMeta(
 ): PageMeta {
   const origin = options.origin.replace(/\/$/, '');
   const canIndex = options.indexable ?? seoIndexable;
+  const shareTimestamp = /^\d{10,13}$/.test(search.get('t') ?? '') ? search.get('t') : null;
   const robots = (value = indexRobots) => (canIndex ? value : 'noindex,nofollow');
   const finish = (meta: PageMeta): PageMeta => ({
     ...meta,
     robots: robots(meta.robots),
     ogImage: options.ogImage ? absolute(origin, options.ogImage) : undefined,
+    ogUrl:
+      shareTimestamp && meta.canonical
+        ? absolute(origin, `${pathname}?${search.toString()}`)
+        : meta.ogUrl,
   });
 
   if (pathname === '/') {
@@ -192,7 +197,6 @@ export function resolvePageMeta(
     const jurisdiction = contest ? findJurisdiction(contest.jurisdictionId) : null;
     if (!contest || !jurisdiction) return notFound();
     const name = qualify(contest, jurisdiction.name);
-    const shareTimestamp = /^\d{10,13}$/.test(search.get('t') ?? '') ? search.get('t') : null;
     const leader = shareTimestamp && contest.seats === 1 ? options.contestLeader : undefined;
     const singleSeatTitle = `${name}最多人預測的是.....`;
     const seats = seatsLabel(contest);
@@ -222,9 +226,6 @@ export function resolvePageMeta(
           ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出。`
           : `${summariseArea(contest.area)}。看 2026 九合一選舉這一區的群眾預測分布。`,
       canonical: absolute(origin, `/contest/${contest.id}`),
-      ogUrl: shareTimestamp
-        ? absolute(origin, `/contest/${contest.id}?t=${shareTimestamp}`)
-        : undefined,
       robots: indexableTypes.has(contest.type) ? indexRobots : 'noindex,follow',
       status: 200,
       jsonLd: breadcrumbs(origin, jurisdiction.name, jurisdiction.id, contest.name),

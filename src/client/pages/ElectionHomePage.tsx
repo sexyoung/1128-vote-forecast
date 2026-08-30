@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { Link } from 'react-router-dom';
 import { type MapCell, getContest, getJurisdictionMap, getNationalMap } from '../api';
 import { useDocumentTitle } from '../use-document-title';
+import { SocialShare } from '../SocialShare';
 import { findRegionalCouncilDistricts, needsVillageCouncilGeometry } from '../council-districts';
 import {
   type TownshipShape,
@@ -1264,6 +1265,7 @@ export function ElectionHomePage() {
         className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
       >
         <section className="map-stage" ref={mapStageRef}>
+          <SocialShare className="map-share" />
           <div className="map-floating-top">
             <MapBrand />
             <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>

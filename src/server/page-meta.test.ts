@@ -73,6 +73,19 @@ describe('page metadata', () => {
     expect(meta.ogImage).toBe(`${origin}/avatars/leader.webp`);
   });
 
+  it('gives every public timestamped share its own OG URL', () => {
+    const meta = resolvePageMeta(
+      '/parties/DPP',
+      new URLSearchParams('region=TPE&view=executive&t=1788076800000'),
+      { origin, indexable: true },
+    );
+
+    expect(meta.canonical).toBe(`${origin}/parties/DPP`);
+    expect(meta.ogUrl).toBe(
+      `${origin}/parties/DPP?region=TPE&view=executive&t=1788076800000`,
+    );
+  });
+
   it('publishes party index and detail metadata', () => {
     expect(
       resolvePageMeta('/parties', new URLSearchParams(), { origin, indexable: true }),

@@ -32,6 +32,7 @@ import {
 import { regionCounts } from '../region-counts';
 import { summariseArea } from '../../shared/area';
 import { useDocumentTitle } from '../use-document-title';
+import { SocialShare } from '../SocialShare';
 import { track } from '../analytics';
 
 export { summariseArea } from '../../shared/area';
@@ -294,6 +295,7 @@ export function JurisdictionPage() {
             <strong>{(jurisdiction.forecasts * 3).toLocaleString()}</strong> 份預測
           </span>
         </section>
+        <SocialShare />
 
         <ElectionTabs
           available={(item) => isViewAvailable(jurisdiction, item)}

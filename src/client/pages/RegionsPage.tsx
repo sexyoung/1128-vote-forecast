@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { type ContestListTally, getContestTallies } from '../api';
 import { useDocumentTitle } from '../use-document-title';
+import { SocialShare } from '../SocialShare';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
 import { jurisdictionOrder } from '../../shared/jurisdictions';
 import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
@@ -61,6 +62,7 @@ export function RegionsPage() {
             <strong>{total.toLocaleString()}</strong> 份預測
           </span>
         </section>
+        <SocialShare />
         <div className="contest-grid">
           {orderedJurisdictions.map((jurisdiction) => (
             <RegionCard
