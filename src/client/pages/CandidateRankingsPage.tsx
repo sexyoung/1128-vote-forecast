@@ -53,7 +53,7 @@ export function CandidateRankingsPage() {
     queryKey: ['candidate-rankings'],
     queryFn: getCandidateRankings,
   });
-  useDocumentTitle('熱門候選人排行｜九合一選舉預測');
+  useDocumentTitle('熱門候選人排行｜預測次數 Top 50｜九合一選舉預測');
 
   return (
     <PageShell>

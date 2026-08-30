@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getPartyCandidateCounts, getPartyContests } from '../api';
 import { candidateParties } from '../../shared/candidates';
 import { useDocumentTitle } from '../use-document-title';
-import { type ElectionView, getJurisdiction } from '../mock-election';
+import { type ElectionView, getJurisdiction, jurisdictions } from '../mock-election';
 import { CardCover, ElectionTabs, Icon, PageShell } from './ElectionPrototypeShared';
 import { summariseArea } from '../../shared/area';
 import { SkeletonSwap } from './SkeletonSwap';
@@ -112,7 +112,12 @@ export function PartiesPage() {
     queryFn: getPartyCandidateCounts,
     enabled: !routePartyId,
   });
-  useDocumentTitle(party ? `${party.name}候選人｜九合一選舉預測` : '政黨一覽｜九合一選舉預測');
+  const titleRegion = jurisdictions.find(({ id }) => id === regionId);
+  const titleView = typeLabels[view as keyof typeof typeLabels];
+  const partyTitle = party
+    ? `${titleRegion?.name ?? ''}${party.name}${titleRegion && titleView ? `${titleView}候選人` : '候選人'}`
+    : '2026 九合一選舉政黨與候選人一覽';
+  useDocumentTitle(`${partyTitle}｜九合一選舉預測`);
 
   if (routePartyId && !party)
     return (

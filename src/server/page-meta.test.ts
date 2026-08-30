@@ -12,6 +12,7 @@ describe('page metadata', () => {
     });
     expect(meta.canonical).toBe(`${origin}/region/TPE?view=council`);
     expect(meta.robots).toBe('noindex,nofollow');
+    expect(meta.description).toContain('各議員選區');
   });
 
   it('marks missing and unpublished contest pages noindex', () => {
@@ -44,12 +45,31 @@ describe('page metadata', () => {
     const meta = resolvePageMeta('/contest/TPE-EXECUTIVE-1', new URLSearchParams(), {
       origin,
       indexable: true,
-      ogImage: '/avatars/leader.webp',
     });
 
     expect(meta.title).toBe('臺北市長最多人預測的是.....｜九合一選舉預測');
-    expect(meta.description).toContain('看看目前最多人預測誰會勝出');
+    expect(meta.description).toContain('最可能勝出的候選人');
     expect(meta.ogTitle).toBe('臺北市長最多人預測的是.....');
+    expect(meta.ogImage).toBeUndefined();
+  });
+
+  it('snapshots the current leader for timestamped share metadata', () => {
+    const timestamp = '1788076800000';
+    const meta = resolvePageMeta(
+      '/contest/TPE-EXECUTIVE-1',
+      new URLSearchParams(`t=${timestamp}`),
+      {
+        origin,
+        indexable: true,
+        contestLeader: { label: '測試候選人', percent: 61 },
+        ogImage: '/avatars/leader.webp',
+      },
+    );
+
+    expect(meta.title).toBe('臺北市長最多人預測的是測試候選人｜九合一選舉預測');
+    expect(meta.description).toContain('61%');
+    expect(meta.canonical).toBe(`${origin}/contest/TPE-EXECUTIVE-1`);
+    expect(meta.ogUrl).toBe(`${origin}/contest/TPE-EXECUTIVE-1?t=${timestamp}`);
     expect(meta.ogImage).toBe(`${origin}/avatars/leader.webp`);
   });
 
@@ -59,7 +79,21 @@ describe('page metadata', () => {
     ).toMatchObject({ status: 200, canonical: `${origin}/parties` });
     expect(
       resolvePageMeta('/parties/DPP', new URLSearchParams(), { origin, indexable: true }),
-    ).toMatchObject({ status: 200, title: expect.stringContaining('民主進步黨') });
+    ).toMatchObject({
+      status: 200,
+      title: expect.stringContaining('民主進步黨候選人'),
+      description: expect.stringContaining('各行政區'),
+    });
+
+    expect(
+      resolvePageMeta('/parties/DPP', new URLSearchParams('region=TPE&view=executive'), {
+        origin,
+        indexable: true,
+      }),
+    ).toMatchObject({
+      title: expect.stringContaining('臺北市民主進步黨縣市長候選人'),
+      description: expect.stringContaining('臺北市參選縣市長'),
+    });
   });
 
   it('publishes candidate ranking metadata', () => {

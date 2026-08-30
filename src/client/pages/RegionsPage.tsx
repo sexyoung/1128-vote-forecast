@@ -37,7 +37,7 @@ function RegionCard({
 // 麵包屑的「全國」指向這裡，而不是地圖：地圖是操作介面，麵包屑往上一層應該還是
 // 一份看得完的清單。
 export function RegionsPage() {
-  useDocumentTitle('全國預測｜22 個縣市的縣市長選情｜九合一選舉預測');
+  useDocumentTitle('全國選舉預測｜22 縣市最新選情｜九合一選舉預測');
   const contestIds = orderedJurisdictions.map((jurisdiction) => `${jurisdiction.id}-EXECUTIVE-1`);
   // 22 張卡一次要完，不要一張一次請求。
   const tallies = useQuery({

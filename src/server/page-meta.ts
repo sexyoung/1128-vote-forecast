@@ -26,6 +26,7 @@ export type PageMeta = {
   private?: boolean;
   jsonLd?: object;
   ogImage?: string;
+  ogUrl?: string;
 };
 
 const escapes: Record<string, string> = {
@@ -56,6 +57,7 @@ export function resolvePageMeta(
     origin: string;
     indexable?: boolean;
     ogImage?: string;
+    contestLeader?: { label: string; percent: number };
   },
 ): PageMeta {
   const origin = options.origin.replace(/\/$/, '');
@@ -71,9 +73,9 @@ export function resolvePageMeta(
     const count = formatCount(countRegisteredContests());
     return finish({
       title: '九合一選舉預測｜2026.11.28 全臺 22 縣市預測地圖',
-      description: `點開任一個縣市，看 2026 九合一選舉的群眾預測分布。縣市長、議員、鄉鎮市長、代表、村里長共 ${count} 個選區，匿名就能押，隨時可改。`,
+      description: `匯集全臺 22 縣市、共 ${count} 個選區的群眾預測，從縣市長到地方民代，觀察各地選情目前的可能走向。`,
       ogTitle: '2026 九合一選舉群眾預測地圖',
-      ogDescription: `全臺 22 縣市、${count} 個選區，匿名就能押一份。11.28 投票前，看大家怎麼預測。`,
+      ogDescription: `匯集全臺 22 縣市、共 ${count} 個選區的群眾預測，觀察各地選情目前的可能走向。`,
       canonical: absolute(origin, '/'),
       robots: indexRobots,
       status: 200,
@@ -90,11 +92,11 @@ export function resolvePageMeta(
 
   if (pathname === '/regions')
     return finish({
-      title: '全國預測｜22 個縣市的縣市長選情｜九合一選舉預測',
+      title: `全國選舉預測｜22 縣市最新選情｜${siteName}`,
       description:
-        '2026 九合一選舉全臺 22 個縣市的縣市長預測一覽，一個縣市一張卡片，看群眾目前押誰。點進去還有議員、鄉鎮市長、代表與村里長。',
-      ogTitle: '全國預測：22 個縣市的縣市長選情',
-      ogDescription: '一個縣市一張卡片，看 2026 縣市長選舉的群眾預測分布。',
+        '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
+      ogTitle: '全國選舉預測｜22 縣市最新選情',
+      ogDescription: '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
       canonical: absolute(origin, '/regions'),
       robots: indexRobots,
       status: 200,
@@ -102,10 +104,12 @@ export function resolvePageMeta(
 
   if (pathname === '/parties')
     return finish({
-      title: `政黨一覽｜${siteName}`,
-      description: '查看 2026 九合一選舉各政黨，以及每個政黨有候選人參選的選區。',
-      ogTitle: '2026 九合一選舉政黨一覽',
-      ogDescription: '從政黨查看參選選區與候選人分布。',
+      title: `2026 九合一選舉政黨與候選人一覽｜${siteName}`,
+      description:
+        '整理各政黨在 2026 九合一選舉的候選人、參選職務與行政區分布，觀察各黨的地方布局。',
+      ogTitle: '2026 九合一選舉政黨與候選人一覽',
+      ogDescription:
+        '整理各政黨的候選人、參選職務與行政區分布，觀察 2026 九合一選舉的地方布局。',
       canonical: absolute(origin, '/parties'),
       robots: indexRobots,
       status: 200,
@@ -113,10 +117,12 @@ export function resolvePageMeta(
 
   if (pathname === '/rankings')
     return finish({
-      title: `熱門候選人排行｜${siteName}`,
-      description: '查看 2026 九合一選舉中，被群眾選入預測次數最多的前 50 位候選人。',
-      ogTitle: '2026 九合一選舉熱門候選人排行',
-      ogDescription: '依群眾預測次數排序，查看目前最熱門的候選人。',
+      title: `熱門候選人排行｜預測次數 Top 50｜${siteName}`,
+      description:
+        '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
+      ogTitle: '熱門候選人排行｜預測次數 Top 50',
+      ogDescription:
+        '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
       canonical: absolute(origin, '/rankings'),
       robots: indexRobots,
       status: 200,
@@ -126,11 +132,23 @@ export function resolvePageMeta(
   if (partyMatch) {
     const party = candidateParties.find(({ id }) => id === partyMatch[1].toUpperCase());
     if (!party) return notFound();
+    const jurisdiction = findJurisdiction((search.get('region') ?? '').toUpperCase());
+    const view = jurisdiction
+      ? electionViews.find((item) => item.id.toLowerCase() === search.get('view')?.toLowerCase())
+      : undefined;
+    const subject = jurisdiction
+      ? `${jurisdiction.name}${party.name}${view ? `${view.label}候選人` : '候選人'}`
+      : `${party.name}候選人`;
+    const description = jurisdiction
+      ? view
+        ? `查看${party.name}在${jurisdiction.name}參選${view.label}的候選人資料與目前群眾預測分布。`
+        : `查看${party.name}在${jurisdiction.name}的候選人名單、參選職務，以及目前是否進入預測當選名單。`
+      : `查看${party.name}在各行政區推出的候選人、參選職務，以及目前的群眾預測結果。`;
     return finish({
-      title: `${party.name}參選選區｜${siteName}`,
-      description: `查看 ${party.name} 在 2026 九合一選舉有候選人參選的選區。`,
-      ogTitle: `${party.name}參選選區`,
-      ogDescription: `查看 ${party.name} 的 2026 九合一選舉參選選區。`,
+      title: `${subject}｜${siteName}`,
+      description,
+      ogTitle: subject,
+      ogDescription: description,
       canonical: absolute(origin, `/parties/${party.id}`),
       robots: indexRobots,
       status: 200,
@@ -150,14 +168,17 @@ export function resolvePageMeta(
     const overview = view === 'EXECUTIVE';
     const pageCount = overview ? total : count;
     const canonical = `/region/${jurisdiction.id}${overview ? '' : `?view=${view.toLowerCase()}`}`;
-    const label = overview ? '預測總覽' : `${viewLabel}預測`;
+    const label = overview ? '選舉預測' : `${viewLabel}選舉預測`;
+    const description = overview
+      ? `查看${jurisdiction.name}長、議員與村里長等選舉的群眾預測，掌握各選區目前受到看好的候選人。`
+      : view === 'COUNCIL'
+        ? `整理${jurisdiction.name}各議員選區的候選人與預測分布，觀察目前可能勝出的席次組合。`
+        : `整理${jurisdiction.name}${viewLabel}各選區的候選人與預測分布，觀察目前可能勝出的席次組合。`;
     return finish({
       title: `${jurisdiction.name}${label}｜${formatCount(pageCount)} 個選區｜${siteName}`,
-      description: overview
-        ? `${jurisdiction.name}的 2026 九合一選舉預測總覽，共 ${formatCount(total)} 個選區。看群眾目前怎麼押，也留下你自己的一份。`
-        : `${jurisdiction.name}${viewLabel}選舉共 ${formatCount(count)} 個選區，每一區列出目前的群眾預測分布。匿名就能押，可隨時修改。`,
+      description,
       ogTitle: `${jurisdiction.name}${label}`,
-      ogDescription: `${jurisdiction.name}共 ${formatCount(pageCount)} 個選區，看 2026 九合一選舉的群眾預測分布。`,
+      ogDescription: description,
       canonical: absolute(origin, canonical),
       robots: count === 0 ? 'noindex,follow' : indexRobots,
       status: 200,
@@ -171,6 +192,8 @@ export function resolvePageMeta(
     const jurisdiction = contest ? findJurisdiction(contest.jurisdictionId) : null;
     if (!contest || !jurisdiction) return notFound();
     const name = qualify(contest, jurisdiction.name);
+    const shareTimestamp = /^\d{10,13}$/.test(search.get('t') ?? '') ? search.get('t') : null;
+    const leader = shareTimestamp && contest.seats === 1 ? options.contestLeader : undefined;
     const singleSeatTitle = `${name}最多人預測的是.....`;
     const seats = seatsLabel(contest);
     const seatSentence =
@@ -180,17 +203,28 @@ export function resolvePageMeta(
           ? '選出你認為最可能勝出的人'
           : `預測 ${contest.seats} 席最終歸屬`;
     return finish({
-      title: `${contest.seats === 1 ? singleSeatTitle : `${name}預測${seats ? `｜${seats}` : ''}`}｜${siteName}`,
+      title: `${contest.seats === 1 ? (leader ? `${name}最多人預測的是${leader.label}` : singleSeatTitle) : `${name}預測${seats ? `｜${seats}` : ''}`}｜${siteName}`,
       description:
-        contest.seats === 1
-          ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出，也留下你的選擇。這是群眾預測，不是民調。`
+        leader
+          ? `目前最多人預測 ${leader.label} 勝出${name}選舉，占 ${leader.percent}% 的預測選擇。查看完整分布，也留下你的選擇。這是群眾預測，不是民調。`
+          : contest.seats === 1
+          ? `查看${name}目前的群眾預測分布，並留下你認為最可能勝出的候選人。這是群眾預測，不是民調。`
           : `${name}（${summariseArea(contest.area)}）的群眾預測分布，${seatSentence}。匿名就能押，每個身份在本選區只計一份，可隨時修改。`,
-      ogTitle: contest.seats === 1 ? singleSeatTitle : `${name}預測`,
+      ogTitle: leader
+        ? `${name}最多人預測的是${leader.label}`
+        : contest.seats === 1
+          ? singleSeatTitle
+          : `${name}預測`,
       ogDescription:
-        contest.seats === 1
+        leader
+          ? `${leader.label}目前以 ${leader.percent}% 的預測選擇居首。查看${name}完整預測分布。`
+          : contest.seats === 1
           ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出。`
           : `${summariseArea(contest.area)}。看 2026 九合一選舉這一區的群眾預測分布。`,
       canonical: absolute(origin, `/contest/${contest.id}`),
+      ogUrl: shareTimestamp
+        ? absolute(origin, `/contest/${contest.id}?t=${shareTimestamp}`)
+        : undefined,
       robots: indexableTypes.has(contest.type) ? indexRobots : 'noindex,follow',
       status: 200,
       jsonLd: breadcrumbs(origin, jurisdiction.name, jurisdiction.id, contest.name),
@@ -261,7 +295,9 @@ export function renderHead(meta: PageMeta) {
     tag('property', 'og:site_name', siteName),
     tag('property', 'og:locale', 'zh_TW'),
     tag('property', 'og:type', 'website'),
-    meta.canonical ? tag('property', 'og:url', meta.canonical) : '',
+    meta.ogUrl || meta.canonical
+      ? tag('property', 'og:url', meta.ogUrl ?? meta.canonical)
+      : '',
     tag('property', 'og:title', meta.ogTitle),
     tag('property', 'og:description', meta.ogDescription),
     meta.ogImage ? tag('property', 'og:image', meta.ogImage) : '',

@@ -7,7 +7,11 @@ import {
   getRegisteredContest,
   getRegisteredContests,
 } from './contest-registry.js';
-import { describeTarget, getPredictionTargets } from './prediction-targets.js';
+import {
+  describeTarget,
+  getCandidateAvatarUrl,
+  getPredictionTargets,
+} from './prediction-targets.js';
 import { readContestTallies } from './predictions.js';
 import { readContestSnapshot } from './snapshots.js';
 import { env, seoIndexable } from './env.js';
@@ -71,6 +75,7 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
     options: {
       head?: string;
       ogImage?: string;
+      contestLeader?: { label: string; percent: number };
     } = {},
   ) {
     const url = new URL(c.req.url);
@@ -80,6 +85,7 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
     const meta = resolvePageMeta(url.pathname, url.searchParams, {
       origin,
       ogImage: options.ogImage,
+      contestLeader: options.contestLeader,
     });
     // 每一支 HTML 路由都經過這裡，公告因此不必在每個 route handler 各塞一次——
     // 也不會有「先進站的頁面沒有公告，後面才補上」的縫。是否跳出來看的是使用者
@@ -176,7 +182,19 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
       // mine 綁在 cookie 上，SSR 不讀；0 讓瀏覽器掛上去後立刻重拉自己的資料。
       updatedAt: 0,
     };
-    return send(c, [seed]);
+    const leader = tally.rows[0];
+    const uniqueLeader = leader && leader.count > (tally.rows[1]?.count ?? 0) ? leader : null;
+    const timestamped = /^\d{10,13}$/.test(c.req.query('t') ?? '');
+    return send(c, [seed], {
+      contestLeader:
+        timestamped && uniqueLeader
+          ? { label: uniqueLeader.label, percent: uniqueLeader.percent }
+          : undefined,
+      ogImage:
+        timestamped && uniqueLeader?.targetType === 'CANDIDATE'
+          ? (getCandidateAvatarUrl(contest.id, uniqueLeader.targetId) ?? undefined)
+          : undefined,
+    });
   });
 
   app.get('/parties', async (c) =>

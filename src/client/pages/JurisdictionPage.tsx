@@ -190,8 +190,8 @@ export function JurisdictionPage() {
   const view = parseView(searchParams.get('view'));
   const titleLabel =
     view === 'EXECUTIVE'
-      ? '預測總覽'
-      : `${electionViews.find((item) => item.id === view)?.label ?? ''}預測`;
+      ? '選舉預測'
+      : `${electionViews.find((item) => item.id === view)?.label ?? ''}選舉預測`;
   useDocumentTitle(`${jurisdiction.name}${titleLabel}｜九合一選舉預測`);
   const { state, error, enabled } = useShapeContests(jurisdiction, view);
   const [skeletonPhase, setSkeletonPhase] = useState<SkeletonPhase>('revealed');
