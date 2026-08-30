@@ -318,16 +318,14 @@ export function CardCover({
   meta,
   // 候選人照片，來自 public/avatars/。名單公告前沒有照片就顯示人物圖示。
   photo,
-  progress,
 }: {
   kicker: string;
   title: string;
   meta: string;
   photo?: string | null;
-  progress?: { color: string; value: number };
 }) {
   return (
-    <div className={`card-cover ${progress ? 'has-progress' : ''}`.trim()}>
+    <div className="card-cover">
       <i>
         <CandidatePhoto photo={photo} />
       </i>
@@ -336,11 +334,6 @@ export function CardCover({
         <strong>{title}</strong>
         <small>{meta}</small>
       </div>
-      {progress && (
-        <em className="card-cover-progress">
-          <s style={{ background: progress.color, width: `${progress.value}%` }} />
-        </em>
-      )}
     </div>
   );
 }

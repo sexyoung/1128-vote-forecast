@@ -24,7 +24,6 @@ import {
 import {
   Breadcrumbs,
   CandidateList,
-  CardCover,
   ElectionTabs,
   Icon,
   PageShell,
@@ -41,13 +40,6 @@ function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestList
   const candidates = toCandidateRows(tally, tally?.targets);
   const rowLimit = contest.seatCount === 1 ? candidates.length : Math.max(4, contest.seatCount);
   const rows = candidates.slice(0, rowLimit);
-  // 代表的名額依地方制度法第 33 條按人口決定，公告還沒下來，標明是暫定值。
-  const seats =
-    contest.view === 'REPRESENTATIVE'
-      ? `暫定 ${contest.seatCount} 席`
-      : contest.seatCount === 1
-        ? '單席'
-        : `應選 ${contest.seatCount} 席`;
   return (
     <Link
       className={`contest-card ${contest.view === 'COUNCIL' ? 'council-contest-card' : ''}`.trim()}
@@ -56,9 +48,10 @@ function ContestCard({ contest, tally }: { contest: Contest; tally?: ContestList
       <span className="card-link">
         {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
-      {/* 區域清單放標題下面而不是上面的 kicker：那一行是單行截斷的，
-          「石門區、三芝區、淡水區、八里區」這種會被切掉一半，也會撞到右上角的份數。 */}
-      <CardCover kicker={seats} meta={summariseArea(contest.area)} title={contest.name} />
+      <header className="region-card-heading">
+        <strong>{contest.name}</strong>
+        {contest.view === 'COUNCIL' && <small>{summariseArea(contest.area)}</small>}
+      </header>
       <CandidateList
         forecasts={tally?.totalPicks ?? 0}
         rows={rows}
@@ -95,7 +88,17 @@ type ShapeContests = { contests: Contest[]; townNames: string[] };
 type ShapeLoad = { key: string; value: ShapeContests | 'error' };
 type SkeletonPhase = 'loading' | 'resetting' | 'revealed';
 
-function ContestGridSkeleton({ count, pulsing }: { count: number; pulsing: boolean }) {
+function ContestGridSkeleton({
+  count,
+  pulsing,
+  rows,
+  showArea,
+}: {
+  count: number;
+  pulsing: boolean;
+  rows: number;
+  showArea: boolean;
+}) {
   return (
     <div
       aria-hidden="true"
@@ -103,15 +106,11 @@ function ContestGridSkeleton({ count, pulsing }: { count: number; pulsing: boole
     >
       {Array.from({ length: count }, (_, index) => (
         <div className="contest-card skeleton-card" key={index}>
-          <div className="skeleton-card-cover">
-            <i />
-            <span>
-              <b />
-              <b />
-              <b />
-            </span>
+          <div className="skeleton-region-card-heading">
+            <b />
+            {showArea && <b />}
           </div>
-          {Array.from({ length: 4 }, (_, row) => (
+          {Array.from({ length: rows }, (_, row) => (
             <div className="skeleton-candidate" key={row}>
               <i />
               <span>
@@ -388,7 +387,12 @@ export function JurisdictionPage() {
             className={`t-skel region-contest-swap ${skeletonSwapState}`.trim()}
             ref={skeletonRef}
           >
-            <ContestGridSkeleton count={Math.max(1, contests.length)} pulsing={skeletonLoading} />
+            <ContestGridSkeleton
+              count={Math.max(1, contests.length)}
+              pulsing={skeletonLoading}
+              rows={view === 'COUNCIL' || view === 'REPRESENTATIVE' ? 4 : 2}
+              showArea={view === 'COUNCIL'}
+            />
             <div aria-hidden={skeletonLoading} className="t-skel-content">
               <div className="contest-grid t-stagger" ref={contestGridRef}>
                 {contests.map((contest, index) => (

@@ -1262,8 +1262,24 @@ a:focus-visible {
   width: 64px;
 }
 .skeleton-card {
-  min-height: 350px;
   overflow: hidden;
+}
+.skeleton-region-card-heading {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-right: 90px;
+}
+.skeleton-region-card-heading b {
+  background: #e4e1da;
+  border-radius: 99px;
+  display: block;
+  height: 23px;
+  width: 62%;
+}
+.skeleton-region-card-heading b + b {
+  height: 10px;
+  width: 86%;
 }
 .skeleton-card-cover {
   display: grid;
@@ -1456,7 +1472,6 @@ a:focus-visible {
   gap: 12px;
   margin: -18px -18px 0;
   padding: 0 16px 0 0;
-  position: relative;
 }
 .card-cover > i {
   /* 照片永遠是正方形。父層是 align-items: stretch，不覆寫的話封面被長鄉鎮清單
@@ -1490,32 +1505,34 @@ a:focus-visible {
   height: 32px;
   width: 32px;
 }
+.region-card-heading {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding-right: 90px;
+}
+.contest-card > .region-card-heading {
+  display: grid;
+}
+.region-card-heading > strong {
+  font: inherit;
+}
+.contest-card > .region-card-heading > small {
+  color: var(--muted);
+  font-family: Inter, 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 4px 0 0;
+  white-space: normal;
+}
 .card-cover > div {
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-width: 0;
   padding: 12px 0;
-}
-.card-cover.has-progress > div {
-  padding-bottom: 22px;
-}
-.card-cover-progress {
-  background: #e9e7e0;
-  border-radius: 99px;
-  bottom: 8px;
-  height: 5px;
-  left: 116px;
-  overflow: hidden;
-  position: absolute;
-  right: 16px;
-}
-.card-cover-progress > s {
-  display: block;
-  height: 100%;
-}
-.region-card-has-leader .candidate-list li:first-child > em {
-  visibility: hidden;
 }
 .card-cover span {
   color: var(--muted);

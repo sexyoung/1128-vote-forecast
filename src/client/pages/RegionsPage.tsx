@@ -4,28 +4,11 @@ import { type ContestListTally, getContestTallies } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
 import { jurisdictionOrder } from '../../shared/jurisdictions';
-import {
-  CandidateList,
-  CardCover,
-  Icon,
-  PageShell,
-  toCandidateRows,
-} from './ElectionPrototypeShared';
+import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
 
 const orderedJurisdictions = jurisdictionOrder.flatMap(
   (id) => jurisdictions.find((item) => item.id === id) ?? [],
 );
-
-const kindLabels: Record<Jurisdiction['kind'], string> = {
-  municipality: '直轄市',
-  city: '市',
-  county: '縣',
-};
-
-export function uniqueLeader(rows: ReturnType<typeof toCandidateRows>) {
-  const [leader, runnerUp] = rows;
-  return leader?.value > 0 && leader.value > (runnerUp?.value ?? 0) ? leader : undefined;
-}
 
 function RegionCard({
   jurisdiction,
@@ -36,22 +19,12 @@ function RegionCard({
 }) {
   const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
   const rows = toCandidateRows(tally, tally?.targets);
-  const leader = uniqueLeader(rows);
   return (
-    <Link
-      className={`contest-card ${leader ? 'region-card-has-leader' : ''}`.trim()}
-      to={`/region/${jurisdiction.id}`}
-    >
+    <Link className="contest-card" to={`/region/${jurisdiction.id}`}>
       <span className="card-link">
         {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
-      <CardCover
-        kicker={kindLabels[jurisdiction.kind]}
-        meta={contest.name}
-        photo={leader?.photo}
-        progress={leader && { color: leader.color, value: leader.value }}
-        title={jurisdiction.name}
-      />
+      <header className="region-card-heading">{contest.name}</header>
       <CandidateList
         forecasts={tally?.totalPicks ?? 0}
         rows={rows}
