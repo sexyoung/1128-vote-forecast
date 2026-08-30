@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { adminApp } from './admin.js';
+import { getPublicAnnouncement } from './announcement.js';
 import { prisma } from './db.js';
 import { env, turnstileEnabled } from './env.js';
 import { CommentRejected, createComment, deleteOwnComment, listComments } from './comments.js';
@@ -41,6 +42,9 @@ app.use('/api/*', (c, next) =>
 );
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api' }));
+
+/** 沒有公告或還沒發布都回 null，草稿內容永遠不會流到這裡。 */
+app.get('/api/announcement', async (c) => c.json({ announcement: await getPublicAnnouncement() }));
 
 /**
  * 除了健康檢查以外，每個 /api 請求都先認出使用者。認不出來就開一個新身份——

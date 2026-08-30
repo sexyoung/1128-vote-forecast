@@ -1456,6 +1456,7 @@ a:focus-visible {
   gap: 12px;
   margin: -18px -18px 0;
   padding: 0 16px 0 0;
+  position: relative;
 }
 .card-cover > i {
   /* 照片永遠是正方形。父層是 align-items: stretch，不覆寫的話封面被長鄉鎮清單
@@ -1495,6 +1496,26 @@ a:focus-visible {
   justify-content: center;
   min-width: 0;
   padding: 12px 0;
+}
+.card-cover.has-progress > div {
+  padding-bottom: 22px;
+}
+.card-cover-progress {
+  background: #e9e7e0;
+  border-radius: 99px;
+  bottom: 8px;
+  height: 5px;
+  left: 116px;
+  overflow: hidden;
+  position: absolute;
+  right: 16px;
+}
+.card-cover-progress > s {
+  display: block;
+  height: 100%;
+}
+.region-card-has-leader .candidate-list li:first-child > em {
+  visibility: hidden;
 }
 .card-cover span {
   color: var(--muted);
@@ -3778,6 +3799,14 @@ a:focus-visible {
 .admin-change-list span {
   overflow-wrap: anywhere;
 }
+.admin-photo-audit {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.admin-photo-audit h2 {
+  margin: 0;
+}
 
 .admin-stat-grid {
   display: grid;
@@ -4027,10 +4056,160 @@ a:focus-visible {
 .t-skel-skeleton .card-cover > i {
   background: #e4e1da;
 }
+/* 排行榜的頭像圈：真的那顆用 --candidate-color 畫外框，骨架沒有政黨可依，
+   框線跟底色一起收成同一個灰，才不會冒出一圈沒有意義的顏色。 */
+.t-skel-skeleton .candidate-ranking-avatar {
+  background: #e4e1da;
+  border-color: #e4e1da;
+}
+/* 排行榜一列裡的五個欄位。高度照真的字級抓（名次 22px、姓名 19px、其餘 12px），
+   間距用 margin 而不是 gap——person 與 score 兩欄是 flex column，真的那邊也是
+   靠行高自然疊起來的。 */
+.skel-ranking-rank {
+  height: 20px;
+  margin: 0 auto;
+  width: 22px;
+}
+.skel-ranking-name {
+  height: 15px;
+  width: 52%;
+}
+.skel-ranking-party {
+  height: 10px;
+  margin-top: 6px;
+  width: 30%;
+}
+.skel-ranking-meta {
+  height: 10px;
+  margin-top: 6px;
+  width: 76%;
+}
+.skel-ranking-score {
+  height: 16px;
+  margin-left: auto;
+  width: 44px;
+}
+.skel-ranking-unit {
+  height: 10px;
+  margin: 6px 0 0 auto;
+  width: 34px;
+}
 .skeleton-feature-card {
   align-items: flex-start;
   min-height: 96px;
 }
 .skeleton-feature-card > div {
   width: 100%;
+}
+
+/* ===========================================================================
+   全站公告
+   =========================================================================== */
+
+/* 對話框骨架跟 .identity-card 共用（.sheet-backdrop.centered + modal-in），
+   這裡只放公告卡片自己的樣子——包含在後台預覽時原地放的那一份（見下面
+   .admin-announcement-preview-frame），不是 modal 也能長一樣。 */
+.announcement-card {
+  animation: modal-in 0.2s ease-out;
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgb(16 25 21 / 28%);
+  padding: 24px;
+  width: min(440px, 100%);
+}
+.announcement-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.announcement-card h2 {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0;
+}
+.announcement-body {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 14px 0 18px;
+  /* 內容是純文字（見 src/server/announcement.ts 的長度限制），換行靠 CSS 保留，
+     不解析成 HTML——公告是每個訪客都會看到的文字，不能開任何 markup 的口子。 */
+  white-space: pre-wrap;
+}
+
+/* --- 後台：公告編輯頁 ------------------------------------------------------ */
+
+.admin-announcement-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+}
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-field label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.admin-field input,
+.admin-field textarea {
+  background: #f5f3ed;
+  border: 1px solid #e0ddd4;
+  border-radius: 12px;
+  font: inherit;
+  padding: 10px 12px;
+}
+.admin-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+.admin-field-row {
+  display: flex;
+  gap: 12px;
+}
+.admin-field-row > .admin-field {
+  flex: 1;
+}
+.admin-toggle-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+/* 存檔前先講清楚這一次會不會再打擾所有人，語氣要比 admin-note 更醒目——這正是
+   這支功能最容易做錯的地方（見 announcement.ts 的 contentChanged）。 */
+.admin-announcement-hint {
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+.admin-announcement-hint.bump {
+  background: #fbecea;
+  color: var(--accent-dark);
+}
+.admin-announcement-hint.no-bump {
+  background: #eaf3ec;
+  color: #2b8a64;
+}
+.admin-announcement-status {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.admin-announcement-preview {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 20px;
+}
+.admin-announcement-preview-frame {
+  background: #f0efe8;
+  border-radius: 16px;
+  display: flex;
+  justify-content: center;
+  padding: 30px 20px;
 }

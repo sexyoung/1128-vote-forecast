@@ -16,9 +16,17 @@ it('shows candidates with zero votes before anyone predicts', () => {
         label: '陳怡君',
         partyId: 'DPP',
         ballotNo: 1,
+        photo: '/avatars/TPE-MAYOR-001.webp',
       },
     ]),
-  ).toEqual([expect.objectContaining({ label: '陳怡君', partyName: '民主進步黨', value: 0 })]);
+  ).toEqual([
+    expect.objectContaining({
+      label: '陳怡君',
+      partyName: '民主進步黨',
+      photo: '/avatars/TPE-MAYOR-001.webp',
+      value: 0,
+    }),
+  ]);
 });
 
 it('does not highlight a winner when every candidate has zero votes', () => {

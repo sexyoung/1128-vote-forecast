@@ -23,6 +23,7 @@ export type PredictionTarget = {
   partyId: string | null;
   label: string;
   ballotNo: number | null;
+  photo: string | null;
 };
 
 export type TallyRow = {
@@ -33,6 +34,7 @@ export type TallyRow = {
   label: string;
   partyId: string | null;
   color: string | null;
+  photo: string | null;
 };
 
 export type ContestDetail = {
@@ -108,6 +110,14 @@ export type Comment = {
 };
 
 export type ReportReason = 'SPAM' | 'ABUSE' | 'ADULT' | 'ILLEGAL' | 'OTHER';
+
+export type Announcement = {
+  version: number;
+  title: string;
+  body: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+};
 
 export class ApiError extends Error {
   status: number;
@@ -224,3 +234,6 @@ export const reportComment = (targetId: string, reason: ReportReason) =>
     method: 'POST',
     body: JSON.stringify({ targetType: 'COMMENT', targetId, reason }),
   });
+
+export const getAnnouncement = () =>
+  request<{ announcement: Announcement | null }>('/api/announcement');

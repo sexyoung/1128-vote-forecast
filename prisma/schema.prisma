@@ -291,3 +291,21 @@ model Candidate {
   @@index([contestId, partyId])
   @@index([contestId])
 }
+
+// ---------------------------------------------------------------------------
+// 全站公告
+// ---------------------------------------------------------------------------
+
+/// 全站公告。永遠只有一列，用固定的 id upsert。
+model Announcement {
+  id        String   @id
+  /// 內容改一次就 +1。前台記住「使用者關掉的是哪一版」，靠它判斷要不要再跳。
+  version   Int      @default(1)
+  published Boolean  @default(false)
+  title     String   @db.VarChar(80)
+  body      String   @db.VarChar(2000)
+  /// 選填的行動連結，例如導到某個選區或外部說明。
+  linkUrl   String?  @db.VarChar(300)
+  linkLabel String?  @db.VarChar(40)
+  updatedAt DateTime @updatedAt
+}

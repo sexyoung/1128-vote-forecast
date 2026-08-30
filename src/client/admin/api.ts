@@ -91,6 +91,17 @@ export type CandidateImportUpdate = {
   changes: { field: string; before: string | number | null; after: string | number | null }[];
 };
 
+export type AdminCandidate = {
+  id: string;
+  contestId: string;
+  contestName: string;
+  name: string;
+  partyId: string | null;
+};
+
+export const getAdminCandidates = () =>
+  request<{ candidates: AdminCandidate[] }>('/api/admin/candidates');
+
 export const previewCandidateCsv = (csv: string) =>
   request<{
     summary: CandidateImportSummary;
@@ -169,4 +180,33 @@ export const blockForecaster = (forecasterId: string) =>
 export const unblockForecaster = (forecasterId: string) =>
   request<{ ok: true }>(`/api/admin/forecasters/${encodeURIComponent(forecasterId)}/unblock`, {
     method: 'POST',
+  });
+
+// --- 全站公告 ----------------------------------------------------------
+
+export type AdminAnnouncement = {
+  version: number;
+  published: boolean;
+  title: string;
+  body: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  updatedAt: string;
+};
+
+export type AnnouncementDraft = {
+  title: string;
+  body: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  published: boolean;
+};
+
+export const getAdminAnnouncement = () =>
+  request<{ announcement: AdminAnnouncement | null }>('/api/admin/announcement');
+
+export const saveAnnouncement = (draft: AnnouncementDraft) =>
+  request<{ announcement: AdminAnnouncement; versionBumped: boolean }>('/api/admin/announcement', {
+    method: 'PUT',
+    body: JSON.stringify(draft),
   });

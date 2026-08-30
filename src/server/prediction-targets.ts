@@ -17,6 +17,7 @@ export type PredictionTarget = {
   partyId: string | null;
   label: string;
   ballotNo: number | null;
+  photo: string | null;
 };
 
 /** 啟動時一次載入 Candidate；完整名單也只有幾 MB，不需要分頁。 */
@@ -48,6 +49,7 @@ export async function refreshCandidates() {
       partyId: row.partyId,
       label: row.name,
       ballotNo: row.ballotNo,
+      photo: avatarUrl(row.id),
     });
     nextTargets.set(row.contestId, list);
   }
@@ -76,7 +78,12 @@ export function describeTarget(contest: RegisteredContest, targetType: string, t
   );
   if (target) {
     const party = target.partyId ? getParty(target.partyId as never) : null;
-    return { label: target.label, partyId: target.partyId, color: party?.color ?? null };
+    return {
+      label: target.label,
+      partyId: target.partyId,
+      color: party?.color ?? null,
+      photo: target.photo,
+    };
   }
 
   // 名單換過或候選人撤銷後，舊的統計列還在資料庫裡，至少要回得出名字，
@@ -84,10 +91,15 @@ export function describeTarget(contest: RegisteredContest, targetType: string, t
   const withdrawn = byCandidateId.get(targetId);
   if (withdrawn) {
     const party = withdrawn.partyId ? getParty(withdrawn.partyId as never) : null;
-    return { label: withdrawn.label, partyId: withdrawn.partyId, color: party?.color ?? null };
+    return {
+      label: withdrawn.label,
+      partyId: withdrawn.partyId,
+      color: party?.color ?? null,
+      photo: avatarUrl(targetId),
+    };
   }
 
-  return { label: targetId, partyId: null, color: null };
+  return { label: targetId, partyId: null, color: null, photo: null };
 }
 
 export function getCandidateAvatarUrl(contestId: string, candidateId: string) {

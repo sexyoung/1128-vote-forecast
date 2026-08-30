@@ -1,6 +1,7 @@
 import type { Context, Env, Hono } from 'hono';
 import { jurisdictions } from '../client/mock-election.js';
 import { candidateParties } from '../shared/candidates.js';
+import { getPublicAnnouncement } from './announcement.js';
 import {
   type ContestType,
   getRegisteredContest,
@@ -81,8 +82,17 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
       origin,
       ogImage: options.ogImage,
     });
+    // 每一支 HTML 路由都經過這裡，公告因此不必在每個 route handler 各塞一次——
+    // 也不會有「先進站的頁面沒有公告，後面才補上」的縫。是否跳出來看的是使用者
+    // 有沒有關過這個版本，SSR 只負責把「現在的公告是什麼」帶到瀏覽器手上。
+    const announcementSeed: QuerySeed = {
+      key: ['announcement'],
+      data: { announcement: await getPublicAnnouncement() },
+      updatedAt: Date.now(),
+    };
+    const allSeeds = [...seeds, announcementSeed];
     const [{ appHtml, stateJson }, template] = await Promise.all([
-      renderer.renderApp({ url: url.pathname + url.search, seeds }),
+      renderer.renderApp({ url: url.pathname + url.search, seeds: allSeeds }),
       renderer.loadTemplate(url.pathname),
     ]);
     const html = template
@@ -90,7 +100,7 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
       .replace('<!--app-html-->', appHtml)
       .replace(
         '<!--app-state-->',
-        seeds.length === 0 ? '' : `<script>window.__RQ_STATE__=${stateJson}</script>`,
+        allSeeds.length === 0 ? '' : `<script>window.__RQ_STATE__=${stateJson}</script>`,
       );
 
     c.header(

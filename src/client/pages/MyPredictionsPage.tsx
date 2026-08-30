@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { getMyPredictions, getSession, updateDisplayName } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { track } from '../analytics';
+import { SkeletonSwap } from './SkeletonSwap';
 import {
   CandidateList,
   CardCover,
@@ -13,6 +14,43 @@ import {
 } from './ElectionPrototypeShared';
 
 const defaultForecasterName = '預測者';
+
+export function predictionMeta(status: string, labels: string[], mineIsLeading: boolean) {
+  if (status === 'INVALIDATED') return '候選人名單已更新，請重新預測';
+  return `我預測 ${labels.join('、')} · ${mineIsLeading ? '目前領先' : '目前落後'}`;
+}
+
+// 這一頁的卡片跟 /region 的選區卡是同一型（封面＋候選人列），所以骨架直接沿用
+// JurisdictionPage 那套 skeleton-card 形狀，不另外設計——尺寸本來就是為這種卡
+// 調的，包含 min-height: 350px。
+function MinePredictionsSkeleton({ count }: { count: number }) {
+  return (
+    <div className="contest-grid">
+      {Array.from({ length: count }, (_, index) => (
+        <div className="contest-card skeleton-card" key={index}>
+          <span className="skel-bar skel-bar-float" />
+          <div className="skeleton-card-cover">
+            <i />
+            <span>
+              <b />
+              <b />
+              <b />
+            </span>
+          </div>
+          {Array.from({ length: 4 }, (_, row) => (
+            <div className="skeleton-candidate" key={row}>
+              <i />
+              <span>
+                <b />
+                <b />
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** 系統配發的短碼。跟伺服器的 forecasterCode() 是同一套規則，名字重複時靠它分辨。 */
 function forecasterCode(id: string) {
@@ -143,8 +181,10 @@ export function MyPredictionsPage() {
             <Icon name="user" />
             {name} {code}
           </button>
+          {/* 還在載的時候 items 是空陣列，直接印會變成斬釘截鐵的「已預測 0 個選區」
+              ——那是還不知道，不是零。 */}
           <span className="page-stat">
-            已預測 <strong>{items.length}</strong> 個選區
+            已預測 <strong>{mine.isPending ? '—' : items.length}</strong> 個選區
           </span>
         </section>
 
@@ -166,40 +206,44 @@ export function MyPredictionsPage() {
           <span>{mine.isPending ? '載入中…' : `共 ${items.length} 筆`}</span>
         </div>
 
-        {!mine.isPending && items.length === 0 && (
-          <p className="view-note">
-            還沒有預測。回<Link to="/">地圖</Link>挑一個選區開始。
-          </p>
-        )}
-
         {/* 跟 /regions、/region 同一組卡片：桌機多欄、手機自然收成單欄條列。
             封面寫的是自己押了誰而不是領先者——這一頁的主角是我的預測。 */}
-        <div className="contest-grid">
-          {items.map(({ contest, picks, tally }) => {
-            const leading = tally.rows[0]?.targetId;
-            const mineIsLeading = picks.some(({ targetId }) => targetId === leading);
-            return (
-              <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
-                <span className="card-link">
-                  {tally.totalPredictions.toLocaleString()} 份 <Icon name="chevron" />
-                </span>
-                <CardCover
-                  kicker={contest.area}
-                  meta={`我預測 ${picks.map(({ label }) => label).join('、')} · ${
-                    mineIsLeading ? '目前領先' : '目前落後'
-                  }`}
-                  title={contest.name}
-                />
-                <CandidateList
-                  forecasts={tally.totalPicks}
-                  highlightIds={picks.map(({ targetId }) => targetId)}
-                  rows={toCandidateRows(tally)}
-                  winnerCount={contest.seats}
-                />
-              </Link>
-            );
-          })}
-        </div>
+        <SkeletonSwap pending={mine.isPending} skeleton={<MinePredictionsSkeleton count={4} />}>
+          {mine.isPending ? null : items.length === 0 ? (
+            <p className="view-note">
+              還沒有預測。回<Link to="/">地圖</Link>挑一個選區開始。
+            </p>
+          ) : (
+            <div className="contest-grid">
+              {items.map(({ contest, picks, status, tally }) => {
+                const leading = tally.rows[0]?.targetId;
+                const mineIsLeading = picks.some(({ targetId }) => targetId === leading);
+                return (
+                  <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
+                    <span className="card-link">
+                      {tally.totalPredictions.toLocaleString()} 份 <Icon name="chevron" />
+                    </span>
+                    <CardCover
+                      kicker={contest.area}
+                      meta={predictionMeta(
+                        status,
+                        picks.map(({ label }) => label),
+                        mineIsLeading,
+                      )}
+                      title={contest.name}
+                    />
+                    <CandidateList
+                      forecasts={tally.totalPicks}
+                      highlightIds={picks.map(({ targetId }) => targetId)}
+                      rows={toCandidateRows(tally)}
+                      winnerCount={contest.seats}
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </SkeletonSwap>
       </main>
     </PageShell>
   );

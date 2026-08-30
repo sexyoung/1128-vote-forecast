@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
+import { AnnouncementModal } from './AnnouncementModal';
 import { usePageViews } from './analytics';
 import { ContestPage } from './pages/ContestPage';
 import { ElectionHomePage } from './pages/ElectionHomePage';
@@ -17,24 +18,28 @@ const AdminApp = lazy(() => import('./admin/AdminApp'));
 export function App() {
   usePageViews();
   return (
-    <Routes>
-      <Route path="/" element={<ElectionHomePage />} />
-      <Route path="/regions" element={<RegionsPage />} />
-      <Route path="/parties" element={<PartiesPage />} />
-      <Route path="/parties/:partyId" element={<PartiesPage />} />
-      <Route path="/rankings" element={<CandidateRankingsPage />} />
-      <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
-      <Route path="/contest/:contestId" element={<ContestPage />} />
-      <Route path="/mine" element={<MyPredictionsPage />} />
-      <Route
-        path="/admin/*"
-        element={
-          <Suspense fallback={null}>
-            <AdminApp />
-          </Suspense>
-        }
-      />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<ElectionHomePage />} />
+        <Route path="/regions" element={<RegionsPage />} />
+        <Route path="/parties" element={<PartiesPage />} />
+        <Route path="/parties/:partyId" element={<PartiesPage />} />
+        <Route path="/rankings" element={<CandidateRankingsPage />} />
+        <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
+        <Route path="/contest/:contestId" element={<ContestPage />} />
+        <Route path="/mine" element={<MyPredictionsPage />} />
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={null}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+      {/* Routes 外面、跟它平行：任何網址都要看得到，不能只掛在某一個 route 底下。 */}
+      <AnnouncementModal />
+    </>
   );
 }

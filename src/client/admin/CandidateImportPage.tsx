@@ -1,7 +1,13 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../api';
-import { importCandidateCsv, previewCandidateCsv } from './api';
+import { avatarUrl } from '../avatars';
+import {
+  type AdminCandidate,
+  getAdminCandidates,
+  importCandidateCsv,
+  previewCandidateCsv,
+} from './api';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : '處理失敗，請稍後再試。';
@@ -14,11 +20,49 @@ const changeLabels: Record<string, string> = {
   status: '狀態',
 };
 
+function imageExists(src: string) {
+  return new Promise<boolean>((resolve) => {
+    const image = new Image();
+    const done = (exists: boolean) => {
+      clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      resolve(exists);
+    };
+    const timeout = setTimeout(() => done(false), 10_000);
+    image.onload = () => done(true);
+    image.onerror = () => done(false);
+    image.src = `${src}?photo-check=${Date.now()}`;
+  });
+}
+
+export async function findMissingCandidatePhotos(
+  candidates: AdminCandidate[],
+  check = (candidate: AdminCandidate) => imageExists(avatarUrl(candidate.id) ?? ''),
+) {
+  const missing: AdminCandidate[] = [];
+  for (let index = 0; index < candidates.length; index += 8) {
+    const batch = candidates.slice(index, index + 8);
+    const results = await Promise.all(batch.map(check));
+    missing.push(...batch.filter((_, offset) => !results[offset]));
+  }
+  return missing;
+}
+
 export function CandidateImportPage() {
   const queryClient = useQueryClient();
   const [csv, setCsv] = useState('');
   const [fileName, setFileName] = useState('');
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
+  const [missingPhotos, setMissingPhotos] = useState<AdminCandidate[] | null>(null);
+  const candidates = useQuery({
+    queryKey: ['admin', 'candidates'],
+    queryFn: getAdminCandidates,
+  });
+  const photoAudit = useMutation({
+    mutationFn: () => findMissingCandidatePhotos(candidates.data?.candidates ?? []),
+    onSuccess: setMissingPhotos,
+  });
   const preview = useMutation({
     mutationFn: () => previewCandidateCsv(csv),
     onSuccess: () => setDecisions({}),
@@ -29,7 +73,13 @@ export function CandidateImportPage() {
         csv,
         Object.entries(decisions).flatMap(([code, replace]) => (replace ? [code] : [])),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] }),
+    onSuccess: async () => {
+      setMissingPhotos(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] }),
+      ]);
+    },
   });
   const summary = preview.data?.summary;
   const updates = preview.data?.updates ?? [];
@@ -196,6 +246,59 @@ export function CandidateImportPage() {
           資料已寫入。圖片 commit 並重新部署後，所有執行個體都會載入新名單。
         </p>
       )}
+
+      <section className="admin-photo-audit">
+        <h2>候選人照片</h2>
+        {candidates.isPending ? (
+          <p className="admin-note">讀取候選人…</p>
+        ) : candidates.isError ? (
+          <p className="admin-note admin-note-error">{errorMessage(candidates.error)}</p>
+        ) : (
+          <>
+            <p className="admin-note">
+              共 {candidates.data.candidates.length.toLocaleString()} 位會顯示在前台的真實候選人。
+            </p>
+            <button
+              className="button button-ghost button-small"
+              disabled={photoAudit.isPending || candidates.data.candidates.length === 0}
+              onClick={() => photoAudit.mutate()}
+              type="button"
+            >
+              {photoAudit.isPending ? '檢查中…' : '檢查缺少照片'}
+            </button>
+          </>
+        )}
+        {missingPhotos &&
+          (missingPhotos.length ? (
+            <>
+              <p className="admin-note admin-note-error">缺少 {missingPhotos.length} 張照片。</p>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>code</th>
+                      <th>姓名</th>
+                      <th>政黨</th>
+                      <th>選舉</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {missingPhotos.map((candidate) => (
+                      <tr key={candidate.id}>
+                        <td>{candidate.id}</td>
+                        <td>{candidate.name}</td>
+                        <td>{candidate.partyId ?? '無黨籍'}</td>
+                        <td>{candidate.contestName}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="admin-note">照片已齊全。</p>
+          ))}
+      </section>
     </div>
   );
 }

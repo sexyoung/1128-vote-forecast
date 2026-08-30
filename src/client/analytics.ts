@@ -35,7 +35,9 @@ export type EventName =
   | 'town_filter_changed'
   | 'identity_dialog_opened'
   | 'display_name_saved'
-  | 'search_used';
+  | 'search_used'
+  | 'announcement_shown'
+  | 'announcement_dismissed';
 
 type EventProps = Record<string, string | number | boolean | null | undefined>;
 type Hit =

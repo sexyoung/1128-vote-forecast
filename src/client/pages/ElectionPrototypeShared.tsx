@@ -318,14 +318,16 @@ export function CardCover({
   meta,
   // 候選人照片，來自 public/avatars/。名單公告前沒有照片就顯示人物圖示。
   photo,
+  progress,
 }: {
   kicker: string;
   title: string;
   meta: string;
   photo?: string | null;
+  progress?: { color: string; value: number };
 }) {
   return (
-    <div className="card-cover">
+    <div className={`card-cover ${progress ? 'has-progress' : ''}`.trim()}>
       <i>
         <CandidatePhoto photo={photo} />
       </i>
@@ -334,6 +336,11 @@ export function CardCover({
         <strong>{title}</strong>
         <small>{meta}</small>
       </div>
+      {progress && (
+        <em className="card-cover-progress">
+          <s style={{ background: progress.color, width: `${progress.value}%` }} />
+        </em>
+      )}
     </div>
   );
 }
@@ -352,6 +359,7 @@ export function toCandidateRows(tally?: { rows: TallyRow[] }, targets: Predictio
       partyName: getParty((row.partyId ?? 'IND') as PartyId).name,
       color: row.color ?? '#8b8f8a',
       value: row.percent,
+      photo: row.photo,
     })),
     ...targets
       .filter(({ targetId }) => !counted.has(targetId))
@@ -361,6 +369,7 @@ export function toCandidateRows(tally?: { rows: TallyRow[] }, targets: Predictio
         partyName: getParty((target.partyId ?? 'IND') as PartyId).name,
         color: target.partyId ? getParty(target.partyId as PartyId).color : '#8b8f8a',
         value: 0,
+        photo: target.photo,
       })),
   ];
 }

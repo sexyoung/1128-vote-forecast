@@ -1,6 +1,7 @@
 import { type Context, Hono } from 'hono';
 import type { Prisma } from '../generated/prisma/client.js';
 import { closeAdminSession, openAdminSession, requireAdmin } from './admin-session.js';
+import { AnnouncementRejected, getAdminAnnouncement, saveAnnouncement } from './announcement.js';
 import {
   CandidateImportRejected,
   importCandidates,
@@ -121,6 +122,24 @@ adminApp.get('/overview', async (c) => {
 });
 
 // --- 候選人 CSV ------------------------------------------------------------
+
+adminApp.get('/candidates', async (c) => {
+  const candidates = await prisma.candidate.findMany({
+    where: {
+      NOT: { id: { contains: '-CANDIDATE-' } },
+      status: { in: ['REGISTERED', 'CONFIRMED'] },
+    },
+    select: { id: true, contestId: true, name: true, partyId: true },
+    orderBy: [{ contestId: 'asc' }, { ballotNo: 'asc' }, { name: 'asc' }],
+  });
+
+  return c.json({
+    candidates: candidates.map((candidate) => ({
+      ...candidate,
+      contestName: getRegisteredContest(candidate.contestId)?.name ?? candidate.contestId,
+    })),
+  });
+});
 
 async function readCandidateCsv(c: Context) {
   const csv = await c.req.text();
@@ -252,4 +271,32 @@ adminApp.post('/forecasters/:forecasterId/unblock', async (c) => {
   });
   if (!result.count) return c.json({ error: '找不到已封鎖的身份。' }, 404);
   return c.json({ ok: true });
+});
+
+// --- 全站公告 ---------------------------------------------------------------
+
+adminApp.get('/announcement', async (c) => c.json({ announcement: await getAdminAnnouncement() }));
+
+adminApp.put('/announcement', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    title?: unknown;
+    body?: unknown;
+    linkUrl?: unknown;
+    linkLabel?: unknown;
+    published?: unknown;
+  } | null;
+
+  try {
+    const { row, versionBumped } = await saveAnnouncement({
+      title: typeof body?.title === 'string' ? body.title : '',
+      body: typeof body?.body === 'string' ? body.body : '',
+      linkUrl: typeof body?.linkUrl === 'string' ? body.linkUrl : null,
+      linkLabel: typeof body?.linkLabel === 'string' ? body.linkLabel : null,
+      published: body?.published === true,
+    });
+    return c.json({ announcement: row, versionBumped });
+  } catch (error) {
+    if (error instanceof AnnouncementRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
 });

@@ -22,6 +22,11 @@ const kindLabels: Record<Jurisdiction['kind'], string> = {
   county: '縣',
 };
 
+export function uniqueLeader(rows: ReturnType<typeof toCandidateRows>) {
+  const [leader, runnerUp] = rows;
+  return leader?.value > 0 && leader.value > (runnerUp?.value ?? 0) ? leader : undefined;
+}
+
 function RegionCard({
   jurisdiction,
   tally,
@@ -30,19 +35,26 @@ function RegionCard({
   tally?: ContestListTally;
 }) {
   const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
+  const rows = toCandidateRows(tally, tally?.targets);
+  const leader = uniqueLeader(rows);
   return (
-    <Link className="contest-card" to={`/region/${jurisdiction.id}`}>
+    <Link
+      className={`contest-card ${leader ? 'region-card-has-leader' : ''}`.trim()}
+      to={`/region/${jurisdiction.id}`}
+    >
       <span className="card-link">
         {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
       <CardCover
         kicker={kindLabels[jurisdiction.kind]}
         meta={contest.name}
+        photo={leader?.photo}
+        progress={leader && { color: leader.color, value: leader.value }}
         title={jurisdiction.name}
       />
       <CandidateList
         forecasts={tally?.totalPicks ?? 0}
-        rows={toCandidateRows(tally, tally?.targets)}
+        rows={rows}
         winnerCount={contest.seatCount}
       />
     </Link>
