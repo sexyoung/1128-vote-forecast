@@ -10,16 +10,6 @@ const platforms: SharePlatform[] = ['facebook', 'threads', 'twitter', 'line'];
 // 分享預覽仍要定期更新，但不能每次點擊都產生全新的 CDN cache key；五分鐘一個版本。
 const shareCacheWindowMs = 5 * 60 * 1000;
 
-export function buildSharedPageUrl(pageUrl: string, timestamp: number) {
-  const page = new URL(pageUrl);
-  page.hash = '';
-  page.searchParams.set(
-    't',
-    String(Math.floor(timestamp / shareCacheWindowMs) * shareCacheWindowMs),
-  );
-  return page.toString();
-}
-
 function SocialIcon({ platform }: { platform: SharePlatform }) {
   const paths = {
     facebook: (
@@ -61,11 +51,16 @@ export function buildSocialShareUrl(
   text: string,
   timestamp: number,
 ) {
-  const page = buildSharedPageUrl(pageUrl, timestamp);
+  const page = new URL(pageUrl);
+  page.hash = '';
+  page.searchParams.set(
+    't',
+    String(Math.floor(timestamp / shareCacheWindowMs) * shareCacheWindowMs),
+  );
 
   if (platform === 'facebook') {
     const share = new URL('https://www.facebook.com/sharer/sharer.php');
-    share.searchParams.set('u', page);
+    share.searchParams.set('u', page.toString());
     return share.toString();
   }
   if (platform === 'threads') {
@@ -75,7 +70,7 @@ export function buildSocialShareUrl(
   }
   if (platform === 'line') {
     const share = new URL('https://social-plugins.line.me/lineit/share');
-    share.searchParams.set('url', page);
+    share.searchParams.set('url', page.toString());
     share.searchParams.set('text', text);
     return share.toString();
   }
@@ -95,24 +90,8 @@ export function SocialShare({ className = '' }: { className?: string }) {
           className={platform}
           key={platform}
           onClick={() => {
-            const timestamp = Date.now();
-            const pageUrl = buildSharedPageUrl(window.location.href, timestamp);
-
-            // 手機的 Facebook App 會攔截網頁 sharer，卻可能只開首頁。改由系統分享
-            // 面板把 URL 直接交給 Facebook；桌機仍使用 Facebook 的網頁分享窗。
-            if (
-              platform === 'facebook' &&
-              window.matchMedia('(pointer: coarse), (max-width: 720px)').matches &&
-              navigator.share
-            ) {
-              void navigator.share({ title: document.title, url: pageUrl }).catch(() => {
-                // 使用者關閉分享面板也是 rejection，不需要額外提示或再次跳轉。
-              });
-              return;
-            }
-
             window.open(
-              buildSocialShareUrl(platform, window.location.href, document.title, timestamp),
+              buildSocialShareUrl(platform, window.location.href, document.title, Date.now()),
               '_blank',
               'noopener,noreferrer,width=720,height=720',
             );
