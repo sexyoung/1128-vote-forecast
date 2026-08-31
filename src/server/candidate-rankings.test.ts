@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test';
 import { databaseSchema, prisma } from './db.js';
 import { listCandidateRankings } from './candidate-rankings.js';
+import { cacheDelete } from './redis.js';
+import { candidateRankingsKey } from './snapshot-keys.js';
 
 const candidateIds = ['RANKING-TEST-CANDIDATE-1', 'RANKING-TEST-CANDIDATE-2'];
 
@@ -25,6 +27,7 @@ beforeAll(async () => {
       count: 10_001 - index,
     })),
   });
+  await cacheDelete(candidateRankingsKey);
 });
 
 afterAll(async () => {

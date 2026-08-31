@@ -26,6 +26,24 @@ import {
   toCandidateRows,
 } from './ElectionPrototypeShared';
 import { ForecastSheet } from './ForecastSheet';
+import { SkeletonSwap } from './SkeletonSwap';
+
+function ContestResultsLoading() {
+  return (
+    <section className="results-panel contest-results-loading">
+      <div className="contest-loading-ballot">
+        <Icon name="vote" />
+      </div>
+      <strong>正在整理選票</strong>
+      <p>預測結果馬上就來。</p>
+      <div className="contest-loading-bars">
+        <i />
+        <i />
+        <i />
+      </div>
+    </section>
+  );
+}
 
 function ResultsPanel({ contestId, seats }: { contestId: string; seats: number }) {
   const detail = useQuery({
@@ -35,27 +53,27 @@ function ResultsPanel({ contestId, seats }: { contestId: string; seats: number }
   const tally = detail.data?.tally;
   const rows = toCandidateRows(tally, detail.data?.targets);
 
-  if (detail.isPending) return <section className="results-panel">載入中…</section>;
-
   return (
-    <section className="results-panel">
-      <div className="results-total">
-        <span>預測</span>
-        <strong>{(tally?.totalPredictions ?? 0).toLocaleString()}</strong>
-        <small>份</small>
-      </div>
-      {rows.length > 0 ? (
-        <CandidateList
-          forecasts={tally?.totalPicks ?? 0}
-          highlightIds={detail.data?.mine?.targetIds}
-          rows={rows}
-          winnerCount={seats}
-        />
-      ) : (
-        <p className="method-note">還沒有人預測這一區，你可以是第一個。</p>
-      )}
-      <p className="method-note">每個匿名身份在本選區只計一份預測。重複送出會覆蓋原紀錄。</p>
-    </section>
+    <SkeletonSwap pending={detail.isPending} skeleton={<ContestResultsLoading />}>
+      <section className="results-panel">
+        <div className="results-total">
+          <span>預測</span>
+          <strong>{(tally?.totalPredictions ?? 0).toLocaleString()}</strong>
+          <small>份</small>
+        </div>
+        {rows.length > 0 ? (
+          <CandidateList
+            forecasts={tally?.totalPicks ?? 0}
+            highlightIds={detail.data?.mine?.targetIds}
+            rows={rows}
+            winnerCount={seats}
+          />
+        ) : (
+          <p className="method-note">還沒有人預測這一區，你可以是第一個。</p>
+        )}
+        <p className="method-note">每個匿名身份在本選區只計一份預測。重複送出會覆蓋原紀錄。</p>
+      </section>
+    </SkeletonSwap>
   );
 }
 

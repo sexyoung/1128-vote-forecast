@@ -4,7 +4,13 @@ import { getRegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { refreshCandidates } from './prediction-targets.js';
 import { cacheDelete } from './redis.js';
-import { keysAffectedBy } from './snapshot-keys.js';
+import {
+  candidateDataKey,
+  candidateRankingsKey,
+  keysAffectedBy,
+  partyCandidatesKey,
+  partyCountsKey,
+} from './snapshot-keys.js';
 
 const headers = ['code', 'contestId', 'name', 'partyId', 'ballotNo', 'status'] as const;
 const statuses = ['REGISTERED', 'CONFIRMED', 'WITHDRAWN', 'DISQUALIFIED'] as const;
@@ -232,12 +238,16 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
     { timeout: 300_000 },
   );
 
-  await refreshCandidates();
   await cacheDelete(
+    candidateDataKey,
+    candidateRankingsKey,
+    partyCountsKey,
+    ...parties.map(({ id }) => partyCandidatesKey(id)),
     ...plan.contestIds.flatMap((contestId) => {
       const contest = getRegisteredContest(contestId);
       return contest ? keysAffectedBy(contest.id, contest.jurisdictionId) : [];
     }),
   );
+  await refreshCandidates();
   return plan.summary;
 }

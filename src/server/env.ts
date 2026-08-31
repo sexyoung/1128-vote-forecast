@@ -30,6 +30,7 @@ export const env = {
   /** 後台 cookie 的簽章金鑰。換掉等於把後台登出，這就是撤銷機制，不維護 session 表。 */
   adminSessionSecret: optional('ADMIN_SESSION_SECRET', ''),
   adminSessionHours: Number(optional('ADMIN_SESSION_HOURS', '12')),
+  cronSecret: optional('CRON_SECRET', ''),
   /** 沒有 pooler 的直連字串，只給本機維護與資料庫 migration。留空就退回 databaseUrl。 */
   directDatabaseUrl: optional('DIRECT_DATABASE_URL', ''),
 };

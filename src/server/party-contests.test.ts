@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test';
 import { databaseSchema, prisma } from './db.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
+import { cacheDelete } from './redis.js';
+import { partyCandidatesKey, partyCountsKey, tallyKey } from './snapshot-keys.js';
 
 const candidateIds = [
   'PARTY-PAGE-TEST-CANDIDATE-1',
@@ -22,6 +24,12 @@ beforeAll(async () => {
       ballotNo: 998 + index,
     })),
   });
+  await cacheDelete(
+    partyCountsKey,
+    partyCandidatesKey(partyId),
+    tallyKey('TPE-COUNCIL-1'),
+    tallyKey('CHA-COUNCIL-1'),
+  );
 });
 
 afterAll(async () => {
@@ -81,6 +89,7 @@ describe('party candidate list', () => {
         count: 3,
       },
     });
+    await cacheDelete(tallyKey('TPE-COUNCIL-1'));
 
     const page = await listPartyContests(partyId, 1, 'TPE');
 

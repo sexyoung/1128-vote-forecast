@@ -4,7 +4,8 @@ import { getRegisteredContest } from './contest-registry.js';
 import { databaseSchema, prisma } from './db.js';
 import { forecasterCookieName } from './identity.js';
 import { getPredictionTargets } from './prediction-targets.js';
-import { disconnectRedis } from './redis.js';
+import { cacheDelete, disconnectRedis } from './redis.js';
+import { keysAffectedBy } from './snapshot-keys.js';
 
 // 用真的選區，但每次測試都自己清乾淨。單一席次用臺北市長，複數席次用臺北市
 // 議員第 1 選舉區（應選 12 席），複數席次的規則只有在那種選區才看得出來。
@@ -39,6 +40,10 @@ async function reset() {
   await prisma.contestSummary.deleteMany({
     where: { contestId: { in: [singleSeat.id, multiSeat.id] } },
   });
+  await cacheDelete(
+    ...keysAffectedBy(singleSeat.id, singleSeat.jurisdictionId),
+    ...keysAffectedBy(multiSeat.id, multiSeat.jurisdictionId),
+  );
 }
 
 beforeEach(reset);

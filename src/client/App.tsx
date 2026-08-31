@@ -10,6 +10,9 @@ import { RegionsPage } from './pages/RegionsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PartiesPage } from './pages/PartiesPage';
 import { CandidateRankingsPage } from './pages/CandidateRankingsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
+import { ChangelogPage } from './pages/ChangelogPage';
 
 // 後台是另一支程式，只是共用網域與建置。lazy 讓它自己一個 chunk，公開頁面不會
 // 為了一個只有我看得到的畫面多下載幾十 KB。
@@ -28,6 +31,9 @@ export function App() {
         <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
         <Route path="/contest/:contestId" element={<ContestPage />} />
         <Route path="/mine" element={<MyPredictionsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/changelog" element={<ChangelogPage />} />
         <Route
           path="/admin/*"
           element={

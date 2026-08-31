@@ -32,6 +32,15 @@ model Forecaster {
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
+  /// 最近一次連線來源。只保留最新值；地理位置來自 Cloudflare／Vercel edge 標頭，
+  /// 是 IP 定位推測，不是 GPS。
+  lastIp        String?   @db.VarChar(45)
+  lastIpAt      DateTime?
+  lastCountry   String?   @db.VarChar(2)
+  lastRegion    String?   @db.VarChar(100)
+  lastCity      String?   @db.VarChar(100)
+  lastGeoSource String?   @db.VarChar(16)
+
   signals     ForecasterSignal[]
   predictions Prediction[]
   comments    Comment[]
@@ -46,7 +55,7 @@ enum SignalKind {
   IP
 }
 
-/// 辨識訊號。一律存 HMAC（伺服器 pepper），不留原始指紋與 IP。
+/// 辨識訊號一律存 HMAC（伺服器 pepper）；原始 IP 只另存 Forecaster.lastIp 最新值。
 model ForecasterSignal {
   id           String     @id @default(cuid())
   forecasterId String

@@ -3,42 +3,49 @@ import { getRegisteredContest } from './contest-registry.js';
 import { readContestTallies } from './predictions.js';
 import { avatarUrl } from '../client/avatars.js';
 import { jurisdictionOrder } from '../shared/jurisdictions.js';
+import { cachedJson } from './redis.js';
+import { partyCandidatesKey, partyCountsKey } from './snapshot-keys.js';
 
 const pageSize = 100;
 const typeOrder = ['EXECUTIVE', 'COUNCIL', 'TOWNSHIP', 'REPRESENTATIVE', 'VILLAGE'] as const;
 
 export async function listPartyCandidateCounts() {
-  const groups = await prisma.candidate.groupBy({
-    by: ['partyId', 'contestId'],
-    where: { partyId: { not: null }, status: { in: ['REGISTERED', 'CONFIRMED'] } },
-    _count: { _all: true },
+  return cachedJson(partyCountsKey, 300, async () => {
+    const groups = await prisma.candidate.groupBy({
+      by: ['partyId', 'contestId'],
+      where: { partyId: { not: null }, status: { in: ['REGISTERED', 'CONFIRMED'] } },
+      _count: { _all: true },
+    });
+    const parties = new Map<
+      string,
+      { candidateCount: number; offices: Map<(typeof typeOrder)[number], number> }
+    >();
+    for (const group of groups) {
+      const contest = getRegisteredContest(group.contestId);
+      if (!group.partyId || !contest) continue;
+      const summary = parties.get(group.partyId) ?? { candidateCount: 0, offices: new Map() };
+      summary.candidateCount += group._count._all;
+      summary.offices.set(
+        contest.type,
+        (summary.offices.get(contest.type) ?? 0) + group._count._all,
+      );
+      parties.set(group.partyId, summary);
+    }
+    return {
+      parties: Object.fromEntries(
+        [...parties].map(([id, summary]) => [
+          id,
+          {
+            candidateCount: summary.candidateCount,
+            offices: typeOrder.flatMap((type) => {
+              const candidateCount = summary.offices.get(type) ?? 0;
+              return candidateCount ? [{ type, candidateCount }] : [];
+            }),
+          },
+        ]),
+      ),
+    };
   });
-  const parties = new Map<
-    string,
-    { candidateCount: number; offices: Map<(typeof typeOrder)[number], number> }
-  >();
-  for (const group of groups) {
-    const contest = getRegisteredContest(group.contestId);
-    if (!group.partyId || !contest) continue;
-    const summary = parties.get(group.partyId) ?? { candidateCount: 0, offices: new Map() };
-    summary.candidateCount += group._count._all;
-    summary.offices.set(contest.type, (summary.offices.get(contest.type) ?? 0) + group._count._all);
-    parties.set(group.partyId, summary);
-  }
-  return {
-    parties: Object.fromEntries(
-      [...parties].map(([id, summary]) => [
-        id,
-        {
-          candidateCount: summary.candidateCount,
-          offices: typeOrder.flatMap((type) => {
-            const candidateCount = summary.offices.get(type) ?? 0;
-            return candidateCount ? [{ type, candidateCount }] : [];
-          }),
-        },
-      ]),
-    ),
-  };
 }
 
 export async function listPartyContests(
@@ -47,10 +54,12 @@ export async function listPartyContests(
   jurisdictionId = '',
   requestedType = '',
 ) {
-  const candidates = await prisma.candidate.findMany({
-    where: { partyId, status: { in: ['REGISTERED', 'CONFIRMED'] } },
-    select: { id: true, contestId: true, name: true, ballotNo: true },
-  });
+  const candidates = await cachedJson(partyCandidatesKey(partyId), 3600, () =>
+    prisma.candidate.findMany({
+      where: { partyId, status: { in: ['REGISTERED', 'CONFIRMED'] } },
+      select: { id: true, contestId: true, name: true, ballotNo: true },
+    }),
+  );
   const items = candidates
     .flatMap((candidate) => {
       const contest = getRegisteredContest(candidate.contestId);

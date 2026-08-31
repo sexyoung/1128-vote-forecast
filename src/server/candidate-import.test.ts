@@ -25,7 +25,7 @@ async function restorePlaceholders() {
       ballotNo: candidate.number,
     })),
   });
-  await refreshCandidates();
+  await refreshCandidates(true);
 }
 
 beforeAll(async () => {

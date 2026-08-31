@@ -11,15 +11,15 @@ describe('contest forecast prompt', () => {
 });
 
 describe('contest social sharing', () => {
-  it('creates a fresh timestamped contest URL for every platform', () => {
+  it('shares one cacheable five-minute URL bucket across platforms', () => {
     const page = 'https://vote.example/contest/TPE-EXECUTIVE-1?tab=comments';
-    const timestamp = 1_788_076_800_000;
+    const timestamp = 1_788_076_923_456;
 
     const facebook = new URL(buildSocialShareUrl('facebook', page, '分享文字', timestamp));
     const line = new URL(buildSocialShareUrl('line', page, '分享文字', timestamp));
     const threads = new URL(buildSocialShareUrl('threads', page, '分享文字', timestamp));
     const twitter = new URL(buildSocialShareUrl('twitter', page, '分享文字', timestamp));
-    const sharedPage = `https://vote.example/contest/TPE-EXECUTIVE-1?tab=comments&t=${timestamp}`;
+    const sharedPage = 'https://vote.example/contest/TPE-EXECUTIVE-1?tab=comments&t=1788076800000';
 
     expect(facebook.searchParams.get('u')).toBe(sharedPage);
     expect(line.searchParams.get('url')).toBe(sharedPage);

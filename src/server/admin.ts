@@ -17,6 +17,7 @@ import {
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { dismissReport } from './moderation.js';
+import { describeTarget } from './prediction-targets.js';
 import { cacheDelete, pingRedis } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
 import { hasSnapshotFor } from './trends.js';
@@ -42,6 +43,11 @@ function toAdminComment(comment: CommentWithForecaster) {
       displayName: comment.forecaster.displayName,
     },
   };
+}
+
+function requestedPage(value: string | undefined) {
+  const parsed = Number.parseInt(value ?? '1', 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 // --- 認證 -----------------------------------------------------------------
@@ -124,8 +130,7 @@ adminApp.get('/overview', async (c) => {
 // --- 預測使用者 -------------------------------------------------------------
 
 adminApp.get('/forecasters', async (c) => {
-  const requestedPage = Number.parseInt(c.req.query('page') ?? '1', 10);
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const page = requestedPage(c.req.query('page'));
   const pageSize = 50;
   const [total, forecasters] = await Promise.all([
     prisma.forecaster.count(),
@@ -139,7 +144,13 @@ adminApp.get('/forecasters', async (c) => {
         blockedAt: true,
         createdAt: true,
         lastSeenAt: true,
-        _count: { select: { predictions: true } },
+        lastIp: true,
+        lastIpAt: true,
+        lastCountry: true,
+        lastRegion: true,
+        lastCity: true,
+        lastGeoSource: true,
+        _count: { select: { predictions: true, comments: true } },
       },
     }),
   ]);
@@ -149,7 +160,139 @@ adminApp.get('/forecasters', async (c) => {
       ...forecaster,
       code: forecasterCode(forecaster.id),
       predictionCount: _count.predictions,
+      commentCount: _count.comments,
     })),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
+});
+
+adminApp.get('/forecasters/:forecasterId', async (c) => {
+  const forecaster = await prisma.forecaster.findUnique({
+    where: { id: c.req.param('forecasterId') },
+    select: {
+      id: true,
+      displayName: true,
+      blockedAt: true,
+      humanVerifiedAt: true,
+      createdAt: true,
+      lastSeenAt: true,
+      lastIp: true,
+      lastIpAt: true,
+      lastCountry: true,
+      lastRegion: true,
+      lastCity: true,
+      lastGeoSource: true,
+      signals: {
+        orderBy: [{ kind: 'asc' }, { lastSeenAt: 'desc' }],
+        select: {
+          id: true,
+          kind: true,
+          hash: true,
+          firstSeenAt: true,
+          lastSeenAt: true,
+          seenCount: true,
+        },
+      },
+      _count: { select: { predictions: true, comments: true, reports: true, signals: true } },
+    },
+  });
+  if (!forecaster) return c.json({ error: '找不到這個身份。' }, 404);
+  const { _count, signals, ...profile } = forecaster;
+  return c.json({
+    forecaster: {
+      ...profile,
+      code: forecasterCode(profile.id),
+      counts: _count,
+      signals: signals.map(({ hash, ...signal }) => ({
+        ...signal,
+        code: hash.slice(0, 12),
+      })),
+    },
+  });
+});
+
+adminApp.get('/forecasters/:forecasterId/predictions', async (c) => {
+  const forecasterId = c.req.param('forecasterId');
+  const page = requestedPage(c.req.query('page'));
+  const pageSize = 50;
+  const exists = await prisma.forecaster.count({ where: { id: forecasterId } });
+  if (!exists) return c.json({ error: '找不到這個身份。' }, 404);
+  const [total, predictions] = await Promise.all([
+    prisma.prediction.count({ where: { forecasterId } }),
+    prisma.prediction.findMany({
+      where: { forecasterId },
+      include: { picks: true },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  return c.json({
+    items: predictions.map((prediction) => {
+      const contest = getRegisteredContest(prediction.contestId);
+      return {
+        ...prediction,
+        contest: contest
+          ? {
+              id: contest.id,
+              name: contest.name,
+              area: contest.area,
+              type: contest.type,
+            }
+          : null,
+        picks: prediction.picks.map((pick) => ({
+          ...pick,
+          ...(contest
+            ? describeTarget(contest, pick.targetType, pick.targetId)
+            : { label: pick.targetId, partyId: pick.partyId, color: null }),
+        })),
+      };
+    }),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
+});
+
+adminApp.get('/forecasters/:forecasterId/comments', async (c) => {
+  const forecasterId = c.req.param('forecasterId');
+  const page = requestedPage(c.req.query('page'));
+  const pageSize = 50;
+  const exists = await prisma.forecaster.count({ where: { id: forecasterId } });
+  if (!exists) return c.json({ error: '找不到這個身份。' }, 404);
+  const [total, comments] = await Promise.all([
+    prisma.comment.count({ where: { forecasterId } }),
+    prisma.comment.findMany({
+      where: { forecasterId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        contestId: true,
+        parentId: true,
+        body: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { replies: true } },
+      },
+    }),
+  ]);
+
+  return c.json({
+    items: comments.map(({ _count, ...comment }) => {
+      const contest = getRegisteredContest(comment.contestId);
+      return {
+        ...comment,
+        replyCount: _count.replies,
+        contest: contest ? { id: contest.id, name: contest.name, area: contest.area } : null,
+      };
+    }),
     page,
     pageSize,
     total,

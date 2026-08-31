@@ -14,8 +14,13 @@ import {
   readMyPrediction,
   savePrediction,
 } from './predictions.js';
-import { readContestSnapshot, readJurisdictionMap, readNationalMap } from './snapshots.js';
-import { readTrend } from './trends.js';
+import {
+  readContestSnapshot,
+  readJurisdictionMap,
+  readNationalMap,
+  refreshHotSnapshots,
+} from './snapshots.js';
+import { captureDailySnapshot, hasSnapshotFor, readTrend } from './trends.js';
 import { fileReport, parseReportReason, parseReportTarget } from './moderation.js';
 import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
@@ -44,7 +49,39 @@ app.use('/api/*', (c, next) =>
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api' }));
 
 /** 沒有公告或還沒發布都回 null，草稿內容永遠不會流到這裡。 */
-app.get('/api/announcement', async (c) => c.json({ announcement: await getPublicAnnouncement() }));
+app.get('/api/announcement', async (c) => {
+  c.header('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');
+  return c.json({ announcement: await getPublicAnnouncement() });
+});
+
+function cronAuthorized(authorization: string | undefined) {
+  return Boolean(env.cronSecret) && authorization === `Bearer ${env.cronSecret}`;
+}
+
+app.get('/api/cron/hot-snapshots', async (c) => {
+  if (!cronAuthorized(c.req.header('authorization'))) return c.json({ error: '未授權。' }, 401);
+  return c.json({ keys: await refreshHotSnapshots() });
+});
+
+app.get('/api/cron/daily-trend', async (c) => {
+  if (!cronAuthorized(c.req.header('authorization'))) return c.json({ error: '未授權。' }, 401);
+  if (await hasSnapshotFor()) return c.json({ captured: false, rows: 0 });
+  return c.json({ captured: true, rows: await captureDailySnapshot() });
+});
+
+function isPublicRead(path: string, method: string) {
+  if (method !== 'GET') return false;
+  return (
+    path === '/api/announcement' ||
+    path === '/api/map/national' ||
+    path.startsWith('/api/map/') ||
+    path === '/api/parties' ||
+    /^\/api\/parties\/[^/]+\/contests$/.test(path) ||
+    path === '/api/rankings/candidates' ||
+    path === '/api/contests' ||
+    /^\/api\/contests\/[^/]+\/(trend|comments)$/.test(path)
+  );
+}
 
 /**
  * 除了健康檢查以外，每個 /api 請求都先認出使用者。認不出來就開一個新身份——
@@ -53,7 +90,15 @@ app.get('/api/announcement', async (c) => c.json({ announcement: await getPublic
  */
 app.use('/api/*', async (c, next) => {
   // 健康檢查與後台不需要身份，後台走自己的 token。
-  if (c.req.path === '/api/health' || c.req.path.startsWith('/api/admin/')) return next();
+  if (
+    c.req.path === '/api/health' ||
+    c.req.path.startsWith('/api/admin/') ||
+    isPublicRead(c.req.path, c.req.method)
+  ) {
+    if (isPublicRead(c.req.path, c.req.method))
+      c.header('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');
+    return next();
+  }
   try {
     c.set('forecaster', await resolveForecaster(c));
   } catch (error) {
@@ -315,7 +360,8 @@ app.post('/api/contests/:contestId/comments', async (c) => {
 app.delete('/api/comments/:commentId', async (c) => {
   const forecaster = c.get('forecaster');
   try {
-    await deleteOwnComment(forecaster.id, c.req.param('commentId'));
+    const contestId = await deleteOwnComment(forecaster.id, c.req.param('commentId'));
+    await cacheDelete(commentsKey(contestId));
     return c.json({ ok: true });
   } catch (error) {
     if (error instanceof CommentRejected) return c.json({ error: error.message }, 404);

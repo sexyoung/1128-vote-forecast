@@ -18,10 +18,25 @@ export function contestKey(contestId: string) {
   return `snap:contest:${contestId}`;
 }
 
+export function tallyKey(contestId: string) {
+  return `snap:tally:${contestId}`;
+}
+
+export const candidateRankingsKey = 'snap:rankings:candidates';
+export const partyCountsKey = 'snap:parties:counts';
+export const publicAnnouncementKey = 'snap:announcement:public';
+export const candidateDataKey = 'data:candidates:v1';
+
+export function partyCandidatesKey(partyId: string) {
+  return `snap:parties:${partyId}:candidates`;
+}
+
 /** 一筆預測會影響這個選區、它所屬縣市的每一層，以及全國地圖。 */
 export function keysAffectedBy(contestId: string, jurisdictionId: string) {
   return [
     contestKey(contestId),
+    tallyKey(contestId),
+    candidateRankingsKey,
     nationalKey,
     ...contestTypes.map((type) => jurisdictionKey(jurisdictionId, type)),
   ];

@@ -404,7 +404,7 @@ Deferral: `whenIdle` (requestIdleCallback with a 4 s timeout, setTimeout 2 s fal
 
 ## privacy
 
-THE PROJECT'S STATED POSTURE, from the code. src/client/fingerprint.ts:1-7 says in as many words that the fingerprint is hand-written rather than FingerprintJS because "那種函式庫追求『盡可能唯一』，會去讀字型、音訊、WebGL 這些跟辨識無關的東西，換來的是更難解釋的隱私成本". src/server/identity.ts:17 says "指紋與 IP 一律只存 HMAC，不留原值" and enforces it via `signalHash` (identity.ts:18-20). The identity cookie is httpOnly (identity.ts:120). Nothing identifying ever leaves the server unhashed. Every analytics decision below is measured against that.
+THE PROJECT'S STATED POSTURE, from the code. src/client/fingerprint.ts:1-7 says in as many words that the fingerprint is hand-written rather than FingerprintJS because "那種函式庫追求『盡可能唯一』，會去讀字型、音訊、WebGL 這些跟辨識無關的東西，換來的是更難解釋的隱私成本". Fingerprint and IP matching signals remain HMAC-protected, while the server separately retains only the latest full IP and edge-inferred location for abuse investigation. The identity cookie is httpOnly. None of those identifying fields may be sent to analytics providers. Every analytics decision below is measured against that.
 
 MAY THE FORECASTER ID BE THE POSTHOG distinct_id? No. Do not call `posthog.identify()` at all.
 

@@ -72,6 +72,13 @@ export type AdminForecaster = {
   code: string;
   displayName: string | null;
   predictionCount: number;
+  commentCount: number;
+  lastIp: string | null;
+  lastIpAt: string | null;
+  lastCountry: string | null;
+  lastRegion: string | null;
+  lastCity: string | null;
+  lastGeoSource: string | null;
   blockedAt: string | null;
   createdAt: string;
   lastSeenAt: string;
@@ -87,6 +94,84 @@ export type AdminForecastersPage = {
 
 export const getAdminForecasters = (page: number) =>
   request<AdminForecastersPage>(`/api/admin/forecasters?page=${page}`);
+
+export type AdminForecasterDetail = {
+  id: string;
+  code: string;
+  displayName: string | null;
+  blockedAt: string | null;
+  humanVerifiedAt: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  lastIp: string | null;
+  lastIpAt: string | null;
+  lastCountry: string | null;
+  lastRegion: string | null;
+  lastCity: string | null;
+  lastGeoSource: string | null;
+  counts: { predictions: number; comments: number; reports: number; signals: number };
+  signals: {
+    id: string;
+    kind: 'COOKIE' | 'FINGERPRINT' | 'IP';
+    code: string;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    seenCount: number;
+  }[];
+};
+
+export type AdminForecasterPrediction = {
+  id: string;
+  contestId: string;
+  seatCount: number;
+  status: 'ACTIVE' | 'INVALIDATED';
+  invalidReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  contest: { id: string; name: string; area: string; type: ContestType } | null;
+  picks: {
+    targetType: 'PARTY' | 'CANDIDATE';
+    targetId: string;
+    partyId: string | null;
+    label: string;
+    color: string | null;
+  }[];
+};
+
+export type AdminForecasterComment = {
+  id: string;
+  contestId: string;
+  parentId: string | null;
+  body: string;
+  status: 'VISIBLE' | 'HIDDEN' | 'DELETED';
+  createdAt: string;
+  replyCount: number;
+  contest: { id: string; name: string; area: string } | null;
+};
+
+export type AdminActivityPage<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export const getAdminForecaster = (forecasterId: string) =>
+  request<{ forecaster: AdminForecasterDetail }>(
+    `/api/admin/forecasters/${encodeURIComponent(forecasterId)}`,
+  );
+
+export const getAdminForecasterPredictions = (forecasterId: string, page: number) =>
+  request<AdminActivityPage<AdminForecasterPrediction>>(
+    `/api/admin/forecasters/${encodeURIComponent(forecasterId)}/predictions?page=${page}`,
+  );
+
+export const getAdminForecasterComments = (forecasterId: string, page: number) =>
+  request<AdminActivityPage<AdminForecasterComment>>(
+    `/api/admin/forecasters/${encodeURIComponent(forecasterId)}/comments?page=${page}`,
+  );
 
 // --- 候選人 CSV -------------------------------------------------------------
 

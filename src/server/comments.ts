@@ -1,5 +1,7 @@
 import type { Prisma } from '../generated/prisma/client.js';
 import { prisma } from './db.js';
+import { cachedJson } from './redis.js';
+import { commentsKey } from './snapshot-keys.js';
 
 /** 顯示用的短碼。系統配發、改不了，名字重複時靠它分辨。 */
 export function forecasterCode(id: string) {
@@ -37,23 +39,28 @@ function toPublicComment(comment: CommentWithAuthor) {
  * 第二頁時第一頁的東西已經往下擠，會重複也會漏。
  */
 export async function listComments(contestId: string, before?: Date) {
-  const comments = await prisma.comment.findMany({
-    where: {
-      contestId,
-      status: 'VISIBLE',
-      ...(before ? { createdAt: { lt: before } } : {}),
-    },
-    include: { forecaster: true },
-    orderBy: { createdAt: 'desc' },
-    take: pageSize + 1,
-  });
+  const build = async () => {
+    const comments = await prisma.comment.findMany({
+      where: {
+        contestId,
+        status: 'VISIBLE',
+        ...(before ? { createdAt: { lt: before } } : {}),
+      },
+      include: { forecaster: true },
+      orderBy: { createdAt: 'desc' },
+      take: pageSize + 1,
+    });
 
-  const page = comments.slice(0, pageSize);
-  return {
-    comments: page.map(toPublicComment),
-    // 多撈一筆只為了知道還有沒有下一頁，不用另外 count。
-    nextCursor: comments.length > pageSize ? page[page.length - 1].createdAt.toISOString() : null,
+    const page = comments.slice(0, pageSize);
+    return {
+      comments: page.map(toPublicComment),
+      // 多撈一筆只為了知道還有沒有下一頁，不用另外 count。
+      nextCursor: comments.length > pageSize ? page[page.length - 1].createdAt.toISOString() : null,
+    };
   };
+
+  // 第一頁是每個人打開留言分頁都會看的熱資料；游標後頁是長尾，不佔 Redis。
+  return before ? build() : cachedJson(commentsKey(contestId), 30, build);
 }
 
 export async function createComment(
@@ -89,4 +96,5 @@ export async function deleteOwnComment(forecasterId: string, commentId: string) 
     throw new CommentRejected('找不到這則留言。');
 
   await prisma.comment.update({ where: { id: commentId }, data: { status: 'DELETED' } });
+  return comment.contestId;
 }

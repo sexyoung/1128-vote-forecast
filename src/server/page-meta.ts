@@ -98,8 +98,7 @@ export function resolvePageMeta(
   if (pathname === '/regions')
     return finish({
       title: `全國選舉預測｜22 縣市最新選情｜${siteName}`,
-      description:
-        '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
+      description: '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
       ogTitle: '全國選舉預測｜22 縣市最新選情',
       ogDescription: '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
       canonical: absolute(origin, '/regions'),
@@ -113,8 +112,7 @@ export function resolvePageMeta(
       description:
         '整理各政黨在 2026 九合一選舉的候選人、參選職務與行政區分布，觀察各黨的地方布局。',
       ogTitle: '2026 九合一選舉政黨與候選人一覽',
-      ogDescription:
-        '整理各政黨的候選人、參選職務與行政區分布，觀察 2026 九合一選舉的地方布局。',
+      ogDescription: '整理各政黨的候選人、參選職務與行政區分布，觀察 2026 九合一選舉的地方布局。',
       canonical: absolute(origin, '/parties'),
       robots: indexRobots,
       status: 200,
@@ -123,11 +121,9 @@ export function resolvePageMeta(
   if (pathname === '/rankings')
     return finish({
       title: `熱門候選人排行｜預測次數 Top 50｜${siteName}`,
-      description:
-        '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
+      description: '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
       ogTitle: '熱門候選人排行｜預測次數 Top 50',
-      ogDescription:
-        '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
+      ogDescription: '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
       canonical: absolute(origin, '/rankings'),
       robots: indexRobots,
       status: 200,
@@ -208,10 +204,9 @@ export function resolvePageMeta(
           : `預測 ${contest.seats} 席最終歸屬`;
     return finish({
       title: `${contest.seats === 1 ? (leader ? `${name}最多人預測的是${leader.label}` : singleSeatTitle) : `${name}預測${seats ? `｜${seats}` : ''}`}｜${siteName}`,
-      description:
-        leader
-          ? `目前最多人預測 ${leader.label} 勝出${name}選舉，占 ${leader.percent}% 的預測選擇。查看完整分布，也留下你的選擇。這是群眾預測，不是民調。`
-          : contest.seats === 1
+      description: leader
+        ? `目前最多人預測 ${leader.label} 勝出${name}選舉，占 ${leader.percent}% 的預測選擇。查看完整分布，也留下你的選擇。這是群眾預測，不是民調。`
+        : contest.seats === 1
           ? `查看${name}目前的群眾預測分布，並留下你認為最可能勝出的候選人。這是群眾預測，不是民調。`
           : `${name}（${summariseArea(contest.area)}）的群眾預測分布，${seatSentence}。匿名就能押，每個身份在本選區只計一份，可隨時修改。`,
       ogTitle: leader
@@ -219,10 +214,9 @@ export function resolvePageMeta(
         : contest.seats === 1
           ? singleSeatTitle
           : `${name}預測`,
-      ogDescription:
-        leader
-          ? `${leader.label}目前以 ${leader.percent}% 的預測選擇居首。查看${name}完整預測分布。`
-          : contest.seats === 1
+      ogDescription: leader
+        ? `${leader.label}目前以 ${leader.percent}% 的預測選擇居首。查看${name}完整預測分布。`
+        : contest.seats === 1
           ? `查看${name}最新群眾預測分布，看看目前最多人預測誰會勝出。`
           : `${summariseArea(contest.area)}。看 2026 九合一選舉這一區的群眾預測分布。`,
       canonical: absolute(origin, `/contest/${contest.id}`),
@@ -231,6 +225,35 @@ export function resolvePageMeta(
       jsonLd: breadcrumbs(origin, jurisdiction.name, jurisdiction.id, contest.name),
     });
   }
+
+  // 站務頁面：內容固定，沒有 seed，只要 canonical 與可索引的標題。
+  const staticPages: Record<string, { title: string; description: string }> = {
+    '/privacy': {
+      title: '隱私權政策',
+      description:
+        '說明九合一選舉預測會存哪些資料、哪些會公開、保存多久，以及你可以怎麼修改或刪除自己的預測與留言。',
+    },
+    '/terms': {
+      title: '使用條款',
+      description:
+        '九合一選舉預測的使用規則：這是群眾預測不是民調、一人一區一份預測、留言規範與免責聲明。',
+    },
+    '/changelog': {
+      title: '更新紀錄',
+      description: '九合一選舉預測每次上版新增與修正了什麼，依版本由新到舊排列。',
+    },
+  };
+  const staticPage = staticPages[pathname];
+  if (staticPage)
+    return finish({
+      title: `${staticPage.title}｜${siteName}`,
+      description: staticPage.description,
+      ogTitle: staticPage.title,
+      ogDescription: staticPage.description,
+      canonical: absolute(origin, pathname),
+      robots: indexRobots,
+      status: 200,
+    });
 
   if (pathname === '/mine')
     return finish({
@@ -296,9 +319,7 @@ export function renderHead(meta: PageMeta) {
     tag('property', 'og:site_name', siteName),
     tag('property', 'og:locale', 'zh_TW'),
     tag('property', 'og:type', 'website'),
-    meta.ogUrl || meta.canonical
-      ? tag('property', 'og:url', meta.ogUrl ?? meta.canonical)
-      : '',
+    meta.ogUrl || meta.canonical ? tag('property', 'og:url', meta.ogUrl ?? meta.canonical) : '',
     tag('property', 'og:title', meta.ogTitle),
     tag('property', 'og:description', meta.ogDescription),
     meta.ogImage ? tag('property', 'og:image', meta.ogImage) : '',
@@ -330,6 +351,9 @@ export function renderCoreSitemap(origin: string) {
     '/regions',
     '/parties',
     '/rankings',
+    '/privacy',
+    '/terms',
+    '/changelog',
     ...candidateParties.map(({ id }) => `/parties/${id}`),
     ...jurisdictions.map(({ id }) => `/region/${id}`),
     ...listRegisteredContests()

@@ -1,4 +1,6 @@
 import { prisma } from './db.js';
+import { cacheDelete, cachedJson } from './redis.js';
+import { publicAnnouncementKey } from './snapshot-keys.js';
 
 /**
  * 全站公告固定只有一列，用常數 id upsert，不必另外查「有沒有這一列」再決定
@@ -42,17 +44,18 @@ const publicCacheTtlMs = 10_000;
 let publicCache: { value: PublicAnnouncement | null; at: number } | null = null;
 
 /** 寫入之後手動清掉。測試直接塞資料列時也用得上。 */
-export function resetAnnouncementCache() {
+export async function resetAnnouncementCache() {
   publicCache = null;
+  await cacheDelete(publicAnnouncementKey);
 }
 
 /** 首頁與其他公開頁面看到的樣子：沒有列、或還沒發布，一律當作沒有公告。 */
 export async function getPublicAnnouncement(): Promise<PublicAnnouncement | null> {
   if (publicCache && Date.now() - publicCache.at < publicCacheTtlMs) return publicCache.value;
 
-  const row = await prisma.announcement.findUnique({ where: { id: announcementId } });
-  const value =
-    !row || !row.published
+  const value = await cachedJson(publicAnnouncementKey, 60, async () => {
+    const row = await prisma.announcement.findUnique({ where: { id: announcementId } });
+    return !row || !row.published
       ? null
       : {
           version: row.version,
@@ -61,6 +64,7 @@ export async function getPublicAnnouncement(): Promise<PublicAnnouncement | null
           linkUrl: row.linkUrl,
           linkLabel: row.linkLabel,
         };
+  });
 
   publicCache = { value, at: Date.now() };
   return value;
@@ -137,6 +141,6 @@ export async function saveAnnouncement(rawInput: AnnouncementInput) {
   });
 
   // 寫完才清，順序反過來的話會有一瞬間把還沒 commit 的狀態記進快取。
-  resetAnnouncementCache();
+  await resetAnnouncementCache();
   return { row, versionBumped };
 }

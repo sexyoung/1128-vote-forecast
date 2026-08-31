@@ -107,7 +107,9 @@
 2. 沒有 cookie，但指紋在近期出現過而且只對應到一個身份，就復用它並補發 cookie。
 3. 都不成立就建立新身份。
 
-指紋與 IP 一律以 HMAC（伺服器 pepper）儲存，不留原值。
+指紋與 IP 的辨識訊號一律以 HMAC（伺服器 pepper）儲存。另為後台濫用調查保存每個
+身份最近一次完整 IP；新連線會覆寫舊值，不建立 IP 歷史。國家、地區與城市只採用
+Cloudflare／Vercel edge 標頭，是 IP 定位推測而非 GPS。
 
 ```prisma
 model Forecaster {
@@ -312,9 +314,10 @@ model ContestTallySnapshot {
 
 ## 五、Redis
 
-Redis 在這裡不是被動快取，而是**主動快照**：一支 cron 把重運算的結果算好寫進去，
-請求路徑只讀 Redis。Redis 沒有資料時才回頭讀 PostgreSQL 的物化表，所以 Redis 掛掉
-只會變慢，不會壞掉。
+Redis 同時是 cache-aside 與主動快照層。Redis 沒有資料時才回頭讀 PostgreSQL；寫入
+預測、留言或名單後會清掉受影響的 key，所以 Redis 掛掉只會變慢，不會壞掉。Vercel
+Hobby 不能跑每分鐘 cron，正式環境預設靠 cache-aside；Pro 可把
+`/api/cron/hot-snapshots` 排成每分鐘執行。
 
 ### 快照（60 秒 cron）
 
@@ -322,14 +325,18 @@ Redis 在這裡不是被動快取，而是**主動快照**：一支 cron 把重�
 集合；cron 取出集合（取出即清空）後只重算裡面的 key。熱門的縣市因此永遠是新的，沒人
 看的村里層不會為了沒人看的數字每分鐘掃 7,780 個選區。全國地圖每輪都重算，那是首頁。
 
-| key                       | 內容               | 為什麼要快照        |
-| ------------------------- | ------------------ | ------------------- |
-| `snap:map:national`       | 22 個縣市摘要      | 首頁必打，最熱      |
-| `snap:map:{jid}:township` | 該縣市所有鄉鎮市區 | 下鑽必打            |
-| `snap:map:{jid}:village`  | 該縣市所有村里     | 新北 1,039 筆，最貴 |
-| `snap:contest:{id}`       | 單一選區的完整分布 | 抽屜與卡片          |
-| `snap:trend:{id}:30`      | 30 日走勢          | 每次算都要掃快照表  |
-| `snap:comments:{id}:p1`   | 留言第一頁         | 讀多寫少            |
+| key                        | 內容               | 為什麼要快照                   |
+| -------------------------- | ------------------ | ------------------------------ |
+| `snap:map:national`        | 22 個縣市摘要      | 首頁必打，最熱                 |
+| `snap:map:{jid}:township`  | 該縣市所有鄉鎮市區 | 下鑽必打                       |
+| `snap:map:{jid}:village`   | 該縣市所有村里     | 新北 1,039 筆，最貴            |
+| `snap:contest:{id}`        | 單一選區的完整分布 | 抽屜與卡片                     |
+| `snap:tally:{id}`          | 單一選區原始統計   | 批次卡片與 SSR                 |
+| `snap:trend:{id}:30`       | 30 日走勢          | 每次算都要掃快照表             |
+| `snap:comments:{id}:p1`    | 留言第一頁         | 讀多寫少                       |
+| `snap:rankings:candidates` | 候選人排行         | 跨頁共用公開資料               |
+| `snap:parties:counts`      | 政黨候選人數       | 名單很少變動                   |
+| `data:candidates:v1`       | 完整候選人名單     | 降低 serverless 冷啟動 DB 查詢 |
 
 村里層的 payload 最大，快照時就壓成前端真正要的最小欄位
 （`id` / `leaderId` / `percent`），不要回傳整份 tally。

@@ -81,9 +81,7 @@ describe('page metadata', () => {
     );
 
     expect(meta.canonical).toBe(`${origin}/parties/DPP`);
-    expect(meta.ogUrl).toBe(
-      `${origin}/parties/DPP?region=TPE&view=executive&t=1788076800000`,
-    );
+    expect(meta.ogUrl).toBe(`${origin}/parties/DPP?region=TPE&view=executive&t=1788076800000`);
   });
 
   it('publishes party index and detail metadata', () => {
@@ -113,6 +111,17 @@ describe('page metadata', () => {
     expect(
       resolvePageMeta('/rankings', new URLSearchParams(), { origin, indexable: true }),
     ).toMatchObject({ status: 200, canonical: `${origin}/rankings` });
+  });
+
+  it('publishes the static site pages', () => {
+    for (const path of ['/privacy', '/terms', '/changelog'])
+      expect(
+        resolvePageMeta(path, new URLSearchParams(), { origin, indexable: true }),
+      ).toMatchObject({
+        status: 200,
+        canonical: `${origin}${path}`,
+        robots: 'index,follow,max-image-preview:large',
+      });
   });
 
   it('builds production robots and a filtered sitemap', () => {

@@ -6,7 +6,8 @@
       "Bash(*)",
       "Bash(timeout 200 npx vp check --fix src/client/pages/ElectionPrototypePage.tsx src/client/styles.css)",
       "WebFetch(domain:vercel.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:dev-orderat.sheepht.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

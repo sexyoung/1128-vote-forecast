@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { isIP } from 'node:net';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { prisma } from './db.js';
@@ -15,7 +16,7 @@ const fingerprintRecoveryDays = 90;
 /** 同一個 IP 每小時最多開幾個新身份。擋量產，不擋家庭或公司共用同一個出口。 */
 const newIdentityPerHour = 30;
 
-/** 指紋與 IP 一律只存 HMAC，不留原值。 */
+/** 指紋與 IP 的辨識訊號使用 HMAC；最近一次完整 IP 另存 Forecaster，供後台濫用調查。 */
 export function signalHash(value: string) {
   return createHmac('sha256', env.forecasterPepper).update(value).digest('hex');
 }
@@ -27,7 +28,39 @@ function readIp(c: Context) {
     c.req.header('x-forwarded-for') ??
     '';
   // x-forwarded-for 是一串，第一個才是最初的來源。
-  return header.split(',')[0]?.trim() ?? '';
+  const value = header.split(',')[0]?.trim() ?? '';
+  return isIP(value) ? value : '';
+}
+
+function readableHeader(c: Context, name: string, maxLength: number) {
+  const raw = c.req.header(name)?.trim() ?? '';
+  if (!raw) return null;
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    // 標頭不是 URI encoded 就照原值處理。
+  }
+  const clean = decoded.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return clean ? clean.slice(0, maxLength) : null;
+}
+
+function readConnection(c: Context) {
+  const ip = readIp(c);
+  const vercelCountry = readableHeader(c, 'x-vercel-ip-country', 2)?.toUpperCase() ?? null;
+  const cloudflareCountry = readableHeader(c, 'cf-ipcountry', 2)?.toUpperCase() ?? null;
+  const country = vercelCountry ?? cloudflareCountry;
+  const region = readableHeader(c, 'x-vercel-ip-country-region', 100);
+  const city = readableHeader(c, 'x-vercel-ip-city', 100);
+  const geoSource =
+    vercelCountry || region || city ? 'VERCEL' : cloudflareCountry ? 'CLOUDFLARE' : null;
+  return {
+    ip,
+    country: country && country !== 'XX' ? country : null,
+    region,
+    city,
+    geoSource,
+  };
 }
 
 function readFingerprint(c: Context) {
@@ -92,7 +125,8 @@ export type ResolvedForecaster = {
  * 走最快也最可靠的那條路。
  */
 export async function resolveForecaster(c: Context): Promise<ResolvedForecaster> {
-  const ip = readIp(c);
+  const connection = readConnection(c);
+  const ip = connection.ip;
   const ipHash = ip ? signalHash(ip) : '';
   const fingerprint = readFingerprint(c);
   const fingerprintHash = fingerprint ? signalHash(fingerprint) : '';
@@ -127,16 +161,33 @@ export async function resolveForecaster(c: Context): Promise<ResolvedForecaster>
     await cacheSet(`sess:${cookieHash}`, forecaster.id, sessionCacheSeconds);
   }
 
-  if (fingerprintHash) await touchSignal(forecaster.id, 'FINGERPRINT', fingerprintHash);
-  if (ipHash) await touchSignal(forecaster.id, 'IP', ipHash);
+  // 一個頁面會同時打多支 API；每支都 upsert 訊號＋更新 lastSeen 只會製造寫入塞車。
+  // Redis 正常時每五分鐘寫一次；Redis 不可用時 hitCounter 回 0，維持原本每次寫入。
+  const shouldTouch = (await hitCounter(`touch:forecaster:${forecaster.id}`, 5 * 60)) <= 1;
+  if (shouldTouch) {
+    if (fingerprintHash) await touchSignal(forecaster.id, 'FINGERPRINT', fingerprintHash);
+    if (ipHash) await touchSignal(forecaster.id, 'IP', ipHash);
+  }
 
-  forecaster = await prisma.forecaster.update({
-    where: { id: forecaster.id },
-    data: {
-      lastSeenAt: new Date(),
-      ...(!forecaster.displayName ? { displayName: randomChineseName() } : {}),
-    },
-  });
+  if (shouldTouch || !forecaster.displayName) {
+    forecaster = await prisma.forecaster.update({
+      where: { id: forecaster.id },
+      data: {
+        ...(shouldTouch ? { lastSeenAt: new Date() } : {}),
+        ...(shouldTouch && ip
+          ? {
+              lastIp: ip,
+              lastIpAt: new Date(),
+              lastCountry: connection.country,
+              lastRegion: connection.region,
+              lastCity: connection.city,
+              lastGeoSource: connection.geoSource,
+            }
+          : {}),
+        ...(!forecaster.displayName ? { displayName: randomChineseName() } : {}),
+      },
+    });
+  }
 
   return forecaster;
 }

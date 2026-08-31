@@ -33,6 +33,13 @@
   --reveal-dur: 400ms;
   --reveal-blur: 2px;
   --reveal-ease: ease-in-out;
+  /* transitions.dev tabs sliding。 */
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-text-muted: rgb(15 15 15 / 80%);
+  --tabs-text-active: #0f0f0f;
+  --tabs-bar-bg: #f1f1f1;
+  --tabs-pill-bg: #fff;
 }
 
 * {
@@ -112,6 +119,99 @@ a {
   color: var(--green);
   font-weight: 700;
 }
+.site-footer-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+/* 三個連結之間放一個間隔點，換行時 ::before 跟著走，不會留下孤兒符號。 */
+.site-footer-links a + a::before {
+  color: var(--line);
+  content: '·';
+  margin-right: 16px;
+}
+
+/* 隱私權政策、使用條款、更新紀錄：純文字頁，只需要讀得下去的行距與字寬。 */
+.legal-page {
+  max-width: 760px;
+}
+/* 章節標題下的分隔線，左邊那一小段是重點。 */
+.legal-page h2 {
+  border-bottom: 1px solid var(--line);
+  font-size: 19px;
+  margin: 42px 0 14px;
+  padding-bottom: 10px;
+  position: relative;
+}
+.legal-page h2::after {
+  background: var(--green);
+  bottom: -1px;
+  content: '';
+  height: 3px;
+  left: 0;
+  position: absolute;
+  width: 44px;
+}
+/*
+ * 內文的重點：手繪感的底線，一筆主線加一筆比較淡的補筆，像用筆隨手劃過去的。
+ * 只能用 background-image——mask 會連字一起遮掉；SVG 裡的顏色是 --accent 的值，
+ * 改調色盤時要一起改。box-decoration-break 讓換行的重點每一行都有底線。
+ */
+.legal-page strong {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M4 8.6c24-3.4 49-5.1 74-5.4 26-.3 52 .6 78 2.9 14 1.2 28 2.9 40 5' fill='none' stroke='%23df6149' stroke-width='3.2' stroke-linecap='round'/%3E%3Cpath d='M14 11.4c28-2.4 56-3.4 84-3.2 24 .2 48 1.3 72 3.2' fill='none' stroke='%23df6149' stroke-opacity='.4' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat left bottom / 100% 0.46em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  font-weight: 600;
+  padding-bottom: 0.22em;
+}
+.legal-page h3 {
+  font-size: 15px;
+  margin: 24px 0 6px;
+}
+.legal-page p,
+.legal-page li {
+  line-height: 1.9;
+}
+.legal-page p {
+  margin: 10px 0;
+}
+.legal-page ul {
+  margin: 10px 0;
+  padding-left: 22px;
+}
+.legal-page ul li {
+  list-style: disc;
+  margin: 4px 0;
+}
+.legal-lede {
+  color: var(--muted);
+}
+.changelog {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  margin: 20px 0 0;
+  padding: 0;
+}
+.changelog > li {
+  border-top: 1px solid var(--line);
+  list-style: none;
+  padding-top: 16px;
+}
+.changelog-head {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+}
+.changelog-head strong {
+  font-size: 17px;
+}
+.changelog-head time {
+  color: var(--muted);
+  font-size: 13px;
+}
 .flowing-background {
   background: #f1eee7;
   isolation: isolate;
@@ -151,7 +251,8 @@ a {
   position: relative;
   z-index: 1;
 }
-.flowing-background :is(
+.flowing-background
+  :is(
     .contest-card,
     .feature-card,
     .candidate-ranking-list > li > a,
@@ -170,22 +271,14 @@ a {
   -webkit-backdrop-filter: blur(24px) saturate(1.12);
   backdrop-filter: blur(24px) saturate(1.12);
 }
-.flowing-background :is(
-    .contest-card,
-    .feature-card,
-    .candidate-ranking-list > li > a
-  ) {
+.flowing-background :is(.contest-card, .feature-card, .candidate-ranking-list > li > a) {
   transition:
     background-color 0.28s ease,
     border-color 0.18s ease,
     box-shadow 0.22s ease,
     transform 0.18s ease;
 }
-.flowing-background :is(
-    .contest-card,
-    .feature-card,
-    .candidate-ranking-list > li > a
-  ):hover {
+.flowing-background :is(.contest-card, .feature-card, .candidate-ranking-list > li > a):hover {
   background: var(--card);
   border-color: rgb(255 255 255 / 90%);
   box-shadow:
@@ -1955,6 +2048,56 @@ a:focus-visible {
   margin: 26px 0 0;
   padding: 12px;
 }
+.contest-results-loading {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 330px;
+  text-align: center;
+}
+.contest-loading-ballot {
+  align-items: center;
+  background: #e8eee9;
+  border: 1px solid rgb(23 63 51 / 10%);
+  border-radius: 18px;
+  color: var(--green);
+  display: flex;
+  height: 58px;
+  justify-content: center;
+  margin-bottom: 15px;
+  transform: rotate(-3deg);
+  width: 58px;
+}
+.contest-loading-ballot .icon {
+  height: 29px;
+  width: 29px;
+}
+.contest-results-loading > strong {
+  font-size: 15px;
+}
+.contest-results-loading > p {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 6px 0 18px;
+}
+.contest-loading-bars {
+  display: grid;
+  gap: 7px;
+  width: min(260px, 74%);
+}
+.contest-loading-bars i {
+  background: #e4e1da;
+  border-radius: 99px;
+  display: block;
+  height: 8px;
+}
+.contest-loading-bars i:nth-child(2) {
+  width: 82%;
+}
+.contest-loading-bars i:nth-child(3) {
+  width: 62%;
+}
 .contest-aside {
   align-self: start;
   padding: 25px;
@@ -2198,7 +2341,8 @@ a:focus-visible {
   inset: 0;
   justify-content: flex-end;
   position: fixed;
-  z-index: 100;
+  /* 開啟 sheet 時內容層會升到 101；遮罩與 drawer 必須完整蓋過它。 */
+  z-index: 1000;
   backdrop-filter: blur(4px);
 }
 .forecast-sheet {
@@ -2596,11 +2740,39 @@ a:focus-visible {
   position: fixed;
   inset: 0;
 }
+.map-app::before,
+.map-app::after {
+  content: '';
+  inset: -22%;
+  pointer-events: none;
+  position: absolute;
+  will-change: transform;
+}
+.map-app::before {
+  animation: organic-flow-a 17s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse 31% 25% at 18% 28%, rgb(76 181 190 / 28%), transparent 70%),
+    radial-gradient(ellipse 34% 24% at 78% 20%, rgb(115 175 213 / 27%), transparent 72%),
+    radial-gradient(ellipse 30% 32% at 72% 80%, rgb(84 171 145 / 21%), transparent 69%),
+    radial-gradient(ellipse 27% 24% at 28% 76%, rgb(223 151 132 / 16%), transparent 70%);
+  filter: blur(40px);
+  opacity: 0.95;
+}
+.map-app::after {
+  animation: organic-flow-b 23s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse 35% 20% at 24% 38%, rgb(255 255 255 / 68%), transparent 73%),
+    radial-gradient(ellipse 27% 34% at 68% 24%, rgb(160 218 220 / 15%), transparent 70%),
+    radial-gradient(ellipse 38% 22% at 76% 72%, rgb(255 255 255 / 54%), transparent 72%);
+  filter: blur(34px);
+  opacity: 0.55;
+}
 .map-stage {
   height: 100%;
   overflow: hidden;
   position: relative;
   width: 100%;
+  z-index: 1;
 }
 .map-stage::before {
   background-image: radial-gradient(#b9beb9 0.8px, transparent 0.8px);
@@ -2610,6 +2782,12 @@ a:focus-visible {
   opacity: 0.17;
   pointer-events: none;
   position: absolute;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-app::before,
+  .map-app::after {
+    animation: none;
+  }
 }
 .map-floating-top,
 .map-floating-actions,
@@ -3976,6 +4154,10 @@ a:focus-visible {
   text-align: left;
   white-space: nowrap;
 }
+.admin-table a {
+  color: var(--accent-dark);
+  font-weight: 750;
+}
 .admin-pagination {
   align-items: center;
   display: flex;
@@ -4079,6 +4261,174 @@ a:focus-visible {
   flex-wrap: wrap;
   gap: 12px;
   margin: 14px 0;
+}
+
+/* transitions.dev tabs sliding：JS 只寫 active tab 的位置與寬度，CSS 負責 tween。 */
+.t-tabs {
+  align-items: center;
+  background: var(--tabs-bar-bg);
+  border-radius: 48px;
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  position: relative;
+}
+.t-tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 48px;
+  color: var(--tabs-text-muted);
+  cursor: pointer;
+  height: 30px;
+  padding: 4px 12px;
+  position: relative;
+  transition: color var(--tabs-dur) var(--tabs-ease);
+  z-index: 1;
+}
+.t-tab:not([aria-selected='true']):hover,
+.t-tab[aria-selected='true'] {
+  color: var(--tabs-text-active);
+}
+.t-tabs-pill {
+  background: var(--tabs-pill-bg);
+  border-radius: 48px;
+  height: 30px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 3px;
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width var(--tabs-dur) var(--tabs-ease);
+  width: 0;
+  will-change: transform, width;
+  z-index: 0;
+}
+
+.admin-back-link {
+  color: var(--accent-dark);
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 750;
+  margin-bottom: 18px;
+}
+.admin-profile-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+.admin-profile-heading .admin-note {
+  overflow-wrap: anywhere;
+}
+.admin-profile-stats .admin-stat-card:nth-child(2) strong {
+  font-size: 16px;
+}
+.admin-profile-stats .admin-network-card strong {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.admin-signal-section,
+.admin-activity-section {
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 24px;
+}
+.admin-signal-section h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.admin-activity-tabs {
+  margin-bottom: 16px;
+}
+.admin-activity-list {
+  display: grid;
+  gap: 12px;
+}
+.admin-activity-card {
+  background: var(--card);
+  border: 1px solid rgb(31 43 39 / 8%);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.admin-activity-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.admin-activity-card > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.admin-activity-card > header a {
+  color: var(--ink);
+  font-weight: 800;
+}
+.admin-activity-card > header small,
+.admin-activity-card > footer,
+.admin-pick-list small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.admin-activity-card > header > span {
+  border-radius: 999px;
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+}
+.admin-activity-card > header > span.is-active {
+  background: #e3f2e9;
+  color: #26714f;
+}
+.admin-activity-card > header > span.is-invalid {
+  background: #fbecea;
+  color: var(--accent-dark);
+}
+.admin-activity-card > p {
+  line-height: 1.7;
+  margin: 14px 0;
+  white-space: pre-wrap;
+}
+.admin-activity-card > footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 12px;
+}
+.admin-pick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 14px 0;
+  padding: 0;
+}
+.admin-pick-list li {
+  align-items: center;
+  background: #f3f0e9;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 7px;
+  padding: 6px 10px;
+}
+.admin-pick-list li > i {
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-tabs-pill,
+  .t-tab {
+    transition: none !important;
+  }
 }
 
 .admin-report-list {

@@ -2,13 +2,24 @@ import type { PredictionTargetType } from '../generated/prisma/client.js';
 import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { resolvePredictionTarget } from './prediction-targets.js';
-import { cacheDelete } from './redis.js';
-import { keysAffectedBy } from './snapshot-keys.js';
+import { cacheDelete, cacheMGet, cacheMSet } from './redis.js';
+import { keysAffectedBy, tallyKey } from './snapshot-keys.js';
 
 export type StoredPick = {
   targetType: PredictionTargetType;
   targetId: string;
   partyId: string | null;
+};
+
+export type ContestTallyResult = {
+  totalPredictions: number;
+  totalPicks: number;
+  rows: {
+    targetType: PredictionTargetType;
+    targetId: string;
+    count: number;
+    percent: number;
+  }[];
 };
 
 export class PredictionRejected extends Error {
@@ -181,34 +192,40 @@ export async function savePrediction(
 }
 
 /** 一個選區目前的分布，給抽屜與卡片用。 */
-export async function readContestTally(contestId: string) {
-  const [tallies, summary] = await Promise.all([
-    readTallies(prisma, contestId),
-    prisma.contestSummary.findUnique({ where: { contestId } }),
-  ]);
-  const totalPicks = tallies.reduce((total, row) => total + row.count, 0);
-  return {
-    totalPredictions: summary?.totalPredictions ?? 0,
-    totalPicks,
-    rows: tallies.map((row) => ({
-      targetType: row.targetType,
-      targetId: row.targetId,
-      count: row.count,
-      percent: totalPicks > 0 ? Math.round((row.count / totalPicks) * 100) : 0,
-    })),
-  };
+export async function readContestTally(contestId: string): Promise<ContestTallyResult> {
+  return (await readContestTallies([contestId])).get(contestId)!;
 }
 
 /**
  * 一次讀好幾個選區的分布。/mine 一頁可能有幾十張卡片，逐張查會變成幾十次往返。
  */
-export async function readContestTallies(contestIds: string[]) {
-  if (contestIds.length === 0)
-    return new Map<string, Awaited<ReturnType<typeof readContestTally>>>();
+export async function readContestTallies(
+  contestIds: string[],
+): Promise<Map<string, ContestTallyResult>> {
+  if (contestIds.length === 0) return new Map<string, ContestTallyResult>();
+
+  const uniqueIds = [...new Set(contestIds)];
+  const cached = await cacheMGet(uniqueIds.map(tallyKey));
+  const result = new Map<string, ContestTallyResult>();
+  const missing: string[] = [];
+  for (const [index, contestId] of uniqueIds.entries()) {
+    const value = cached[index];
+    if (value === null) {
+      missing.push(contestId);
+      continue;
+    }
+    try {
+      result.set(contestId, JSON.parse(value) as ContestTallyResult);
+    } catch {
+      missing.push(contestId);
+    }
+  }
+
+  if (missing.length === 0) return result;
 
   const [rows, summaries] = await Promise.all([
-    prisma.contestTally.findMany({ where: { contestId: { in: contestIds } } }),
-    prisma.contestSummary.findMany({ where: { contestId: { in: contestIds } } }),
+    prisma.contestTally.findMany({ where: { contestId: { in: missing } } }),
+    prisma.contestSummary.findMany({ where: { contestId: { in: missing } } }),
   ]);
 
   const totals = new Map(summaries.map((row) => [row.contestId, row.totalPredictions]));
@@ -220,8 +237,8 @@ export async function readContestTallies(contestIds: string[]) {
     else grouped.set(row.contestId, [row]);
   }
 
-  return new Map(
-    contestIds.map((contestId) => {
+  const built = new Map(
+    missing.map((contestId) => {
       const list = (grouped.get(contestId) ?? []).sort(
         (a, b) => b.count - a.count || a.targetId.localeCompare(b.targetId),
       );
@@ -241,6 +258,15 @@ export async function readContestTallies(contestIds: string[]) {
       ];
     }),
   );
+  await cacheMSet(
+    [...built].map(([contestId, value]) => ({
+      key: tallyKey(contestId),
+      value: JSON.stringify(value),
+    })),
+    90,
+  );
+  for (const [contestId, value] of built) result.set(contestId, value);
+  return result;
 }
 
 export async function readMyPrediction(forecasterId: string, contestId: string) {

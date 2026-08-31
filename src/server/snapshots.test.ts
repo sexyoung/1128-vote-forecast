@@ -5,7 +5,7 @@ import { prisma } from './db.js';
 import { forecasterCookieName } from './identity.js';
 import { getPredictionTargets } from './prediction-targets.js';
 import { cacheDelete, disconnectRedis } from './redis.js';
-import { contestKey, jurisdictionKey, nationalKey } from './snapshot-keys.js';
+import { contestKey, jurisdictionKey, nationalKey, tallyKey } from './snapshot-keys.js';
 import { refreshHotSnapshots } from './snapshots.js';
 
 function requireContest(contestId: string) {
@@ -22,7 +22,12 @@ async function reset() {
   await prisma.prediction.deleteMany({ where: { contestId: mayor.id } });
   await prisma.contestTally.deleteMany({ where: { contestId: mayor.id } });
   await prisma.contestSummary.deleteMany({ where: { contestId: mayor.id } });
-  await cacheDelete(nationalKey, contestKey(mayor.id), jurisdictionKey('HUA', 'EXECUTIVE'));
+  await cacheDelete(
+    nationalKey,
+    contestKey(mayor.id),
+    tallyKey(mayor.id),
+    jurisdictionKey('HUA', 'EXECUTIVE'),
+  );
 }
 
 beforeEach(reset);

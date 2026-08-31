@@ -7,10 +7,14 @@ const labels: Record<SharePlatform, string> = {
   twitter: 'Twitter',
 };
 const platforms: SharePlatform[] = ['facebook', 'threads', 'twitter', 'line'];
+// 分享預覽仍要定期更新，但不能每次點擊都產生全新的 CDN cache key；五分鐘一個版本。
+const shareCacheWindowMs = 5 * 60 * 1000;
 
 function SocialIcon({ platform }: { platform: SharePlatform }) {
   const paths = {
-    facebook: <path d="M14 21v-8h3l.5-3H14V8.5c0-1 .4-1.5 1.8-1.5H18V4.2c-.7-.1-1.7-.2-2.8-.2-2.8 0-4.7 1.7-4.7 4.8V10H8v3h2.5v8" />,
+    facebook: (
+      <path d="M14 21v-8h3l.5-3H14V8.5c0-1 .4-1.5 1.8-1.5H18V4.2c-.7-.1-1.7-.2-2.8-.2-2.8 0-4.7 1.7-4.7 4.8V10H8v3h2.5v8" />
+    ),
     threads: (
       <>
         <circle cx="12" cy="12" r="8.5" />
@@ -49,7 +53,10 @@ export function buildSocialShareUrl(
 ) {
   const page = new URL(pageUrl);
   page.hash = '';
-  page.searchParams.set('t', String(timestamp));
+  page.searchParams.set(
+    't',
+    String(Math.floor(timestamp / shareCacheWindowMs) * shareCacheWindowMs),
+  );
 
   if (platform === 'facebook') {
     const share = new URL('https://www.facebook.com/sharer/sharer.php');

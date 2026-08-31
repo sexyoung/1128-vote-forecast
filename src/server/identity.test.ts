@@ -117,6 +117,28 @@ describe('forecaster identity', () => {
     expect(signals.map(({ hash }) => hash)).not.toContain(fingerprint);
   });
 
+  it('stores only the latest full IP and edge-inferred location for admin review', async () => {
+    const ip = '203.0.113.42';
+    const { body } = await session({
+      headers: headers({
+        'x-forwarded-for': ip,
+        'x-vercel-ip-country': 'TW',
+        'x-vercel-ip-country-region': 'TPE',
+        'x-vercel-ip-city': encodeURIComponent('臺北市'),
+      }),
+    });
+    const forecaster = await prisma.forecaster.findUnique({ where: { id: body.forecaster.id } });
+
+    expect(forecaster).toMatchObject({
+      lastIp: ip,
+      lastCountry: 'TW',
+      lastRegion: 'TPE',
+      lastCity: '臺北市',
+      lastGeoSource: 'VERCEL',
+    });
+    expect(forecaster?.lastIpAt).toBeInstanceOf(Date);
+  });
+
   it('ignores a fingerprint header too short to be one', async () => {
     const { body } = await session({ headers: headers({ 'x-forecaster-fingerprint': 'abc' }) });
 
@@ -131,5 +153,19 @@ describe('forecaster identity', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('serves public map data without creating an identity or touching PostgreSQL activity', async () => {
+    const fingerprint = `fp-${crypto.randomUUID()}`;
+    const response = await app.request('/api/map/national', {
+      headers: headers({ 'x-forecaster-fingerprint': fingerprint }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(response.headers.get('cache-control')).toContain('s-maxage=30');
+    expect(await prisma.forecasterSignal.count({ where: { hash: signalHash(fingerprint) } })).toBe(
+      0,
+    );
   });
 });
