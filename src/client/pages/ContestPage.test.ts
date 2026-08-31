@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { buildSocialShareUrl } from '../SocialShare';
+import { buildSharedPageUrl, buildSocialShareUrl } from '../SocialShare';
 import { forecastAsideTitle } from './ContestPage';
 
 describe('contest forecast prompt', () => {
@@ -21,6 +21,7 @@ describe('contest social sharing', () => {
     const twitter = new URL(buildSocialShareUrl('twitter', page, '分享文字', timestamp));
     const sharedPage = 'https://vote.example/contest/TPE-EXECUTIVE-1?tab=comments&t=1788076800000';
 
+    expect(buildSharedPageUrl(`${page}#comments`, timestamp)).toBe(sharedPage);
     expect(facebook.searchParams.get('u')).toBe(sharedPage);
     expect(line.searchParams.get('url')).toBe(sharedPage);
     expect(threads.searchParams.get('text')).toContain(sharedPage);
