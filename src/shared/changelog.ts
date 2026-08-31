@@ -14,6 +14,11 @@ export type Release = {
 
 export const releases: Release[] = [
   {
+    version: '0.1.1',
+    date: '2026-08-31',
+    changes: ['改善社群分享預覽，以及搜尋引擎與 AI 服務對網站內容的辨識。'],
+  },
+  {
     version: '0.1.0',
     date: '2026-08-31',
     changes: [

@@ -19,6 +19,8 @@ env:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -32,8 +34,6 @@ jobs:
       - name: Apply migrations
         # migrate 用 session/direct 連線；secret 放 Repository，不要求公開 repo
         # 或付費的 GitHub Environment。
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: npx prisma migrate deploy
 
   deploy:

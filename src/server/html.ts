@@ -102,7 +102,9 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
       renderer.loadTemplate(url.pathname),
     ]);
     const html = template
-      .replace('<!--app-head-->', [renderHead(meta), options.head].filter(Boolean).join('\n    '))
+      .replace(/\s*\r?\n\s*/g, ' ')
+      .replace(/>\s+</g, '><')
+      .replace('<!--app-head-->', [renderHead(meta), options.head].filter(Boolean).join(''))
       .replace('<!--app-html-->', appHtml)
       .replace(
         '<!--app-state-->',

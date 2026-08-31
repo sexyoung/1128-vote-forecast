@@ -380,7 +380,7 @@ export function renderHead(meta: PageMeta) {
     tags.push(
       `<script type="application/ld+json">${JSON.stringify(meta.jsonLd).replace(/</g, '\\u003c')}</script>`,
     );
-  return tags.join('\n    ');
+  return tags.join('');
 }
 
 export function renderRobots(origin: string, indexable = seoIndexable) {
