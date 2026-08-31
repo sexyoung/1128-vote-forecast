@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vite-plus/test';
 import { listRegisteredContests } from './contest-registry.js';
-import { renderCoreSitemap, renderHead, renderRobots, resolvePageMeta } from './page-meta.js';
+import {
+  defaultOgImage,
+  renderCoreSitemap,
+  renderHead,
+  renderRobots,
+  resolvePageMeta,
+} from './page-meta.js';
 
 const origin = 'https://vote.example';
 
@@ -12,7 +18,7 @@ describe('page metadata', () => {
     });
     expect(meta.canonical).toBe(`${origin}/region/TPE?view=council`);
     expect(meta.robots).toBe('noindex,nofollow');
-    expect(meta.description).toContain('各議員選區');
+    expect(meta.description).toContain('臺北市議員各選區');
   });
 
   it('marks missing and unpublished contest pages noindex', () => {
@@ -29,9 +35,10 @@ describe('page metadata', () => {
     ).toMatchObject({ status: 404, robots: 'noindex,nofollow', canonical: '' });
   });
 
-  it('only emits an OG image when one is supplied', () => {
-    const without = resolvePageMeta('/', new URLSearchParams(), { origin, indexable: true });
-    expect(renderHead(without)).not.toContain('og:image');
+  it('uses the default OG image unless a page supplies a more specific one', () => {
+    const home = resolvePageMeta('/', new URLSearchParams(), { origin, indexable: true });
+    expect(home.ogImage).toBe(`${origin}${defaultOgImage}`);
+    expect(renderHead(home)).toContain('property="og:image"');
 
     const withImage = resolvePageMeta('/contest/TPE-EXECUTIVE-1', new URLSearchParams(), {
       origin,
@@ -39,6 +46,73 @@ describe('page metadata', () => {
       ogImage: '/avatars/candidate.jpg',
     });
     expect(renderHead(withImage)).toContain('content="https://vote.example/avatars/candidate.jpg"');
+  });
+
+  it('gives every public index page distinct metadata and an OG image', () => {
+    const pages = [
+      ['/', '', '2026 九合一選舉預測｜全臺縣市長、議員與地方選舉', '8,429 個'],
+      ['/regions', '', '2026 全臺縣市長選舉預測｜22 縣市選情總覽｜九合一選舉預測', '22 縣市'],
+      ['/region/TPE', '', '2026 臺北市長選舉預測｜候選人與最新選情｜九合一選舉預測', '領先者'],
+      [
+        '/region/TPE',
+        'view=council',
+        '2026 臺北市議員選舉預測｜候選人與最新選情｜九合一選舉預測',
+        '應選席次',
+      ],
+      [
+        '/region/TPE',
+        'view=village',
+        '2026 臺北市村里長選舉預測｜候選人與最新選情｜九合一選舉預測',
+        '各選區候選人',
+      ],
+      [
+        '/region/ILA',
+        'view=representative',
+        '2026 宜蘭縣鄉鎮市民代表選舉預測｜候選人與最新選情｜九合一選舉預測',
+        '鄉鎮市民代表',
+      ],
+      [
+        '/region/ILA',
+        'view=township',
+        '2026 宜蘭縣鄉鎮市長選舉預測｜候選人與最新選情｜九合一選舉預測',
+        '鄉鎮市長',
+      ],
+      ['/parties', '', '2026 九合一選舉政黨候選人一覽｜各黨提名布局｜九合一選舉預測', '提名名單'],
+      ['/parties/DPP', '', '民主進步黨 2026 九合一選舉候選人｜九合一選舉預測', '行政區分布'],
+      [
+        '/parties/DPP',
+        'region=TPE',
+        '2026 臺北市長候選人｜民主進步黨｜九合一選舉預測',
+        '民主進步黨參選 2026 臺北市長',
+      ],
+      [
+        '/parties/DPP',
+        'region=TPE&view=council',
+        '2026 臺北市議員候選人｜民主進步黨｜九合一選舉預測',
+        '民主進步黨參選 2026 臺北市議員',
+      ],
+      [
+        '/rankings',
+        '',
+        '2026 九合一選舉熱門候選人排行｜預測次數 Top 50｜九合一選舉預測',
+        '預測熱度',
+      ],
+    ] as const;
+    for (const [path, query, title, description] of pages)
+      expect(
+        resolvePageMeta(path, new URLSearchParams(query), { origin, indexable: true }),
+      ).toMatchObject({
+        title,
+        description: expect.stringContaining(description),
+        ogImage: `${origin}${defaultOgImage}`,
+      });
+  });
+
+  it('does not expose the default OG image on private pages', () => {
+    for (const path of ['/mine', '/admin'])
+      expect(
+        resolvePageMeta(path, new URLSearchParams(), { origin, indexable: true }).ogImage,
+      ).toBeUndefined();
   });
 
   it('keeps single-seat contest metadata stable when the leader changes', () => {
@@ -50,7 +124,7 @@ describe('page metadata', () => {
     expect(meta.title).toBe('臺北市長最多人預測的是.....｜九合一選舉預測');
     expect(meta.description).toContain('最可能勝出的候選人');
     expect(meta.ogTitle).toBe('臺北市長最多人預測的是.....');
-    expect(meta.ogImage).toBeUndefined();
+    expect(meta.ogImage).toBe(`${origin}${defaultOgImage}`);
   });
 
   it('snapshots the current leader for timestamped share metadata', () => {
@@ -80,7 +154,7 @@ describe('page metadata', () => {
       { origin, indexable: true },
     );
 
-    expect(meta.canonical).toBe(`${origin}/parties/DPP`);
+    expect(meta.canonical).toBe(`${origin}/parties/DPP?region=TPE`);
     expect(meta.ogUrl).toBe(`${origin}/parties/DPP?region=TPE&view=executive&t=1788076800000`);
   });
 
@@ -92,8 +166,8 @@ describe('page metadata', () => {
       resolvePageMeta('/parties/DPP', new URLSearchParams(), { origin, indexable: true }),
     ).toMatchObject({
       status: 200,
-      title: expect.stringContaining('民主進步黨候選人'),
-      description: expect.stringContaining('各行政區'),
+      title: expect.stringContaining('民主進步黨 2026 九合一選舉候選人'),
+      description: expect.stringContaining('行政區分布'),
     });
 
     expect(
@@ -102,8 +176,9 @@ describe('page metadata', () => {
         indexable: true,
       }),
     ).toMatchObject({
-      title: expect.stringContaining('臺北市民主進步黨縣市長候選人'),
-      description: expect.stringContaining('臺北市參選縣市長'),
+      title: expect.stringContaining('2026 臺北市長候選人｜民主進步黨'),
+      description: expect.stringContaining('民主進步黨參選 2026 臺北市長'),
+      canonical: `${origin}/parties/DPP?region=TPE`,
     });
   });
 

@@ -12,8 +12,16 @@ import {
 import { seoIndexable } from './env.js';
 
 export const siteName = '九合一選舉預測';
+export const defaultOgImage = '/og-image.webp';
 const indexableTypes = new Set<ContestType>(['EXECUTIVE', 'COUNCIL', 'TOWNSHIP']);
 const indexRobots = 'index,follow,max-image-preview:large';
+const seoViewLabels: Record<ContestType, string> = {
+  EXECUTIVE: '縣市長',
+  COUNCIL: '議員',
+  TOWNSHIP: '鄉鎮市長',
+  REPRESENTATIVE: '鄉鎮市民代表',
+  VILLAGE: '村里長',
+};
 
 export type PageMeta = {
   title: string;
@@ -40,6 +48,10 @@ const qualify = (contest: RegisteredContest, jurisdiction: string) =>
   contest.name.startsWith(jurisdiction) ? contest.name : `${jurisdiction}${contest.name}`;
 const findJurisdiction = (id: string) => jurisdictions.find((item) => item.id === id) ?? null;
 const formatCount = (count: number) => count.toLocaleString('en-US');
+const officeName = (jurisdiction: (typeof jurisdictions)[number], view: ContestType) =>
+  view === 'EXECUTIVE'
+    ? `${jurisdiction.name.slice(0, -1)}${jurisdiction.kind === 'county' ? '縣長' : '市長'}`
+    : `${jurisdiction.name}${seoViewLabels[view]}`;
 
 function seatsLabel(contest: RegisteredContest) {
   if (contest.seatsSource === 'PLACEHOLDER') return `暫定 ${contest.seats} 席`;
@@ -64,23 +76,26 @@ export function resolvePageMeta(
   const canIndex = options.indexable ?? seoIndexable;
   const shareTimestamp = /^\d{10,13}$/.test(search.get('t') ?? '') ? search.get('t') : null;
   const robots = (value = indexRobots) => (canIndex ? value : 'noindex,nofollow');
-  const finish = (meta: PageMeta): PageMeta => ({
-    ...meta,
-    robots: robots(meta.robots),
-    ogImage: options.ogImage ? absolute(origin, options.ogImage) : undefined,
-    ogUrl:
-      shareTimestamp && meta.canonical
-        ? absolute(origin, `${pathname}?${search.toString()}`)
-        : meta.ogUrl,
-  });
+  const finish = (meta: PageMeta): PageMeta => {
+    const image = options.ogImage ?? (!meta.private && meta.status === 200 ? defaultOgImage : null);
+    return {
+      ...meta,
+      robots: robots(meta.robots),
+      ogImage: image ? absolute(origin, image) : undefined,
+      ogUrl:
+        shareTimestamp && meta.canonical
+          ? absolute(origin, `${pathname}?${search.toString()}`)
+          : meta.ogUrl,
+    };
+  };
 
   if (pathname === '/') {
     const count = formatCount(countRegisteredContests());
     return finish({
-      title: '九合一選舉預測｜2026.11.28 全臺 22 縣市預測地圖',
-      description: `匯集全臺 22 縣市、共 ${count} 個選區的群眾預測，從縣市長到地方民代，觀察各地選情目前的可能走向。`,
-      ogTitle: '2026 九合一選舉群眾預測地圖',
-      ogDescription: `匯集全臺 22 縣市、共 ${count} 個選區的群眾預測，觀察各地選情目前的可能走向。`,
+      title: '2026 九合一選舉預測｜全臺縣市長、議員與地方選舉',
+      description: `查看 2026 年 11 月 28 日九合一選舉群眾預測地圖，涵蓋全臺 22 縣市、共 ${count} 個縣市長、議員、鄉鎮市長、代表與村里長選區。`,
+      ogTitle: '2026 九合一選舉預測｜全臺選情地圖',
+      ogDescription: `涵蓋全臺 22 縣市、共 ${count} 個選區，查看縣市長、議員與地方選舉的最新群眾預測。`,
       canonical: absolute(origin, '/'),
       robots: indexRobots,
       status: 200,
@@ -97,10 +112,11 @@ export function resolvePageMeta(
 
   if (pathname === '/regions')
     return finish({
-      title: `全國選舉預測｜22 縣市最新選情｜${siteName}`,
-      description: '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
-      ogTitle: '全國選舉預測｜22 縣市最新選情',
-      ogDescription: '一次瀏覽全臺 22 縣市的縣市長預測分布，看看哪些選情逐漸明朗，哪些仍然接近。',
+      title: `2026 全臺縣市長選舉預測｜22 縣市選情總覽｜${siteName}`,
+      description:
+        '一次瀏覽 2026 九合一選舉全臺 22 縣市的縣市長候選人與群眾預測分布，比較各地目前的領先者與選情差距。',
+      ogTitle: '2026 全臺縣市長選舉預測',
+      ogDescription: '一次瀏覽全臺 22 縣市的縣市長候選人、領先者與最新群眾預測分布。',
       canonical: absolute(origin, '/regions'),
       robots: indexRobots,
       status: 200,
@@ -108,11 +124,11 @@ export function resolvePageMeta(
 
   if (pathname === '/parties')
     return finish({
-      title: `2026 九合一選舉政黨與候選人一覽｜${siteName}`,
+      title: `2026 九合一選舉政黨候選人一覽｜各黨提名布局｜${siteName}`,
       description:
-        '整理各政黨在 2026 九合一選舉的候選人、參選職務與行政區分布，觀察各黨的地方布局。',
-      ogTitle: '2026 九合一選舉政黨與候選人一覽',
-      ogDescription: '整理各政黨的候選人、參選職務與行政區分布，觀察 2026 九合一選舉的地方布局。',
+        '整理各政黨在 2026 九合一選舉的候選人數、參選職位與行政區分布，快速查看各黨在全臺的提名名單與地方布局。',
+      ogTitle: '2026 九合一選舉政黨候選人一覽',
+      ogDescription: '查看各政黨的候選人數、參選職位、行政區分布與全臺提名布局。',
       canonical: absolute(origin, '/parties'),
       robots: indexRobots,
       status: 200,
@@ -120,10 +136,11 @@ export function resolvePageMeta(
 
   if (pathname === '/rankings')
     return finish({
-      title: `熱門候選人排行｜預測次數 Top 50｜${siteName}`,
-      description: '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
-      ogTitle: '熱門候選人排行｜預測次數 Top 50',
-      ogDescription: '依群眾預測次數整理目前受到最多關注的 50 位候選人，觀察全臺候選人的預測排名。',
+      title: `2026 九合一選舉熱門候選人排行｜預測次數 Top 50｜${siteName}`,
+      description:
+        '依群眾預測次數排列 2026 九合一選舉目前最受關注的 50 位候選人，查看政黨、參選職位、選區與預測熱度。',
+      ogTitle: '2026 九合一選舉熱門候選人 Top 50',
+      ogDescription: '查看目前預測次數最高的 50 位候選人，以及各自的政黨、參選職位與選區。',
       canonical: absolute(origin, '/rankings'),
       robots: indexRobots,
       status: 200,
@@ -135,22 +152,26 @@ export function resolvePageMeta(
     if (!party) return notFound();
     const jurisdiction = findJurisdiction((search.get('region') ?? '').toUpperCase());
     const view = jurisdiction
-      ? electionViews.find((item) => item.id.toLowerCase() === search.get('view')?.toLowerCase())
+      ? (electionViews.find(
+          (item) => item.id.toLowerCase() === search.get('view')?.toLowerCase(),
+        ) ?? electionViews[0])
       : undefined;
+    const office = jurisdiction && view ? officeName(jurisdiction, view.id) : null;
     const subject = jurisdiction
-      ? `${jurisdiction.name}${party.name}${view ? `${view.label}候選人` : '候選人'}`
-      : `${party.name}候選人`;
+      ? `2026 ${office}候選人｜${party.name}`
+      : `${party.name} 2026 九合一選舉候選人`;
     const description = jurisdiction
-      ? view
-        ? `查看${party.name}在${jurisdiction.name}參選${view.label}的候選人資料與目前群眾預測分布。`
-        : `查看${party.name}在${jurisdiction.name}的候選人名單、參選職務，以及目前是否進入預測當選名單。`
-      : `查看${party.name}在各行政區推出的候選人、參選職務，以及目前的群眾預測結果。`;
+      ? `查看${party.name}參選 2026 ${office}的候選人名單、參選選區與目前群眾預測結果。`
+      : `查看${party.name}投入 2026 九合一選舉的候選人名單、參選職位、行政區分布與目前群眾預測結果。`;
+    const canonical = jurisdiction
+      ? `/parties/${party.id}?region=${jurisdiction.id}${view?.id === 'EXECUTIVE' ? '' : `&view=${view?.id.toLowerCase()}`}`
+      : `/parties/${party.id}`;
     return finish({
       title: `${subject}｜${siteName}`,
       description,
       ogTitle: subject,
       ogDescription: description,
-      canonical: absolute(origin, `/parties/${party.id}`),
+      canonical: absolute(origin, canonical),
       robots: indexRobots,
       status: 200,
     });
@@ -163,22 +184,19 @@ export function resolvePageMeta(
     const view =
       electionViews.find((item) => item.id.toLowerCase() === search.get('view')?.toLowerCase())
         ?.id ?? 'EXECUTIVE';
-    const viewLabel = electionViews.find((item) => item.id === view)?.label ?? '縣市長';
+    const office = officeName(jurisdiction, view);
     const count = getRegisteredContests(jurisdiction.id, view).length;
-    const total = getRegisteredContests(jurisdiction.id).length;
     const overview = view === 'EXECUTIVE';
-    const pageCount = overview ? total : count;
     const canonical = `/region/${jurisdiction.id}${overview ? '' : `?view=${view.toLowerCase()}`}`;
-    const label = overview ? '選舉預測' : `${viewLabel}選舉預測`;
     const description = overview
-      ? `查看${jurisdiction.name}長、議員與村里長等選舉的群眾預測，掌握各選區目前受到看好的候選人。`
+      ? `查看 2026 ${office}選舉候選人與最新群眾預測分布，比較目前領先者、預測比例與選情變化。`
       : view === 'COUNCIL'
-        ? `整理${jurisdiction.name}各議員選區的候選人與預測分布，觀察目前可能勝出的席次組合。`
-        : `整理${jurisdiction.name}${viewLabel}各選區的候選人與預測分布，觀察目前可能勝出的席次組合。`;
+        ? `查看 2026 ${office}各選區候選人、應選席次與群眾預測分布，觀察目前可能勝出的席次組合。`
+        : `瀏覽 2026 ${office}各選區候選人與群眾預測分布，查看目前各地受到看好的人選。`;
     return finish({
-      title: `${jurisdiction.name}${label}｜${formatCount(pageCount)} 個選區｜${siteName}`,
+      title: `2026 ${office}選舉預測｜候選人與最新選情｜${siteName}`,
       description,
-      ogTitle: `${jurisdiction.name}${label}`,
+      ogTitle: `2026 ${office}選舉預測`,
       ogDescription: description,
       canonical: absolute(origin, canonical),
       robots: count === 0 ? 'noindex,follow' : indexRobots,
