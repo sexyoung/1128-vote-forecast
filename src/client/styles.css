@@ -2455,6 +2455,8 @@ a:focus-visible {
 .forecast-options {
   display: grid;
   gap: 10px;
+  /* stamp-press 會放大 3%；留在捲動容器內的安全區，避免四邊被 overflow 裁掉。 */
+  padding: 4px;
 }
 .forecast-options label {
   align-items: center;
@@ -2506,15 +2508,34 @@ a:focus-visible {
    頭像，所以做成貼齊整列高度的正方形。寬度寫死而不用 aspect-ratio：grid 的
    auto 欄位要先知道寬度才排得出來，靠高度換算會算成 0，方塊會整個消失。 */
 .forecast-mark {
+  align-items: center;
   align-self: stretch;
   background: #e4e3de;
   border: 0;
   border-radius: 14px 0 0 14px;
   border-right: 1px solid #dcd9d0;
-  display: block;
+  display: flex;
   flex: none;
+  justify-content: center;
   overflow: hidden;
+  position: relative;
   width: 64px;
+}
+.forecast-mark .icon {
+  color: #818883;
+  height: 24px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+}
+.forecast-mark img {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
 }
 .forecast-option-text {
   display: flex;
@@ -2570,6 +2591,7 @@ a:focus-visible {
 }
 .forecast-options label.selected {
   animation: stamp-press 0.26s ease-out;
+  z-index: 1;
 }
 /* 蓋章：章從比格子大一圈的地方壓下來，同時淡入，收到原尺寸就停。 */
 @keyframes stamp-down {
@@ -3492,6 +3514,36 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
+  /* Window virtualization：容器撐出總高度，DOM 只留下可見項目與 overscan。 */
+  .virtual-window-list {
+    display: block;
+  }
+  .virtual-window-list > .t-stagger-line > .contest-card {
+    height: auto;
+  }
+  /*
+   * 手機先做效能對照：保留兩層 radial-gradient 的位移動畫，但拿掉會讓大面積圖層
+   * 每幀重新取樣的 SVG turbulence／blur，以及每張卡片各自的 backdrop blur。
+   */
+  .flowing-background::before,
+  .flowing-background::after {
+    filter: none;
+  }
+  .flowing-background
+    :is(
+      .contest-card,
+      .feature-card,
+      .candidate-ranking-list > li > a,
+      .summary-card,
+      .results-panel,
+      .trend-panel,
+      .comments-panel,
+      .contest-aside
+    ) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgb(255 253 248 / 90%);
+  }
   .site-footer {
     align-items: flex-start;
     flex-direction: column;

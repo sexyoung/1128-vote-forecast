@@ -6,6 +6,7 @@ import { useDocumentTitle } from '../use-document-title';
 import { track } from '../analytics';
 import { SkeletonSwap } from './SkeletonSwap';
 import { CandidateList, Icon, toCandidateRows } from './ElectionPrototypeShared';
+import { VirtualWindowList } from './VirtualWindowList';
 
 const anonymousFallback = '預測者';
 
@@ -296,12 +297,21 @@ export function MyPredictionsPage() {
               還沒有預測。回<Link to="/">地圖</Link>挑一個選區開始。
             </p>
           ) : (
-            <div className="contest-grid">
-              {items.map(({ contest, picks, status, tally }) => {
+            <VirtualWindowList
+              className="contest-grid"
+              estimateSize={390}
+              getKey={(item) => item.contest.id}
+              items={items}
+              renderItem={({ contest, picks, status, tally }, _index, virtual) => {
                 const leading = tally.rows[0]?.targetId;
                 const mineIsLeading = picks.some(({ targetId }) => targetId === leading);
                 return (
-                  <Link className="contest-card" key={contest.id} to={`/contest/${contest.id}`}>
+                  <Link
+                    {...(virtual ?? {})}
+                    className="contest-card"
+                    key={contest.id}
+                    to={`/contest/${contest.id}`}
+                  >
                     <span className="card-link">
                       {tally.totalPredictions.toLocaleString()} 份 <Icon name="chevron" />
                     </span>
@@ -324,8 +334,8 @@ export function MyPredictionsPage() {
                     />
                   </Link>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </SkeletonSwap>
       </main>

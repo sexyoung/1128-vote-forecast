@@ -3,7 +3,7 @@ import { type CSSProperties, useEffect, useState } from 'react';
 import { ApiError, getContest, submitPrediction } from '../api';
 import { type Contest, getParty } from '../mock-election';
 import { track } from '../analytics';
-import { Icon } from './ElectionPrototypeShared';
+import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
 
 // 送出後留下來的預測。要記 id 才有辦法在「修改我的預測」時把原本那幾格勾回來，
 // 光留 label 對不回選項。
@@ -200,8 +200,10 @@ export function ForecastForm({
                   onChange={() => toggle(target.targetId)}
                   type={singleSeat ? 'radio' : 'checkbox'}
                 />
-                {/* 頭像的位置。照片還沒有就是一塊淺灰，不填字。 */}
-                <span className="forecast-mark" />
+                {/* 使用 API 的候選人照片；檔案不存在時沿用共用的人物圖示 fallback。 */}
+                <span className="forecast-mark">
+                  <CandidatePhoto photo={target.photo} />
+                </span>
                 <span className="forecast-option-text">
                   <strong>{target.label}</strong>
                   <small>

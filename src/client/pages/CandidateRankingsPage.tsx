@@ -7,6 +7,7 @@ import { SocialShare } from '../SocialShare';
 import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
 import { SkeletonSwap } from './SkeletonSwap';
 import { summariseArea } from '../../shared/area';
+import { VirtualWindowList } from './VirtualWindowList';
 
 const typeLabels = {
   EXECUTIVE: '縣市長',
@@ -70,9 +71,15 @@ export function CandidateRankingsPage() {
         <SocialShare />
         <SkeletonSwap pending={rankings.isPending} skeleton={<RankingListSkeleton count={8} />}>
           {rankings.isPending ? null : rankings.data?.candidates.length ? (
-            <ol className="candidate-ranking-list">
-              {rankings.data.candidates.map((candidate) => (
-                <li key={candidate.id}>
+            <VirtualWindowList
+              as="ol"
+              className="candidate-ranking-list"
+              estimateSize={84}
+              gap={9}
+              getKey={(candidate) => candidate.id}
+              items={rankings.data.candidates}
+              renderItem={(candidate, _index, virtual) => (
+                <li {...(virtual ?? {})} key={candidate.id}>
                   <Link to={`/contest/${candidate.contest.id}`}>
                     <b className="candidate-ranking-number">{candidate.rank}</b>
                     <i
@@ -96,8 +103,8 @@ export function CandidateRankingsPage() {
                     <Icon name="chevron" />
                   </Link>
                 </li>
-              ))}
-            </ol>
+              )}
+            />
           ) : (
             <p className="view-note">目前還沒有候選人獲得預測。</p>
           )}

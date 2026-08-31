@@ -6,6 +6,7 @@ import { SocialShare } from '../SocialShare';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
 import { jurisdictionOrder } from '../../shared/jurisdictions';
 import { CandidateList, Icon, toCandidateRows } from './ElectionPrototypeShared';
+import { type VirtualItemProps, VirtualWindowList } from './VirtualWindowList';
 
 const orderedJurisdictions = jurisdictionOrder.flatMap(
   (id) => jurisdictions.find((item) => item.id === id) ?? [],
@@ -14,14 +15,16 @@ const orderedJurisdictions = jurisdictionOrder.flatMap(
 function RegionCard({
   jurisdiction,
   tally,
+  virtual,
 }: {
   jurisdiction: Jurisdiction;
   tally?: ContestListTally;
+  virtual: VirtualItemProps | null;
 }) {
   const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
   const rows = toCandidateRows(tally, tally?.targets);
   return (
-    <Link className="contest-card" to={`/region/${jurisdiction.id}`}>
+    <Link {...(virtual ?? {})} className="contest-card" to={`/region/${jurisdiction.id}`}>
       <span className="card-link">
         {(tally?.totalPredictions ?? 0).toLocaleString()} 份 <Icon name="chevron" />
       </span>
@@ -63,15 +66,20 @@ export function RegionsPage() {
           </span>
         </section>
         <SocialShare />
-        <div className="contest-grid">
-          {orderedJurisdictions.map((jurisdiction) => (
+        <VirtualWindowList
+          className="contest-grid"
+          estimateSize={360}
+          getKey={(jurisdiction) => jurisdiction.id}
+          items={orderedJurisdictions}
+          renderItem={(jurisdiction, _index, virtual) => (
             <RegionCard
               jurisdiction={jurisdiction}
               key={jurisdiction.id}
               tally={tallies.data?.tallies[`${jurisdiction.id}-EXECUTIVE-1`]}
+              virtual={virtual}
             />
-          ))}
-        </div>
+          )}
+        />
       </main>
     </>
   );

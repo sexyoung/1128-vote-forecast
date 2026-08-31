@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { getPartyCandidateCounts, getPartyContests } from '../api';
+import { type PartyContestsPage, getPartyCandidateCounts, getPartyContests } from '../api';
 import { candidateParties } from '../../shared/candidates';
 import { useDocumentTitle } from '../use-document-title';
 import { SocialShare } from '../SocialShare';
@@ -9,6 +9,7 @@ import { type ElectionView, getJurisdiction, jurisdictions } from '../mock-elect
 import { CardCover, ElectionTabs, Icon } from './ElectionPrototypeShared';
 import { summariseArea } from '../../shared/area';
 import { SkeletonSwap } from './SkeletonSwap';
+import { VirtualWindowList } from './VirtualWindowList';
 
 const typeLabels = {
   EXECUTIVE: '縣市長',
@@ -94,6 +95,34 @@ function CandidateRegionSkeleton({ count }: { count: number }) {
   );
 }
 
+function PartyRegionGrid({ regions }: { regions: PartyContestsPage['regions'] }) {
+  return (
+    <VirtualWindowList
+      className="contest-grid party-region-grid"
+      estimateSize={150}
+      getKey={(region) => region.id}
+      items={regions}
+      renderItem={({ id, candidateCount, offices }, _index, virtual) => (
+        <Link {...(virtual ?? {})} className="feature-card" key={id} to={`?region=${id}`}>
+          <div>
+            <span>行政區</span>
+            <h2>{getJurisdiction(id).name}</h2>
+            <div className="party-region-counts">
+              {offices.map(({ type, candidateCount: count }) => (
+                <small key={type}>
+                  {typeLabels[type]} {count}
+                </small>
+              ))}
+            </div>
+            <p>共 {candidateCount} 位候選人</p>
+          </div>
+          <Icon name="chevron" />
+        </Link>
+      )}
+    />
+  );
+}
+
 export function PartiesPage() {
   const { partyId: routePartyId } = useParams();
   const partyId = routePartyId?.toUpperCase();
@@ -141,12 +170,23 @@ export function PartiesPage() {
             <span className="page-tag">{candidateParties.length} 個政黨</span>
           </section>
           <SocialShare />
-          <div className="contest-grid party-grid">
-            {candidateParties.map((item) => (
+          <VirtualWindowList
+            className="contest-grid party-grid"
+            estimateSize={150}
+            getKey={(item) => item.id}
+            items={candidateParties}
+            minimum={8}
+            renderItem={(item, _index, virtual) => (
               <Link
+                {...(virtual ?? {})}
                 className="feature-card"
                 key={item.id}
-                style={{ '--party-color': item.color } as CSSProperties}
+                style={
+                  {
+                    ...virtual?.style,
+                    '--party-color': item.color,
+                  } as CSSProperties
+                }
                 to={`/parties/${item.id}`}
               >
                 <div>
@@ -174,8 +214,8 @@ export function PartiesPage() {
                 </div>
                 <Icon name="chevron" />
               </Link>
-            ))}
-          </div>
+            )}
+          />
         </main>
       </>
     );
@@ -244,8 +284,12 @@ export function PartiesPage() {
                       value={data.activeType as ElectionView}
                     />
                   )}
-                  <div className="contest-grid">
-                    {data.items.map(({ candidate, contest, hasPredictions }) => {
+                  <VirtualWindowList
+                    className="contest-grid"
+                    estimateSize={150}
+                    getKey={(item) => item.candidate.id}
+                    items={data.items}
+                    renderItem={({ candidate, contest, hasPredictions }, _index, virtual) => {
                       const state = !hasPredictions
                         ? '尚無預測'
                         : candidate.predictedElected
@@ -253,6 +297,7 @@ export function PartiesPage() {
                           : '預測未當選';
                       return (
                         <Link
+                          {...(virtual ?? {})}
                           className="contest-card party-candidate-card"
                           key={candidate.id}
                           to={`/contest/${contest.id}`}
@@ -270,8 +315,8 @@ export function PartiesPage() {
                           />
                         </Link>
                       );
-                    })}
-                  </div>
+                    }}
+                  />
                 </section>
                 {data.totalPages > 1 && (
                   <nav className="party-pagination" aria-label="候選人分頁">
@@ -300,25 +345,7 @@ export function PartiesPage() {
             ) : (
               // 網址上的地區在資料裡找不到（連結失效、手改網址）：退回行政區清單，
               // 跟原本沒帶 region 參數時同一個畫面，不讓頁面開天窗。
-              <div className="contest-grid party-region-grid">
-                {data?.regions.map(({ id, candidateCount, offices }) => (
-                  <Link className="feature-card" key={id} to={`?region=${id}`}>
-                    <div>
-                      <span>行政區</span>
-                      <h2>{getJurisdiction(id).name}</h2>
-                      <div className="party-region-counts">
-                        {offices.map(({ type, candidateCount: count }) => (
-                          <small key={type}>
-                            {typeLabels[type]} {count}
-                          </small>
-                        ))}
-                      </div>
-                      <p>共 {candidateCount} 位候選人</p>
-                    </div>
-                    <Icon name="chevron" />
-                  </Link>
-                ))}
-              </div>
+              <PartyRegionGrid regions={data?.regions ?? []} />
             )}
           </SkeletonSwap>
         ) : (
@@ -329,27 +356,7 @@ export function PartiesPage() {
             skeletonClassName="contest-grid party-region-grid"
             wrapperClassName="skel-grid-swap party-region-swap"
           >
-            {!contests.isPending && (
-              <div className="contest-grid party-region-grid">
-                {data?.regions.map(({ id, candidateCount, offices }) => (
-                  <Link className="feature-card" key={id} to={`?region=${id}`}>
-                    <div>
-                      <span>行政區</span>
-                      <h2>{getJurisdiction(id).name}</h2>
-                      <div className="party-region-counts">
-                        {offices.map(({ type, candidateCount: count }) => (
-                          <small key={type}>
-                            {typeLabels[type]} {count}
-                          </small>
-                        ))}
-                      </div>
-                      <p>共 {candidateCount} 位候選人</p>
-                    </div>
-                    <Icon name="chevron" />
-                  </Link>
-                ))}
-              </div>
-            )}
+            {!contests.isPending && <PartyRegionGrid regions={data?.regions ?? []} />}
           </SkeletonSwap>
         )}
       </main>

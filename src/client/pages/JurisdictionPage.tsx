@@ -33,6 +33,8 @@ import { summariseArea } from '../../shared/area';
 import { useDocumentTitle } from '../use-document-title';
 import { SocialShare } from '../SocialShare';
 import { track } from '../analytics';
+import { VirtualWindowList } from './VirtualWindowList';
+import { useSkeletonSwap } from './SkeletonSwap';
 
 export { summariseArea } from '../../shared/area';
 
@@ -85,8 +87,6 @@ export function isViewAvailable(jurisdiction: Jurisdiction, view: ElectionView) 
 }
 
 type ShapeContests = { contests: Contest[]; townNames: string[] };
-type ShapeLoad = { key: string; value: ShapeContests | 'error' };
-type SkeletonPhase = 'loading' | 'resetting' | 'revealed';
 
 function ContestGridSkeleton({
   count,
@@ -99,13 +99,21 @@ function ContestGridSkeleton({
   rows: number;
   showArea: boolean;
 }) {
+  const items = Array.from({ length: count }, (_, index) => index);
   return (
-    <div
-      aria-hidden="true"
+    <VirtualWindowList
       className={`contest-grid t-skel-skeleton ${pulsing ? 'is-pulsing' : ''}`.trim()}
-    >
-      {Array.from({ length: count }, (_, index) => (
-        <div className="contest-card skeleton-card" key={index}>
+      estimateSize={rows >= 4 ? 450 : 300}
+      getKey={(index) => index}
+      items={items}
+      minimum={8}
+      renderItem={(index, _itemIndex, virtual) => (
+        <div
+          {...(virtual ?? {})}
+          aria-hidden="true"
+          className="contest-card skeleton-card"
+          key={index}
+        >
           <div className="skeleton-region-card-heading">
             <b />
             {showArea && <b />}
@@ -120,8 +128,8 @@ function ContestGridSkeleton({
             </div>
           ))}
         </div>
-      ))}
-    </div>
+      )}
+    />
   );
 }
 
@@ -129,11 +137,12 @@ function useShapeContests(jurisdiction: Jurisdiction, view: ElectionView) {
   const locationId = jurisdictionToMapLocation[jurisdiction.id];
   const enabled = usesShapeContests(view) && isViewAvailable(jurisdiction, view) && !!locationId;
   const key = enabled ? `${locationId}:${view}` : '';
-  const [loaded, setLoaded] = useState<ShapeLoad | null>(null);
+  const [loaded, setLoaded] = useState<Map<string, ShapeContests | 'error'>>(() => new Map());
+  const loadingKeys = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!key) return;
-    let active = true;
+    if (!key || loaded.has(key) || loadingKeys.current.has(key)) return;
+    loadingKeys.current.add(key);
     const build = view === 'TOWNSHIP' ? buildTownshipContest : buildRepresentativeContest;
     const pending =
       view === 'VILLAGE'
@@ -153,17 +162,23 @@ function useShapeContests(jurisdiction: Jurisdiction, view: ElectionView) {
           });
 
     pending.then(
-      (value) => active && setLoaded({ key, value }),
-      () => active && setLoaded({ key, value: 'error' }),
+      (value) =>
+        setLoaded((current) => {
+          const next = new Map(current);
+          next.set(key, value);
+          return next;
+        }),
+      () =>
+        setLoaded((current) => {
+          const next = new Map(current);
+          next.set(key, 'error');
+          return next;
+        }),
     );
-    return () => {
-      active = false;
-    };
-  }, [jurisdiction, key, locationId, view]);
+  }, [jurisdiction, key, loaded, locationId, view]);
 
-  // 用 key 比對判斷資料是不是這一次要的，切分頁的當下自然就是「載入中」，
-  // 不必在 effect 開頭同步 setState 清空（那會多觸發一次 render）。
-  const current = loaded?.key === key ? loaded.value : null;
+  // 每一個分頁各留一份處理完成的圖資；切回讀過的分頁不必再經過 Promise microtask。
+  const current = loaded.get(key) ?? null;
   return {
     state: current === 'error' ? null : current,
     error: current === 'error',
@@ -194,9 +209,6 @@ export function JurisdictionPage() {
       : `${electionViews.find((item) => item.id === view)?.label ?? ''}選舉預測`;
   useDocumentTitle(`${jurisdiction.name}${titleLabel}｜九合一選舉預測`);
   const { state, error, enabled } = useShapeContests(jurisdiction, view);
-  const [skeletonPhase, setSkeletonPhase] = useState<SkeletonPhase>('revealed');
-  const skeletonRef = useRef<HTMLDivElement>(null);
-  const resetFrameRef = useRef<number | null>(null);
 
   // 村里長一個縣市可以到一千多筆（新北 1,039 個里），攤平在一頁既慢又找不到東西，
   // 所以先選鄉鎮市區，只列那一區的里。鄉鎮市長最多 33 筆（屏東），不用分。
@@ -223,23 +235,6 @@ export function JurisdictionPage() {
     return () => cancelAnimationFrame(frame);
   }, [contests]);
 
-  useEffect(() => {
-    if (skeletonPhase !== 'loading' || (enabled && !state && !error)) return;
-    const root = skeletonRef.current;
-    const styles = getComputedStyle(root ?? document.documentElement);
-    const duration = Number.parseFloat(styles.getPropertyValue('--pulse-dur')) || 1000;
-    const count = Number.parseFloat(styles.getPropertyValue('--pulse-count')) || 1;
-    const timer = window.setTimeout(() => setSkeletonPhase('revealed'), duration * count);
-    return () => window.clearTimeout(timer);
-  }, [enabled, error, skeletonPhase, state]);
-
-  useEffect(
-    () => () => {
-      if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
-    },
-    [],
-  );
-
   function updateParams(update: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams);
     update(params);
@@ -255,12 +250,6 @@ export function JurisdictionPage() {
       previous_view: view,
       contest_count: countForView(jurisdiction, next),
     });
-    setSkeletonPhase('resetting');
-    if (resetFrameRef.current !== null) cancelAnimationFrame(resetFrameRef.current);
-    resetFrameRef.current = requestAnimationFrame(() => {
-      setSkeletonPhase('loading');
-      resetFrameRef.current = null;
-    });
     updateParams((params) => {
       // 預設分頁不留參數，/region/TPE 這種現成連結才不會變成兩種寫法。
       if (next === defaultView) params.delete('view');
@@ -271,10 +260,6 @@ export function JurisdictionPage() {
 
   const label = electionViews.find((item) => item.id === view)?.label;
   const unavailable = !isViewAvailable(jurisdiction, view);
-  const skeletonLoading = skeletonPhase !== 'revealed' || (enabled && !state && !error);
-  const skeletonSwapState =
-    skeletonPhase === 'resetting' ? 'is-resetting' : skeletonLoading ? '' : 'is-revealed';
-
   // 一頁的卡片一次要完。村里層一個鄉鎮最多百來筆，還在單次請求的範圍內。
   const contestIds = contests.map(({ id }) => id).slice(0, 250);
   const tallies = useQuery({
@@ -282,6 +267,12 @@ export function JurisdictionPage() {
     queryKey: ['tallies', contestIds],
     queryFn: () => getContestTallies(contestIds),
   });
+  const pending = (enabled && !state && !error) || (contestIds.length > 0 && tallies.isPending);
+  const {
+    loading: skeletonLoading,
+    skeletonRef,
+    swapState: skeletonSwapState,
+  } = useSkeletonSwap(pending, `${jurisdiction.id}:${view}:${activeTown ?? ''}`);
 
   return (
     <>
@@ -395,16 +386,29 @@ export function JurisdictionPage() {
               showArea={view === 'COUNCIL'}
             />
             <div aria-hidden={skeletonLoading} className="t-skel-content">
-              <div className="contest-grid t-stagger" ref={contestGridRef}>
-                {contests.map((contest, index) => (
-                  <div
-                    className="t-stagger-line"
-                    key={contest.id}
-                    style={{ '--stagger-delay': `${index * 20}ms` } as CSSProperties}
-                  >
-                    <ContestCard contest={contest} tally={tallies.data?.tallies[contest.id]} />
-                  </div>
-                ))}
+              <div className="t-stagger" ref={contestGridRef}>
+                <VirtualWindowList
+                  className="contest-grid"
+                  estimateSize={view === 'COUNCIL' || view === 'REPRESENTATIVE' ? 520 : 330}
+                  getKey={(contest) => contest.id}
+                  items={contests}
+                  minimum={8}
+                  renderItem={(contest, index, virtual) => (
+                    <div
+                      {...(virtual ?? {})}
+                      className="t-stagger-line"
+                      key={contest.id}
+                      style={
+                        {
+                          ...virtual?.style,
+                          '--stagger-delay': `${Math.min(index, 8) * 20}ms`,
+                        } as CSSProperties
+                      }
+                    >
+                      <ContestCard contest={contest} tally={tallies.data?.tallies[contest.id]} />
+                    </div>
+                  )}
+                />
               </div>
             </div>
           </div>
