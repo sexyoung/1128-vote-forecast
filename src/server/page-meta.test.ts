@@ -4,8 +4,10 @@ import {
   defaultOgImage,
   renderCoreSitemap,
   renderHead,
+  renderLlmsText,
   renderRobots,
   resolvePageMeta,
+  siteName,
 } from './page-meta.js';
 
 const origin = 'https://vote.example';
@@ -115,6 +117,19 @@ describe('page metadata', () => {
       ).toBeUndefined();
   });
 
+  it('publishes WebPage JSON-LD on public pages only', () => {
+    const region = resolvePageMeta('/region/TPE', new URLSearchParams(), {
+      origin,
+      indexable: true,
+    });
+    expect(JSON.stringify(region.jsonLd)).toContain('WebPage');
+    expect(JSON.stringify(region.jsonLd)).toContain('BreadcrumbList');
+    expect(renderHead(region)).toContain('application/ld+json');
+    expect(
+      resolvePageMeta('/mine', new URLSearchParams(), { origin, indexable: true }).jsonLd,
+    ).toBeUndefined();
+  });
+
   it('keeps single-seat contest metadata stable when the leader changes', () => {
     const meta = resolvePageMeta('/contest/TPE-EXECUTIVE-1', new URLSearchParams(), {
       origin,
@@ -200,12 +215,24 @@ describe('page metadata', () => {
   });
 
   it('builds production robots and a filtered sitemap', () => {
-    expect(renderRobots(origin, true)).toContain(`Sitemap: ${origin}/sitemap.xml`);
-    expect(renderRobots(origin, false)).toBe('User-agent: *\nDisallow: /\n');
+    const productionRobots = renderRobots(origin, true);
+    const previewRobots = renderRobots(origin, false);
+    expect(productionRobots).toContain(`Sitemap: ${origin}/sitemap.xml`);
+    expect(previewRobots).toBe(
+      'User-agent: facebookexternalhit\nAllow: /\n\nUser-agent: *\nDisallow: /\n',
+    );
     const sitemap = renderCoreSitemap(origin);
     expect(sitemap).toContain('/contest/TPE-EXECUTIVE-1');
     expect(sitemap).toContain('/parties/DPP');
     expect(sitemap).toContain('/rankings');
     expect(sitemap).not.toContain('-VILLAGE');
+  });
+
+  it('builds an llms.txt with public entry points and a prediction disclaimer', () => {
+    const llms = renderLlmsText(origin);
+    expect(llms).toContain(`# ${siteName}`);
+    expect(llms).toContain(`${origin}/regions`);
+    expect(llms).toContain(`${origin}/sitemap.xml`);
+    expect(llms).toContain('不是民調');
   });
 });

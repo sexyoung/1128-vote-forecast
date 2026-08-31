@@ -20,6 +20,7 @@ import { listCandidateRankings } from './candidate-rankings.js';
 import {
   renderCoreSitemap,
   renderHead,
+  renderLlmsText,
   renderRobots,
   renderSitemapIndex,
   resolvePageMeta,
@@ -127,6 +128,12 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
     c.header('Cache-Control', 'public, max-age=0, s-maxage=300');
     if (!seoIndexable) c.header('X-Robots-Tag', 'noindex, nofollow');
     return c.body(renderRobots(siteOrigin(c)));
+  });
+  app.get('/llms.txt', (c) => {
+    c.header('Content-Type', 'text/plain; charset=UTF-8');
+    c.header('Cache-Control', 'public, max-age=0, s-maxage=300');
+    if (!seoIndexable) c.header('X-Robots-Tag', 'noindex, nofollow');
+    return c.body(renderLlmsText(siteOrigin(c)));
   });
   app.get('/sitemap.xml', (c) => {
     c.header('Content-Type', 'application/xml; charset=UTF-8');

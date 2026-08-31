@@ -16,7 +16,7 @@ describe('HTML routes', () => {
     const home = await app.request('/');
     const homeHtml = await home.text();
     expect(homeHtml).toContain('<main>/</main>');
-    expect(homeHtml).toContain('<title>九合一選舉預測');
+    expect(homeHtml).toContain('<title>2026 九合一選舉預測');
     expect(home.headers.get('cache-control')).toContain('s-maxage=60');
 
     const mine = await app.request('/mine');
@@ -26,8 +26,15 @@ describe('HTML routes', () => {
     expect((await app.request('/missing')).status).toBe(404);
 
     const robots = await app.request('/robots.txt');
-    expect(await robots.text()).toBe('User-agent: *\nDisallow: /\n');
+    expect(await robots.text()).toBe(
+      'User-agent: facebookexternalhit\nAllow: /\n\nUser-agent: *\nDisallow: /\n',
+    );
     expect(robots.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+
+    const llms = await app.request('/llms.txt');
+    expect(await llms.text()).toContain('# 九合一選舉預測');
+    expect(llms.headers.get('content-type')).toContain('text/plain');
+    expect(llms.headers.get('x-robots-tag')).toBe('noindex, nofollow');
 
     const sitemap = await app.request('/sitemap.xml');
     expect(await sitemap.text()).toContain('<sitemapindex');

@@ -78,10 +78,39 @@ export function resolvePageMeta(
   const robots = (value = indexRobots) => (canIndex ? value : 'noindex,nofollow');
   const finish = (meta: PageMeta): PageMeta => {
     const image = options.ogImage ?? (!meta.private && meta.status === 200 ? defaultOgImage : null);
+    const extraJsonLd = meta.jsonLd
+      ? Object.fromEntries(Object.entries(meta.jsonLd).filter(([key]) => key !== '@context'))
+      : null;
     return {
       ...meta,
       robots: robots(meta.robots),
       ogImage: image ? absolute(origin, image) : undefined,
+      jsonLd:
+        !meta.private && meta.status === 200 && meta.canonical
+          ? {
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'WebPage',
+                  '@id': `${meta.canonical}#webpage`,
+                  url: meta.canonical,
+                  name: meta.title,
+                  description: meta.description,
+                  inLanguage: 'zh-Hant-TW',
+                  isPartOf: { '@id': absolute(origin, '/#website') },
+                  ...(image
+                    ? {
+                        primaryImageOfPage: {
+                          '@type': 'ImageObject',
+                          url: absolute(origin, image),
+                        },
+                      }
+                    : {}),
+                },
+                ...(extraJsonLd ? [extraJsonLd] : []),
+              ],
+            }
+          : undefined,
       ogUrl:
         shareTimestamp && meta.canonical
           ? absolute(origin, `${pathname}?${search.toString()}`)
@@ -102,6 +131,7 @@ export function resolvePageMeta(
       jsonLd: {
         '@context': 'https://schema.org',
         '@type': 'WebSite',
+        '@id': absolute(origin, '/#website'),
         name: siteName,
         alternateName: '2026 地方選舉群眾預測地圖',
         url: absolute(origin, '/'),
@@ -354,9 +384,35 @@ export function renderHead(meta: PageMeta) {
 }
 
 export function renderRobots(origin: string, indexable = seoIndexable) {
-  return indexable
-    ? `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /mine\nSitemap: ${absolute(origin, '/sitemap.xml')}\n`
-    : 'User-agent: *\nDisallow: /\n';
+  const facebook = 'User-agent: facebookexternalhit\nAllow: /\n\n';
+  return `${facebook}${
+    indexable
+      ? `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /mine\nSitemap: ${absolute(origin, '/sitemap.xml')}\n`
+      : 'User-agent: *\nDisallow: /\n'
+  }`;
+}
+
+export function renderLlmsText(origin: string) {
+  return `# ${siteName}
+
+> 2026 年 11 月 28 日臺灣九合一地方選舉的群眾預測網站，涵蓋縣市長、議員、鄉鎮市長、代表與村里長選區。
+
+本站內容是民眾自行提交的預測彙整，不是民調、官方候選人公告或開票結果。
+
+## 主要頁面
+
+- [全臺選情地圖](${absolute(origin, '/')}): 全臺各類地方選舉的入口與群眾預測概況。
+- [縣市長選情總覽](${absolute(origin, '/regions')}): 全臺 22 縣市的縣市長候選人與預測分布。
+- [政黨候選人總覽](${absolute(origin, '/parties')}): 依政黨、行政區與參選職位瀏覽候選人。
+- [熱門候選人排行](${absolute(origin, '/rankings')}): 依群眾預測次數排列的候選人 Top 50。
+
+## 規則與索引
+
+- [使用條款](${absolute(origin, '/terms')}): 預測規則、留言規範與免責聲明。
+- [隱私權政策](${absolute(origin, '/privacy')}): 資料蒐集、保存及使用者權利。
+- [更新紀錄](${absolute(origin, '/changelog')}): 網站版本與功能變更。
+- [XML Sitemap](${absolute(origin, '/sitemap.xml')}): 可索引公開頁面的完整入口。
+`;
 }
 
 export function renderSitemapIndex(origin: string) {
