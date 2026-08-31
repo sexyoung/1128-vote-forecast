@@ -2,7 +2,7 @@ import { getParty } from '../shared/candidates.js';
 import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { avatarUrl } from '../client/avatars.js';
-import { cacheDelete, cachedJson } from './redis.js';
+import { cacheDelete, cachedGzipJson } from './redis.js';
 import { candidateDataKey } from './snapshot-keys.js';
 
 /**
@@ -32,7 +32,7 @@ let byCandidateId = new Map<string, { label: string; partyId: string | null; con
 /** 啟動時載入一次（src/server/index.ts）；名單更新隨新版部署生效。 */
 export async function refreshCandidates(force = false) {
   if (force) await cacheDelete(candidateDataKey);
-  const rows = await cachedJson(candidateDataKey, 3600, () =>
+  const rows = await cachedGzipJson(candidateDataKey, 3600, () =>
     prisma.candidate.findMany({
       orderBy: [{ contestId: 'asc' }, { ballotNo: 'asc' }, { name: 'asc' }],
       select: {

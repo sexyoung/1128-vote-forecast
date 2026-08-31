@@ -1,5 +1,11 @@
 import Redis from 'ioredis';
+import { promisify } from 'node:util';
+import { gzip, gunzip } from 'node:zlib';
 import { env } from './env.js';
+
+const gzipAsync = promisify(gzip);
+const gunzipAsync = promisify(gunzip);
+const gzipLevel = 6;
 
 /**
  * Redis 在這裡是加速層，不是資料來源：放的都是算得回來的東西（快照、session
@@ -66,6 +72,22 @@ export async function cacheSet(key: string, value: string, ttlSeconds: number) {
   }
 }
 
+async function cacheGetBuffer(key: string) {
+  try {
+    return (await (await getReadyClient())?.getBuffer(key)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheSetBuffer(key: string, value: Buffer, ttlSeconds: number) {
+  try {
+    await (await getReadyClient())?.set(key, value, 'EX', ttlSeconds);
+  } catch {
+    // 寫不進去就算了，下次讀還是會回到資料庫。
+  }
+}
+
 export async function cacheMGet(keys: string[]) {
   if (keys.length === 0) return [];
   try {
@@ -100,6 +122,28 @@ export async function cachedJson<T>(key: string, ttlSeconds: number, build: () =
   }
   const value = await build();
   await cacheSet(key, JSON.stringify(value), ttlSeconds);
+  return value;
+}
+
+/** 大型 JSON cache-aside。以 gzip level 6 的 binary 儲存，避免 Base64 額外膨脹。 */
+export async function cachedGzipJson<T>(key: string, ttlSeconds: number, build: () => Promise<T>) {
+  const cached = await cacheGetBuffer(key);
+  if (cached !== null) {
+    try {
+      const json = await gunzipAsync(cached);
+      return JSON.parse(json.toString('utf8')) as T;
+    } catch {
+      await cacheDelete(key);
+    }
+  }
+
+  const value = await build();
+  try {
+    const compressed = await gzipAsync(Buffer.from(JSON.stringify(value)), { level: gzipLevel });
+    await cacheSetBuffer(key, compressed, ttlSeconds);
+  } catch {
+    // 壓縮或快取失敗不影響資料庫結果。
+  }
   return value;
 }
 

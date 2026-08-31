@@ -25,7 +25,7 @@ export function tallyKey(contestId: string) {
 export const candidateRankingsKey = 'snap:rankings:candidates';
 export const partyCountsKey = 'snap:parties:counts';
 export const publicAnnouncementKey = 'snap:announcement:public';
-export const candidateDataKey = 'data:candidates:v1';
+export const candidateDataKey = 'data:candidates:gzip:v2';
 
 export function partyCandidatesKey(partyId: string) {
   return `snap:parties:${partyId}:candidates`;
