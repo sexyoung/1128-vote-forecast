@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { getCandidateRankings } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { SocialShare } from '../SocialShare';
-import { CandidatePhoto, Icon, PageShell } from './ElectionPrototypeShared';
+import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
 import { SkeletonSwap } from './SkeletonSwap';
 import { summariseArea } from '../../shared/area';
 
@@ -57,7 +57,7 @@ export function CandidateRankingsPage() {
   useDocumentTitle('熱門候選人排行｜預測次數 Top 50｜九合一選舉預測');
 
   return (
-    <PageShell>
+    <>
       <main className="page">
         <nav className="breadcrumbs" aria-label="麵包屑">
           <strong>排行</strong>
@@ -103,6 +103,6 @@ export function CandidateRankingsPage() {
           )}
         </SkeletonSwap>
       </main>
-    </PageShell>
+    </>
   );
 }

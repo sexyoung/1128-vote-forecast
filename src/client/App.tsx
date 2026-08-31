@@ -13,6 +13,7 @@ import { CandidateRankingsPage } from './pages/CandidateRankingsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { ChangelogPage } from './pages/ChangelogPage';
+import { PageShell } from './pages/ElectionPrototypeShared';
 
 // 後台是另一支程式，只是共用網域與建置。lazy 讓它自己一個 chunk，公開頁面不會
 // 為了一個只有我看得到的畫面多下載幾十 KB。
@@ -23,17 +24,20 @@ export function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<ElectionHomePage />} />
-        <Route path="/regions" element={<RegionsPage />} />
-        <Route path="/parties" element={<PartiesPage />} />
-        <Route path="/parties/:partyId" element={<PartiesPage />} />
-        <Route path="/rankings" element={<CandidateRankingsPage />} />
-        <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
-        <Route path="/contest/:contestId" element={<ContestPage />} />
-        <Route path="/mine" element={<MyPredictionsPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/changelog" element={<ChangelogPage />} />
+        <Route element={<PageShell />}>
+          <Route path="/" element={<ElectionHomePage />} />
+          <Route path="/regions" element={<RegionsPage />} />
+          <Route path="/parties" element={<PartiesPage />} />
+          <Route path="/parties/:partyId" element={<PartiesPage />} />
+          <Route path="/rankings" element={<CandidateRankingsPage />} />
+          <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
+          <Route path="/contest/:contestId" element={<ContestPage />} />
+          <Route path="/mine" element={<MyPredictionsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
         <Route
           path="/admin/*"
           element={
@@ -42,7 +46,6 @@ export function App() {
             </Suspense>
           }
         />
-        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {/* Routes 外面、跟它平行：任何網址都要看得到，不能只掛在某一個 route 底下。 */}
       <AnnouncementModal />

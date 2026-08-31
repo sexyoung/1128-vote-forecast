@@ -22,7 +22,6 @@ import {
   CandidateList,
   ForecastButton,
   Icon,
-  PageShell,
   toCandidateRows,
 } from './ElectionPrototypeShared';
 import { ForecastSheet } from './ForecastSheet';
@@ -509,17 +508,17 @@ export function ContestPage() {
   // 鄉鎮市長與村里長是從圖資產生的，不在 mock-election 的靜態清單裡，要先載回來。
   if (!resolved)
     return (
-      <PageShell>
+      <>
         <main className="page contest-page">
           <p className="view-note">載入選區資料…</p>
         </main>
-      </PageShell>
+      </>
     );
 
   const { contest, jurisdiction } = resolved;
   const pickCount = detail.data?.mine?.targetIds.length ?? 0;
   return (
-    <PageShell>
+    <>
       <main className="page contest-page">
         <Breadcrumbs contest={contest} jurisdiction={jurisdiction} />
         {message && (
@@ -604,6 +603,6 @@ export function ContestPage() {
           }}
         />
       )}
-    </PageShell>
+    </>
   );
 }

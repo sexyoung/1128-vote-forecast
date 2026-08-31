@@ -6,7 +6,7 @@ import { candidateParties } from '../../shared/candidates';
 import { useDocumentTitle } from '../use-document-title';
 import { SocialShare } from '../SocialShare';
 import { type ElectionView, getJurisdiction, jurisdictions } from '../mock-election';
-import { CardCover, ElectionTabs, Icon, PageShell } from './ElectionPrototypeShared';
+import { CardCover, ElectionTabs, Icon } from './ElectionPrototypeShared';
 import { summariseArea } from '../../shared/area';
 import { SkeletonSwap } from './SkeletonSwap';
 
@@ -122,16 +122,16 @@ export function PartiesPage() {
 
   if (routePartyId && !party)
     return (
-      <PageShell>
+      <>
         <main className="page">
           <p className="view-note">找不到這個政黨。</p>
         </main>
-      </PageShell>
+      </>
     );
 
   if (!party)
     return (
-      <PageShell>
+      <>
         <main className="page">
           <nav className="breadcrumbs" aria-label="麵包屑">
             <strong>政黨</strong>
@@ -177,7 +177,7 @@ export function PartiesPage() {
             ))}
           </div>
         </main>
-      </PageShell>
+      </>
     );
 
   const data = contests.data;
@@ -186,7 +186,7 @@ export function PartiesPage() {
     : null;
   const selectedRegionData = data?.regions.find(({ id }) => id === regionId);
   return (
-    <PageShell>
+    <>
       <main className="page">
         <nav className="breadcrumbs" aria-label="麵包屑">
           <Link to="/parties">政黨</Link>
@@ -353,6 +353,6 @@ export function PartiesPage() {
           </SkeletonSwap>
         )}
       </main>
-    </PageShell>
+    </>
   );
 }

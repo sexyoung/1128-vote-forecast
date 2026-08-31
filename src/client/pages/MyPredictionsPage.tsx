@@ -5,17 +5,42 @@ import { getMyPredictions, getSession, updateDisplayName } from '../api';
 import { useDocumentTitle } from '../use-document-title';
 import { track } from '../analytics';
 import { SkeletonSwap } from './SkeletonSwap';
-import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
+import { CandidateList, Icon, toCandidateRows } from './ElectionPrototypeShared';
 
 const anonymousFallback = '預測者';
 
 const diceDotPositions = {
   1: [[12, 12]],
-  2: [[9, 9], [15, 15]],
-  3: [[9, 9], [12, 12], [15, 15]],
-  4: [[9, 9], [15, 9], [9, 15], [15, 15]],
-  5: [[9, 9], [15, 9], [12, 12], [9, 15], [15, 15]],
-  6: [[9, 8], [9, 12], [9, 16], [15, 8], [15, 12], [15, 16]],
+  2: [
+    [9, 9],
+    [15, 15],
+  ],
+  3: [
+    [9, 9],
+    [12, 12],
+    [15, 15],
+  ],
+  4: [
+    [9, 9],
+    [15, 9],
+    [9, 15],
+    [15, 15],
+  ],
+  5: [
+    [9, 9],
+    [15, 9],
+    [12, 12],
+    [9, 15],
+    [15, 15],
+  ],
+  6: [
+    [9, 8],
+    [9, 12],
+    [9, 16],
+    [15, 8],
+    [15, 12],
+    [15, 16],
+  ],
 } as const;
 
 export function diceDots(face: number) {
@@ -27,7 +52,13 @@ function DiceIcon({ face }: { face: number }) {
     <svg aria-hidden="true" className="icon" fill="none" viewBox="0 0 24 24">
       <rect height="16" rx="3" stroke="currentColor" strokeWidth="1.8" width="16" x="4" y="4" />
       {diceDots(face).map(([cx, cy]) => (
-        <circle cx={cx} cy={cy} fill={face === 1 ? '#e4141e' : 'currentColor'} key={`${cx}-${cy}`} r="1.25" />
+        <circle
+          cx={cx}
+          cy={cy}
+          fill={face === 1 ? '#e4141e' : 'currentColor'}
+          key={`${cx}-${cy}`}
+          r="1.25"
+        />
       ))}
     </svg>
   );
@@ -210,7 +241,7 @@ export function MyPredictionsPage() {
   });
 
   return (
-    <PageShell>
+    <>
       <main className="page mine-page">
         <section className="page-heading">
           <h1>我的預測</h1>
@@ -298,6 +329,6 @@ export function MyPredictionsPage() {
           )}
         </SkeletonSwap>
       </main>
-    </PageShell>
+    </>
   );
 }

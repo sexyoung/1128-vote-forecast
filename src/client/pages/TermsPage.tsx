@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useDocumentTitle } from '../use-document-title';
-import { PageShell } from './ElectionPrototypeShared';
 
 // 中文段落一律寫成一行，理由見 PrivacyPage.tsx。
 export function TermsPage() {
   useDocumentTitle('使用條款｜九合一選舉預測');
   return (
-    <PageShell>
+    <>
       <main className="page legal-page">
         <section className="page-heading">
           <h1>使用條款</h1>
@@ -69,6 +68,6 @@ export function TermsPage() {
           聯絡。
         </p>
       </main>
-    </PageShell>
+    </>
   );
 }

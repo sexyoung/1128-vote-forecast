@@ -1,5 +1,4 @@
 import { useDocumentTitle } from '../use-document-title';
-import { PageShell } from './ElectionPrototypeShared';
 
 // 這頁講的是使用者關心的事：存了什麼、給誰看、留多久、怎麼刪。實作細節與「怎麼
 // 認出同一個人」刻意不寫進來——那是防灌票的機制，寫出來等於告訴人怎麼繞過。改
@@ -10,7 +9,7 @@ import { PageShell } from './ElectionPrototypeShared';
 export function PrivacyPage() {
   useDocumentTitle('隱私權政策｜九合一選舉預測');
   return (
-    <PageShell>
+    <>
       <main className="page legal-page">
         <section className="page-heading">
           <h1>隱私權政策</h1>
@@ -80,6 +79,6 @@ export function PrivacyPage() {
           聯絡。本政策如有修改，會直接更新這一頁。
         </p>
       </main>
-    </PageShell>
+    </>
   );
 }

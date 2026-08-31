@@ -1,11 +1,10 @@
 import { releases } from '../../shared/changelog';
 import { useDocumentTitle } from '../use-document-title';
-import { PageShell } from './ElectionPrototypeShared';
 
 export function ChangelogPage() {
   useDocumentTitle('更新紀錄｜九合一選舉預測');
   return (
-    <PageShell>
+    <>
       <main className="page legal-page">
         <section className="page-heading">
           <h1>更新紀錄</h1>
@@ -27,6 +26,6 @@ export function ChangelogPage() {
           ))}
         </ol>
       </main>
-    </PageShell>
+    </>
   );
 }

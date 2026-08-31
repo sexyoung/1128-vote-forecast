@@ -5,7 +5,7 @@ import { useDocumentTitle } from '../use-document-title';
 import { SocialShare } from '../SocialShare';
 import { type Jurisdiction, getContests, jurisdictions } from '../mock-election';
 import { jurisdictionOrder } from '../../shared/jurisdictions';
-import { CandidateList, Icon, PageShell, toCandidateRows } from './ElectionPrototypeShared';
+import { CandidateList, Icon, toCandidateRows } from './ElectionPrototypeShared';
 
 const orderedJurisdictions = jurisdictionOrder.flatMap(
   (id) => jurisdictions.find((item) => item.id === id) ?? [],
@@ -50,7 +50,7 @@ export function RegionsPage() {
     0,
   );
   return (
-    <PageShell>
+    <>
       <main className="page">
         <nav className="breadcrumbs" aria-label="麵包屑">
           <strong>全國</strong>
@@ -73,6 +73,6 @@ export function RegionsPage() {
           ))}
         </div>
       </main>
-    </PageShell>
+    </>
   );
 }

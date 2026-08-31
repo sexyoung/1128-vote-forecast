@@ -1,5 +1,5 @@
-import { type CSSProperties, type FormEvent, type ReactNode, useState } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { type CSSProperties, type FormEvent, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { currentVersion } from '../../shared/changelog';
 import type { PredictionTarget, TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
@@ -231,8 +231,9 @@ function MobileNav() {
   );
 }
 
-export function PageShell({ children, header }: { children: ReactNode; header?: ReactNode }) {
+export function PageShell() {
   const { pathname } = useLocation();
+  const isMapHome = pathname === '/';
   const hasFlowingBackground =
     pathname === '/regions' ||
     pathname.startsWith('/region/') ||
@@ -265,24 +266,28 @@ export function PageShell({ children, header }: { children: ReactNode; header?: 
           </filter>
         </svg>
       )}
-      {header ?? <AppHeader />}
-      {children}
-      <footer className="site-footer">
-        <span>主要作者：寫詩羊</span>
-        <span>
-          若發現資料或內容有誤，請透過{' '}
-          <a href="https://www.threads.com/@ben198515" rel="noreferrer" target="_blank">
-            Threads @ben198515
-          </a>{' '}
-          聯絡
-        </span>
-        <nav className="site-footer-links">
-          <Link to="/privacy">隱私權政策</Link>
-          <Link to="/terms">使用條款</Link>
-          <Link to="/changelog">v{currentVersion}</Link>
-        </nav>
-      </footer>
-      <MobileNav />
+      {!isMapHome && <AppHeader />}
+      <Outlet />
+      {!isMapHome && (
+        <>
+          <footer className="site-footer">
+            <span>主要作者：寫詩羊</span>
+            <span>
+              若發現資料或內容有誤，請透過{' '}
+              <a href="https://www.threads.com/@ben198515" rel="noreferrer" target="_blank">
+                Threads @ben198515
+              </a>{' '}
+              聯絡
+            </span>
+            <nav className="site-footer-links">
+              <Link to="/privacy">隱私權政策</Link>
+              <Link to="/terms">使用條款</Link>
+              <Link to="/changelog">v{currentVersion}</Link>
+            </nav>
+          </footer>
+          <MobileNav />
+        </>
+      )}
     </div>
   );
 }

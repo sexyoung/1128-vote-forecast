@@ -26,7 +26,6 @@ import {
   CandidateList,
   ElectionTabs,
   Icon,
-  PageShell,
   toCandidateRows,
 } from './ElectionPrototypeShared';
 import { regionCounts } from '../region-counts';
@@ -285,7 +284,7 @@ export function JurisdictionPage() {
   });
 
   return (
-    <PageShell>
+    <>
       <main className="page">
         <Breadcrumbs jurisdiction={jurisdiction} />
         <section className="page-heading">
@@ -418,6 +417,6 @@ export function JurisdictionPage() {
           </p>
         )}
       </main>
-    </PageShell>
+    </>
   );
 }
