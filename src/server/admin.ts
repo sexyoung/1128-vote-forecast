@@ -7,6 +7,11 @@ import {
   importCandidates,
   prepareCandidateImport,
 } from './candidate-import.js';
+import {
+  CandidateContributionRejected,
+  approveCandidateContribution,
+  rejectCandidateContribution,
+} from './candidate-contributions.js';
 import { forecasterCode } from './comments.js';
 import {
   type ContestType,
@@ -17,8 +22,9 @@ import {
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { dismissReport } from './moderation.js';
-import { describeTarget } from './prediction-targets.js';
+import { describeTarget, refreshCandidates } from './prediction-targets.js';
 import { cacheDelete, pingRedis } from './redis.js';
+import { refreshCandidateVisibility, saveCandidateVisibility } from './site-settings.js';
 import { commentsKey } from './snapshot-keys.js';
 import { hasSnapshotFor } from './trends.js';
 
@@ -302,6 +308,27 @@ adminApp.get('/forecasters/:forecasterId/comments', async (c) => {
 
 // --- 候選人 CSV ------------------------------------------------------------
 
+adminApp.get('/candidate-visibility', async (c) => {
+  const [settings, placeholderCount] = await Promise.all([
+    refreshCandidateVisibility(true),
+    prisma.candidate.count({ where: { id: { contains: '-CANDIDATE-' } } }),
+  ]);
+  return c.json({ ...settings, placeholderCount });
+});
+
+adminApp.put('/candidate-visibility', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    hidePlaceholderCandidates?: unknown;
+  } | null;
+  if (typeof body?.hidePlaceholderCandidates !== 'boolean')
+    return c.json({ error: '設定值不正確。' }, 400);
+
+  const settings = await saveCandidateVisibility(body.hidePlaceholderCandidates);
+  // 同時重新從 PostgreSQL 載入，避免舊的候選人快取讓正式名單被誤認成不存在。
+  await refreshCandidates(true);
+  return c.json({ ...settings });
+});
+
 adminApp.get('/candidates', async (c) => {
   const candidates = await prisma.candidate.findMany({
     where: {
@@ -354,6 +381,69 @@ adminApp.post('/candidates/import', async (c) => {
     return c.json({ summary: await importCandidates(body.csv, body.replaceCodes as string[]) });
   } catch (error) {
     if (error instanceof CandidateImportRejected) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+// --- 使用者候選人提案 -------------------------------------------------------
+
+adminApp.get('/candidate-contributions', async (c) => {
+  const contributions = await prisma.candidateContribution.findMany({
+    where: { status: 'PENDING' },
+    include: { forecaster: { select: { id: true, displayName: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: 200,
+  });
+  const existingIds = contributions
+    .filter(({ kind }) => kind === 'PHOTO_UPDATE')
+    .map(({ candidateId }) => candidateId);
+  const candidates = existingIds.length
+    ? await prisma.candidate.findMany({
+        where: { id: { in: existingIds } },
+        select: { id: true, name: true, partyId: true },
+      })
+    : [];
+  const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+
+  return c.json({
+    contributions: contributions.map((contribution) => {
+      const existing = candidateById.get(contribution.candidateId);
+      return {
+        id: contribution.id,
+        kind: contribution.kind,
+        contestId: contribution.contestId,
+        contestName: getRegisteredContest(contribution.contestId)?.name ?? contribution.contestId,
+        candidateId: contribution.candidateId,
+        candidateName: contribution.candidateName ?? existing?.name ?? '原候選人已不存在',
+        partyId: contribution.partyId ?? existing?.partyId ?? null,
+        photoUrl: contribution.photoUrl,
+        createdAt: contribution.createdAt,
+        forecaster: {
+          code: forecasterCode(contribution.forecaster.id),
+          displayName: contribution.forecaster.displayName,
+        },
+      };
+    }),
+  });
+});
+
+adminApp.post('/candidate-contributions/:contributionId/approve', async (c) => {
+  try {
+    return c.json(await approveCandidateContribution(c.req.param('contributionId')));
+  } catch (error) {
+    if (error instanceof CandidateContributionRejected)
+      return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+adminApp.post('/candidate-contributions/:contributionId/reject', async (c) => {
+  try {
+    await rejectCandidateContribution(c.req.param('contributionId'));
+    return c.json({ ok: true });
+  } catch (error) {
+    if (error instanceof CandidateContributionRejected)
+      return c.json({ error: error.message }, 400);
     throw error;
   }
 });

@@ -1,7 +1,8 @@
 import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { currentVersion } from '../../shared/changelog';
-import type { PredictionTarget, TallyRow } from '../api';
+import { getCandidateVisibility, type PredictionTarget, type TallyRow } from '../api';
 import { highlightParts, searchEverything } from '../search';
 import { track } from '../analytics';
 import {
@@ -104,9 +105,19 @@ export function SearchBox({ autoFocus = false, className = '' }) {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
+  const candidateVisibility = useQuery({
+    queryKey: ['candidate-visibility'],
+    queryFn: getCandidateVisibility,
+    staleTime: 30_000,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
   const locationRef = useRef(`${location.pathname}${location.search}`);
-  const matches = searchEverything(search);
+  // 設定還沒讀到時，保守地不提供由假名單建立的候選人搜尋結果。
+  const matches = searchEverything(
+    search,
+    6,
+    candidateVisibility.data?.hidePlaceholderCandidates === false,
+  );
 
   function closeSearch() {
     setSearch('');
@@ -267,6 +278,30 @@ function MobileNav() {
 
 export function PageShell() {
   const { pathname } = useLocation();
+  const queryClient = useQueryClient();
+  const candidateVisibility = useQuery({
+    queryKey: ['candidate-visibility'],
+    queryFn: getCandidateVisibility,
+    staleTime: 0,
+    refetchInterval: 15_000,
+  });
+  const candidateVisibilityVersion = candidateVisibility.data?.candidateVisibilityVersion;
+  useEffect(() => {
+    if (!candidateVisibilityVersion) return;
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        [
+          'contest',
+          'tallies',
+          'map',
+          'candidate-rankings',
+          'party-counts',
+          'party-contests',
+          'trend',
+          'my-predictions',
+        ].includes(String(query.queryKey[0])),
+    });
+  }, [candidateVisibilityVersion, queryClient]);
   const isMapHome = pathname === '/';
   const hasFlowingBackground =
     pathname === '/regions' ||

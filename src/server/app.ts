@@ -26,15 +26,35 @@ import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
 import { candidateParties } from '../shared/candidates.js';
+import {
+  CandidateContributionRejected,
+  createCandidateContribution,
+} from './candidate-contributions.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
 import { listCandidateRankings } from './candidate-rankings.js';
+import {
+  candidateVisibilityCacheKey,
+  isVisibleCandidateId,
+  placeholderCandidatesHidden,
+  refreshCandidateVisibility,
+} from './site-settings.js';
 
 type Variables = { forecaster: ResolvedForecaster };
 
 export const app = new Hono<{ Variables: Variables }>();
 
 // 所有入口都經過 app；在這裡載入，API、SSR 與測試才會看到同一份資料庫名單。
-await refreshCandidates();
+await refreshCandidateVisibility(true);
+// 新部署不能沿用長達一小時的候選人快取：正式 CSV 剛匯入時，否則新 instance 可能
+// 仍拿到舊的佔位名單。啟動時直接以 PostgreSQL 為準並重建快取。
+await refreshCandidates(true);
+
+// 這個設定由後台切換；每個執行個體最多五秒會重新讀一次，讓多 instance 部署也能
+// 收到變更，同時不讓每個公開請求都多打一趟 PostgreSQL。
+app.use('*', async (_c, next) => {
+  await refreshCandidateVisibility();
+  await next();
+});
 
 // 身份靠 cookie，跨網域請求必須帶上它，所以不能用預設的 cors()。
 // 後台不在這組規則裡：下面這個 cors() 會把任何來源反射回去，後台端點若也適用，
@@ -52,6 +72,15 @@ app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api
 app.get('/api/announcement', async (c) => {
   c.header('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');
   return c.json({ announcement: await getPublicAnnouncement() });
+});
+
+app.get('/api/settings/candidate-visibility', (c) => {
+  // 後台剛切換時，頁首搜尋不能再等 CDN 的公開快取才更新。
+  c.header('Cache-Control', 'no-store');
+  return c.json({
+    hidePlaceholderCandidates: placeholderCandidatesHidden(),
+    candidateVisibilityVersion: candidateVisibilityCacheKey(),
+  });
 });
 
 function cronAuthorized(authorization: string | undefined) {
@@ -73,6 +102,7 @@ function isPublicRead(path: string, method: string) {
   if (method !== 'GET') return false;
   return (
     path === '/api/announcement' ||
+    path === '/api/settings/candidate-visibility' ||
     path === '/api/map/national' ||
     path.startsWith('/api/map/') ||
     path === '/api/parties' ||
@@ -215,6 +245,43 @@ app.get('/api/contests/:contestId', async (c) => {
   return c.json({ contest, targets: getPredictionTargets(contest), tally, mine });
 });
 
+/** 使用者可提報新候選人或補一張照片；資料與圖片都要等後台批准才會公開。 */
+app.post('/api/contests/:contestId/candidate-contributions', async (c) => {
+  const contest = getRegisteredContest(c.req.param('contestId'));
+  if (!contest) return c.json({ error: '找不到這個選區。' }, 404);
+
+  const forecaster = c.get('forecaster');
+  if (forecaster.blockedAt) return c.json({ error: '這個身份已被停用。' }, 403);
+  // 候選人名單是高價值資料：一個匿名身份每天最多提五次，避免後台審核佇列被灌爆。
+  if ((await hitCounter(`rl:candidate-contribution:${forecaster.id}`, 24 * 60 * 60)) > 5)
+    return c.json({ error: '今天的候選人提案次數已達上限。' }, 429);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    kind?: unknown;
+    candidateId?: unknown;
+    candidateName?: unknown;
+    partyId?: unknown;
+    photoUrl?: unknown;
+  } | null;
+  try {
+    const contribution = await createCandidateContribution(forecaster.id, contest.id, {
+      kind: body?.kind as 'NEW_CANDIDATE' | 'PHOTO_UPDATE',
+      candidateId: body?.candidateId,
+      candidateName: body?.candidateName,
+      partyId: body?.partyId,
+      photoUrl: body?.photoUrl,
+    });
+    return c.json(
+      { contribution: { id: contribution.id, candidateId: contribution.candidateId } },
+      201,
+    );
+  } catch (error) {
+    if (error instanceof CandidateContributionRejected)
+      return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
 /** 送出或修改預測。同一個人對同一個選區永遠只有一筆，改是覆蓋。 */
 app.post('/api/contests/:contestId/prediction', async (c) => {
   const contest = getRegisteredContest(c.req.param('contestId'));
@@ -274,13 +341,17 @@ app.get('/api/me/predictions', async (c) => {
       const contest = getRegisteredContest(prediction.contestId);
       // 選區改制後舊預測可能對不到清冊，那就不列出來，但資料還留著。
       if (!contest) return [];
+      const picks = prediction.picks.filter(
+        (pick) => pick.targetType !== 'CANDIDATE' || isVisibleCandidateId(pick.targetId),
+      );
+      if (picks.length === 0) return [];
       const tally = tallies.get(contest.id);
       return [
         {
           contest,
           status: prediction.status,
           updatedAt: prediction.updatedAt,
-          picks: prediction.picks.map((pick) => ({
+          picks: picks.map((pick) => ({
             targetId: pick.targetId,
             ...describeTarget(contest, pick.targetType, pick.targetId),
           })),

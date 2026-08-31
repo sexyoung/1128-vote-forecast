@@ -210,6 +210,24 @@ export type AdminCandidate = {
 export const getAdminCandidates = () =>
   request<{ candidates: AdminCandidate[] }>('/api/admin/candidates');
 
+export type CandidateVisibilitySettings = {
+  hidePlaceholderCandidates: boolean;
+  candidateVisibilityVersion: number;
+  placeholderCount: number;
+};
+
+export const getCandidateVisibility = () =>
+  request<CandidateVisibilitySettings>('/api/admin/candidate-visibility');
+
+export const saveCandidateVisibility = (hidePlaceholderCandidates: boolean) =>
+  request<{ hidePlaceholderCandidates: boolean; candidateVisibilityVersion: number }>(
+    '/api/admin/candidate-visibility',
+    {
+      method: 'PUT',
+      body: JSON.stringify({ hidePlaceholderCandidates }),
+    },
+  );
+
 export const previewCandidateCsv = (csv: string) =>
   request<{
     summary: CandidateImportSummary;
@@ -226,6 +244,36 @@ export const importCandidateCsv = (csv: string, replaceCodes: string[]) =>
     method: 'POST',
     body: JSON.stringify({ csv, replaceCodes }),
   });
+
+// --- 使用者候選人提案 -------------------------------------------------------
+
+export type AdminCandidateContribution = {
+  id: string;
+  kind: 'NEW_CANDIDATE' | 'PHOTO_UPDATE';
+  contestId: string;
+  contestName: string;
+  candidateId: string;
+  candidateName: string;
+  partyId: string | null;
+  photoUrl: string;
+  createdAt: string;
+  forecaster: { code: string; displayName: string | null };
+};
+
+export const getCandidateContributions = () =>
+  request<{ contributions: AdminCandidateContribution[] }>('/api/admin/candidate-contributions');
+
+export const approveCandidateContribution = (contributionId: string) =>
+  request<{ contributionId: string; candidateId: string; photoFile: string }>(
+    `/api/admin/candidate-contributions/${encodeURIComponent(contributionId)}/approve`,
+    { method: 'POST' },
+  );
+
+export const rejectCandidateContribution = (contributionId: string) =>
+  request<{ ok: true }>(
+    `/api/admin/candidate-contributions/${encodeURIComponent(contributionId)}/reject`,
+    { method: 'POST' },
+  );
 
 // --- 檢舉／留言審核 ---------------------------------------------------------
 

@@ -240,8 +240,8 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
 
   await cacheDelete(
     candidateDataKey,
-    candidateRankingsKey,
-    partyCountsKey,
+    candidateRankingsKey(),
+    partyCountsKey(),
     ...parties.map(({ id }) => partyCandidatesKey(id)),
     ...plan.contestIds.flatMap((contestId) => {
       const contest = getRegisteredContest(contestId);

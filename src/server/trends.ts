@@ -2,6 +2,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { getRegisteredContest } from './contest-registry.js';
 import { databaseSchema, prisma } from './db.js';
 import { describeTarget } from './prediction-targets.js';
+import { isVisibleCandidateId } from './site-settings.js';
 
 /**
  * 趨勢分頁要的是「每天的票數」，但 Prediction 只留最新一版，算不回昨天的樣子。
@@ -63,6 +64,7 @@ export async function readTrend(contestId: string, days: number): Promise<TrendS
 
   const series = new Map<string, TrendSeries>();
   const ensure = (targetType: string, targetId: string) => {
+    if (targetType === 'CANDIDATE' && !isVisibleCandidateId(targetId)) return null;
     const existing = series.get(targetId);
     if (existing) return existing;
     const described = describeTarget(contest, targetType, targetId);
@@ -71,16 +73,20 @@ export async function readTrend(contestId: string, days: number): Promise<TrendS
     return created;
   };
 
-  for (const row of snapshots)
-    ensure(row.targetType, row.targetId).points.push({
+  for (const row of snapshots) {
+    const target = ensure(row.targetType, row.targetId);
+    if (!target) continue;
+    target.points.push({
       date: row.capturedOn.toISOString().slice(0, 10),
       count: row.count,
     });
+  }
 
   const todayIso = today().toISOString().slice(0, 10);
   for (const row of live) {
     if (row.count <= 0) continue;
     const target = ensure(row.targetType, row.targetId);
+    if (!target) continue;
     const last = target.points[target.points.length - 1];
     if (last?.date === todayIso) last.count = row.count;
     else target.points.push({ date: todayIso, count: row.count });

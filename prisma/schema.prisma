@@ -45,6 +45,7 @@ model Forecaster {
   predictions Prediction[]
   comments    Comment[]
   reports     Report[]
+  candidateContributions CandidateContribution[]
 
   @@index([lastSeenAt])
 }
@@ -301,6 +302,46 @@ model Candidate {
   @@index([contestId])
 }
 
+/// 前台使用者提供的候選人資料。正式 Candidate 與圖片都要等後台批准才產生；
+/// candidateId 在提案建立時就確定，批准後的圖片檔名因此也固定為 `{candidateId}.webp`。
+enum CandidateContributionKind {
+  NEW_CANDIDATE
+  PHOTO_UPDATE
+}
+
+enum CandidateContributionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CandidateContribution {
+  id String @id @default(cuid())
+  kind CandidateContributionKind
+  status CandidateContributionStatus @default(PENDING)
+
+  contestId String
+  /// 新候選人是預先產生的永久 Candidate id；補照時則是既有 Candidate id。
+  candidateId String @default(cuid())
+  candidateName String? @db.VarChar(40)
+  partyId String? @db.VarChar(16)
+  photoUrl String @db.VarChar(2000)
+
+  forecasterId String
+  reviewedAt DateTime?
+  reviewedBy String? @db.VarChar(100)
+  reviewNote String? @db.VarChar(500)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  forecaster Forecaster @relation(fields: [forecasterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([contestId, status])
+  @@index([candidateId])
+  @@index([forecasterId, createdAt])
+}
+
 // ---------------------------------------------------------------------------
 // 全站公告
 // ---------------------------------------------------------------------------
@@ -316,5 +357,20 @@ model Announcement {
   /// 選填的行動連結，例如導到某個選區或外部說明。
   linkUrl   String?  @db.VarChar(300)
   linkLabel String?  @db.VarChar(40)
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// 全站設定
+// ---------------------------------------------------------------------------
+
+/// 全站唯一一列的營運設定。候選人正式名單還沒齊時，站長可暫時不讓佔位資料出現在前台。
+model SiteSetting {
+  id String @id
+
+  hidePlaceholderCandidates Boolean @default(false)
+  /// 每次變更候選人顯示規則就 +1，讓 Redis 快取換 namespace，不會讀到切換前的資料。
+  candidateVisibilityVersion Int @default(1)
+
   updatedAt DateTime @updatedAt
 }

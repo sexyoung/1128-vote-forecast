@@ -224,10 +224,19 @@ export function JurisdictionPage() {
     return state.contests.filter((contest) => contest.area.includes(activeTown));
   }, [activeTown, enabled, jurisdiction, needsTownPicker, state, view]);
   const contestGridRef = useRef<HTMLDivElement>(null);
+  const hasShownInitialContestGrid = useRef(false);
 
   useEffect(() => {
     const block = contestGridRef.current;
     if (!block || contests.length === 0) return;
+
+    // 首次資料到位時，清單本來就是可讀狀態。若也先隱藏再下一幀揭露，使用者
+    // 瞬間捲到最頂或最底都會短暫看到整片空白；只在後續切換分頁時重播依序進場。
+    if (!hasShownInitialContestGrid.current) {
+      hasShownInitialContestGrid.current = true;
+      block.classList.add('is-shown');
+      return;
+    }
     block.classList.remove('is-hiding');
     block.classList.remove('is-shown');
     void block.offsetHeight;
@@ -386,9 +395,9 @@ export function JurisdictionPage() {
               showArea={view === 'COUNCIL'}
             />
             <div aria-hidden={skeletonLoading} className="t-skel-content">
-              <div className="t-stagger" ref={contestGridRef}>
+              <div className="t-stagger is-shown" ref={contestGridRef}>
                 <VirtualWindowList
-                  className="contest-grid"
+                  className="contest-grid region-contest-grid"
                   estimateSize={view === 'COUNCIL' || view === 'REPRESENTATIVE' ? 520 : 330}
                   getKey={(contest) => contest.id}
                   items={contests}

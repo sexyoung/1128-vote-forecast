@@ -13,6 +13,7 @@ export type SearchHit = {
   /** 第二行的來歷，例如「臺北市 · 臺北市全境」。 */
   sub: string;
   to: string;
+  candidate?: boolean;
 };
 
 // 縣市與議員選區是靜態的，候選人由選區推出來；鄉鎮市長、代表、村里長要載入圖資
@@ -36,6 +37,7 @@ function contestHits(jurisdiction: Jurisdiction, contest: Contest): SearchHit[] 
       label: candidate.name,
       sub: `${jurisdiction.name}${contest.name}`,
       to,
+      candidate: true,
     })),
   ];
 }
@@ -57,12 +59,17 @@ function buildIndex(): SearchHit[] {
   ]);
 }
 
-export function searchEverything(query: string, limit = 6): SearchHit[] {
+export function searchEverything(
+  query: string,
+  limit = 6,
+  includeCandidateHits = true,
+): SearchHit[] {
   const needle = query.trim();
   if (!needle) return [];
   index ??= buildIndex();
   const hits: SearchHit[] = [];
   for (const hit of index) {
+    if (!includeCandidateHits && hit.candidate) continue;
     if (hit.label.includes(needle)) hits.push(hit);
     if (hits.length === limit) break;
   }

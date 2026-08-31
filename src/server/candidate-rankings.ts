@@ -5,9 +5,10 @@ import { getRegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { cachedJson } from './redis.js';
 import { candidateRankingsKey } from './snapshot-keys.js';
+import { placeholderCandidatesHidden } from './site-settings.js';
 
 export async function listCandidateRankings() {
-  return cachedJson(candidateRankingsKey, 60, async () => {
+  return cachedJson(candidateRankingsKey(), 60, async () => {
     const tallies = await prisma.contestTally.findMany({
       where: { targetType: 'CANDIDATE', count: { gt: 0 } },
       orderBy: [{ count: 'desc' }, { targetId: 'asc' }],
@@ -16,6 +17,7 @@ export async function listCandidateRankings() {
       where: {
         id: { in: tallies.map(({ targetId }) => targetId) },
         status: { in: ['REGISTERED', 'CONFIRMED'] },
+        ...(placeholderCandidatesHidden() ? { NOT: { id: { contains: '-CANDIDATE-' } } } : {}),
       },
       select: { id: true, contestId: true, partyId: true, name: true },
     });

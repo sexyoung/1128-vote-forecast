@@ -27,7 +27,7 @@ beforeAll(async () => {
       count: 10_001 - index,
     })),
   });
-  await cacheDelete(candidateRankingsKey);
+  await cacheDelete(candidateRankingsKey());
 });
 
 afterAll(async () => {

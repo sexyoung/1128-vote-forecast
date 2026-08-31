@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
@@ -8,8 +8,10 @@ import {
   getTrend,
   postComment,
   reportComment,
+  submitCandidateContribution,
   type ReportReason,
 } from '../api';
+import { candidateParties } from '../../shared/candidates';
 import { parseShapeContestId, resolveShapeContest } from '../map-shapes';
 import { type Contest, type Jurisdiction, findContest, getJurisdiction } from '../mock-election';
 import { useDocumentTitle } from '../use-document-title';
@@ -230,6 +232,185 @@ function ReportDialog({
           type="button"
         >
           {pending ? '送出中…' : '送出檢舉'}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+type ContributionTab = 'new' | 'photo';
+
+function CandidateContributionDialog({
+  contestId,
+  candidates,
+  onClose,
+  onSubmitted,
+}: {
+  contestId: string;
+  candidates: { id: string; label: string; partyId: string | null }[];
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
+  const [tab, setTab] = useState<ContributionTab>('new');
+  const [candidateName, setCandidateName] = useState('');
+  const [partyId, setPartyId] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [candidateId, setCandidateId] = useState(candidates[0]?.id ?? '');
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+  const closingRef = useRef(false);
+  const submit = useMutation({
+    mutationFn: () =>
+      tab === 'new'
+        ? submitCandidateContribution(contestId, {
+            kind: 'NEW_CANDIDATE',
+            candidateName,
+            partyId: partyId || null,
+            photoUrl,
+          })
+        : submitCandidateContribution(contestId, { kind: 'PHOTO_UPDATE', candidateId, photoUrl }),
+    onSuccess: onSubmitted,
+  });
+
+  const close = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    const root = document.documentElement;
+    const closeMs =
+      Number.parseFloat(getComputedStyle(root).getPropertyValue('--modal-close-dur')) || 150;
+    closeTimer.current = window.setTimeout(onClose, closeMs);
+  }, [onClose]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    document.body.classList.add('sheet-open');
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.body.classList.remove('sheet-open');
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    };
+  }, [close]);
+
+  const error = submit.error instanceof Error ? submit.error.message : '';
+  const photoTabUnavailable = candidates.length === 0;
+  return (
+    <div className="sheet-backdrop centered" onMouseDown={close} role="presentation">
+      <section
+        aria-labelledby="candidate-contribution-title"
+        aria-modal="true"
+        className={`candidate-contribution-dialog t-modal ${closing ? 'is-closing' : 'is-open'}`}
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <h2 id="candidate-contribution-title">提供候選人資料</h2>
+            <p>送出後由管理者確認；照片只會在批准時下載、轉成 WebP 並寫入 Git 工作樹。</p>
+          </div>
+          <button aria-label="關閉" className="icon-button" onClick={close} type="button">
+            <Icon name="close" />
+          </button>
+        </header>
+
+        <div className="candidate-contribution-tabs" role="tablist">
+          <button
+            aria-selected={tab === 'new'}
+            className={tab === 'new' ? 'active' : ''}
+            onClick={() => {
+              setTab('new');
+              submit.reset();
+            }}
+            role="tab"
+            type="button"
+          >
+            新增候選人
+          </button>
+          <button
+            aria-selected={tab === 'photo'}
+            className={tab === 'photo' ? 'active' : ''}
+            disabled={photoTabUnavailable}
+            onClick={() => {
+              setTab('photo');
+              submit.reset();
+            }}
+            role="tab"
+            type="button"
+          >
+            補充照片
+          </button>
+        </div>
+
+        {tab === 'new' ? (
+          <div className="candidate-contribution-fields">
+            <label>
+              候選人姓名
+              <input
+                maxLength={40}
+                onChange={(event) => setCandidateName(event.target.value)}
+                placeholder="例如：王小明"
+                value={candidateName}
+              />
+            </label>
+            <label>
+              政黨
+              <select onChange={(event) => setPartyId(event.target.value)} value={partyId}>
+                <option value="">無黨籍／其他</option>
+                {candidateParties.map((party) => (
+                  <option key={party.id} value={party.id}>
+                    {party.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              大頭照網址
+              <input
+                inputMode="url"
+                onChange={(event) => setPhotoUrl(event.target.value)}
+                placeholder="https://…"
+                type="url"
+                value={photoUrl}
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="candidate-contribution-fields">
+            <label>
+              現有候選人
+              <select onChange={(event) => setCandidateId(event.target.value)} value={candidateId}>
+                {candidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.label} {candidate.partyId ? `· ${candidate.partyId}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              新的大頭照網址
+              <input
+                inputMode="url"
+                onChange={(event) => setPhotoUrl(event.target.value)}
+                placeholder="https://…"
+                type="url"
+                value={photoUrl}
+              />
+            </label>
+          </div>
+        )}
+        {error && <p className="identity-error">{error}</p>}
+        <button
+          className="button button-dark button-wide"
+          disabled={
+            submit.isPending || !photoUrl.trim() || (tab === 'new' && !candidateName.trim())
+          }
+          onClick={() => submit.mutate()}
+          type="button"
+        >
+          {submit.isPending ? '送出中…' : '送交管理者審核'}
         </button>
       </section>
     </div>
@@ -483,6 +664,7 @@ export function ContestPage() {
     );
   };
   const [forecastOpen, setForecastOpen] = useState(false);
+  const [contributionOpen, setContributionOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   // 地圖抽屜的連結直接帶 ?tab= 進來，不會經過 setActiveTab；掛載時分頁不是預設值
@@ -586,6 +768,13 @@ export function ContestPage() {
                 setForecastOpen(true);
               }}
             />
+            <button
+              className="button button-ghost button-wide candidate-contribution-button"
+              onClick={() => setContributionOpen(true)}
+              type="button"
+            >
+              提供候選人資料
+            </button>
             <div className="privacy-note">
               <span>匿名可參加</span>
               <small>裝置只保留一份預測，可隨時修改。</small>
@@ -600,6 +789,19 @@ export function ContestPage() {
           onSubmitted={(summary) => {
             setForecastOpen(false);
             setMessage(summary);
+          }}
+        />
+      )}
+      {contributionOpen && (
+        <CandidateContributionDialog
+          candidates={(detail.data?.targets ?? [])
+            .filter(({ targetType }) => targetType === 'CANDIDATE')
+            .map(({ targetId, label, partyId }) => ({ id: targetId, label, partyId }))}
+          contestId={contest.id}
+          onClose={() => setContributionOpen(false)}
+          onSubmitted={() => {
+            setContributionOpen(false);
+            setMessage('候選人資料已送交管理者審核。');
           }}
         />
       )}

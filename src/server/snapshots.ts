@@ -9,6 +9,7 @@ import { describeTarget } from './prediction-targets.js';
 import { readContestTally } from './predictions.js';
 import { cacheGet, cacheSet, takeTrackedKeys, trackKey } from './redis.js';
 import { contestKey, jurisdictionKey, nationalKey } from './snapshot-keys.js';
+import { isVisibleCandidateId } from './site-settings.js';
 
 /**
  * 地圖首頁一次要 22 個縣市的領先者，下鑽還要幾百個選區——每次都 COUNT 會拖垮
@@ -39,6 +40,17 @@ function toCell(summary: {
 }): MapCell | null {
   const contest = getRegisteredContest(summary.contestId);
   if (!contest) return null;
+  if (
+    summary.leaderType === 'CANDIDATE' &&
+    summary.leaderId &&
+    !isVisibleCandidateId(summary.leaderId)
+  )
+    return {
+      contestId: summary.contestId,
+      party: null,
+      percent: 0,
+      total: 0,
+    };
   const described =
     summary.leaderType && summary.leaderId
       ? describeTarget(contest, summary.leaderType, summary.leaderId)
@@ -76,7 +88,7 @@ async function read<T>(key: string, build: () => Promise<T>): Promise<T> {
 }
 
 export function readNationalMap() {
-  return read(nationalKey, buildNational);
+  return read(nationalKey(), buildNational);
 }
 
 export function readJurisdictionMap(jurisdictionId: string, type: ContestType) {
@@ -102,11 +114,11 @@ export function readContestSnapshot(contestId: string) {
 
 /** key 長什麼樣就知道要怎麼重算，cron 不必自己記清單。 */
 async function rebuild(key: string) {
-  if (key === nationalKey) {
+  if (key === nationalKey()) {
     await cacheSet(key, JSON.stringify(await buildNational()), snapshotTtlSeconds);
     return;
   }
-  const map = /^snap:map:([A-Z]+):([A-Z]+)$/.exec(key);
+  const map = /^snap:map:([A-Z]+):([A-Z]+):cv:/.exec(key);
   if (map) {
     const value = await buildJurisdiction(map[1], map[2] as ContestType);
     await cacheSet(key, JSON.stringify(value), snapshotTtlSeconds);
@@ -121,7 +133,7 @@ async function rebuild(key: string) {
  */
 export async function refreshHotSnapshots() {
   const tracked = await takeTrackedKeys(hotKeys);
-  const keys = [...new Set([nationalKey, ...tracked])];
+  const keys = [...new Set([nationalKey(), ...tracked])];
   for (const key of keys) await rebuild(key);
   return keys;
 }

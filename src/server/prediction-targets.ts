@@ -3,6 +3,7 @@ import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { avatarUrl } from '../client/avatars.js';
 import { cacheDelete, cachedGzipJson } from './redis.js';
+import { isVisibleCandidateId } from './site-settings.js';
 import { candidateDataKey } from './snapshot-keys.js';
 
 /**
@@ -73,7 +74,9 @@ export async function refreshCandidates(force = false) {
 }
 
 export function getPredictionTargets(contest: RegisteredContest): PredictionTarget[] {
-  return loadedCandidates.get(contest.id) ?? [];
+  return (loadedCandidates.get(contest.id) ?? []).filter(({ targetId }) =>
+    isVisibleCandidateId(targetId),
+  );
 }
 
 /**

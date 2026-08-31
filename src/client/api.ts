@@ -155,6 +155,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const getSession = () => request<Session>('/api/session');
 
+export const getCandidateVisibility = () =>
+  request<{ hidePlaceholderCandidates: boolean; candidateVisibilityVersion: string }>(
+    '/api/settings/candidate-visibility',
+  );
+
 export const updateDisplayName = (displayName: string | null) =>
   request<{ displayName: string | null }>('/api/me', {
     method: 'PUT',
@@ -169,6 +174,19 @@ export const getContestTallies = (contestIds: string[]) =>
 
 export const getContest = (contestId: string) =>
   request<ContestDetail>(`/api/contests/${encodeURIComponent(contestId)}`);
+
+export type CandidateContributionDraft =
+  | { kind: 'NEW_CANDIDATE'; candidateName: string; partyId: string | null; photoUrl: string }
+  | { kind: 'PHOTO_UPDATE'; candidateId: string; photoUrl: string };
+
+export const submitCandidateContribution = (
+  contestId: string,
+  contribution: CandidateContributionDraft,
+) =>
+  request<{ contribution: { id: string; candidateId: string } }>(
+    `/api/contests/${encodeURIComponent(contestId)}/candidate-contributions`,
+    { method: 'POST', body: JSON.stringify(contribution) },
+  );
 
 export const getPartyCandidateCounts = () =>
   request<{

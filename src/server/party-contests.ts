@@ -5,15 +5,20 @@ import { avatarUrl } from '../client/avatars.js';
 import { jurisdictionOrder } from '../shared/jurisdictions.js';
 import { cachedJson } from './redis.js';
 import { partyCandidatesKey, partyCountsKey } from './snapshot-keys.js';
+import { placeholderCandidatesHidden } from './site-settings.js';
 
 const pageSize = 100;
 const typeOrder = ['EXECUTIVE', 'COUNCIL', 'TOWNSHIP', 'REPRESENTATIVE', 'VILLAGE'] as const;
 
 export async function listPartyCandidateCounts() {
-  return cachedJson(partyCountsKey, 300, async () => {
+  return cachedJson(partyCountsKey(), 300, async () => {
     const groups = await prisma.candidate.groupBy({
       by: ['partyId', 'contestId'],
-      where: { partyId: { not: null }, status: { in: ['REGISTERED', 'CONFIRMED'] } },
+      where: {
+        partyId: { not: null },
+        status: { in: ['REGISTERED', 'CONFIRMED'] },
+        ...(placeholderCandidatesHidden() ? { NOT: { id: { contains: '-CANDIDATE-' } } } : {}),
+      },
       _count: { _all: true },
     });
     const parties = new Map<
@@ -56,7 +61,11 @@ export async function listPartyContests(
 ) {
   const candidates = await cachedJson(partyCandidatesKey(partyId), 3600, () =>
     prisma.candidate.findMany({
-      where: { partyId, status: { in: ['REGISTERED', 'CONFIRMED'] } },
+      where: {
+        partyId,
+        status: { in: ['REGISTERED', 'CONFIRMED'] },
+        ...(placeholderCandidatesHidden() ? { NOT: { id: { contains: '-CANDIDATE-' } } } : {}),
+      },
       select: { id: true, contestId: true, name: true, ballotNo: true },
     }),
   );

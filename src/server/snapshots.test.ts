@@ -23,7 +23,7 @@ async function reset() {
   await prisma.contestTally.deleteMany({ where: { contestId: mayor.id } });
   await prisma.contestSummary.deleteMany({ where: { contestId: mayor.id } });
   await cacheDelete(
-    nationalKey,
+    nationalKey(),
     contestKey(mayor.id),
     tallyKey(mayor.id),
     jurisdictionKey('HUA', 'EXECUTIVE'),
@@ -122,6 +122,6 @@ describe('map snapshots', () => {
     // 集合取出後就清空，這一輪沒人讀它就不會再重算。
     const second = await refreshHotSnapshots();
     expect(second).not.toContain(key);
-    expect(second).toContain(nationalKey);
+    expect(second).toContain(nationalKey());
   });
 });

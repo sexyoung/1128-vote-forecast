@@ -3,6 +3,7 @@ import type { RegisteredContest } from './contest-registry.js';
 import { prisma } from './db.js';
 import { resolvePredictionTarget } from './prediction-targets.js';
 import { cacheDelete, cacheMGet, cacheMSet } from './redis.js';
+import { isVisibleCandidateId } from './site-settings.js';
 import { keysAffectedBy, tallyKey } from './snapshot-keys.js';
 
 export type StoredPick = {
@@ -232,6 +233,7 @@ export async function readContestTallies(
   const grouped = new Map<string, typeof rows>();
   for (const row of rows) {
     if (row.count <= 0) continue;
+    if (row.targetType === 'CANDIDATE' && !isVisibleCandidateId(row.targetId)) continue;
     const list = grouped.get(row.contestId);
     if (list) list.push(row);
     else grouped.set(row.contestId, [row]);
@@ -246,7 +248,8 @@ export async function readContestTallies(
       return [
         contestId,
         {
-          totalPredictions: totals.get(contestId) ?? 0,
+          // 假候選人全被隱藏時，這一區對前台等同尚無可顯示的預測。
+          totalPredictions: list.length ? (totals.get(contestId) ?? 0) : 0,
           totalPicks,
           rows: list.map((row) => ({
             targetType: row.targetType,
@@ -275,11 +278,15 @@ export async function readMyPrediction(forecasterId: string, contestId: string) 
     include: { picks: true },
   });
   if (!prediction) return null;
+  const targetIds = prediction.picks
+    .map(({ targetId }) => targetId)
+    .filter((targetId) => isVisibleCandidateId(targetId));
+  if (targetIds.length === 0) return null;
   return {
     contestId,
     status: prediction.status,
     version: prediction.version,
     updatedAt: prediction.updatedAt,
-    targetIds: prediction.picks.map(({ targetId }) => targetId),
+    targetIds,
   };
 }

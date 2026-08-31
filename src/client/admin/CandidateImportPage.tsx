@@ -4,9 +4,14 @@ import { ApiError } from '../api';
 import { avatarUrl } from '../avatars';
 import {
   type AdminCandidate,
+  approveCandidateContribution,
+  getCandidateContributions,
+  getCandidateVisibility,
   getAdminCandidates,
   importCandidateCsv,
   previewCandidateCsv,
+  rejectCandidateContribution,
+  saveCandidateVisibility,
 } from './api';
 
 function errorMessage(error: unknown) {
@@ -59,6 +64,20 @@ export function CandidateImportPage() {
     queryKey: ['admin', 'candidates'],
     queryFn: getAdminCandidates,
   });
+  const candidateVisibility = useQuery({
+    queryKey: ['admin', 'candidate-visibility'],
+    queryFn: getCandidateVisibility,
+  });
+  const contributions = useQuery({
+    queryKey: ['admin', 'candidate-contributions'],
+    queryFn: getCandidateContributions,
+  });
+  const updateCandidateVisibility = useMutation({
+    mutationFn: saveCandidateVisibility,
+    onSuccess: async () => {
+      await candidateVisibility.refetch();
+    },
+  });
   const photoAudit = useMutation({
     mutationFn: () => findMissingCandidatePhotos(candidates.data?.candidates ?? []),
     onSuccess: setMissingPhotos,
@@ -81,6 +100,22 @@ export function CandidateImportPage() {
       ]);
     },
   });
+  const approveContribution = useMutation({
+    mutationFn: approveCandidateContribution,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'candidate-contributions'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] }),
+      ]);
+    },
+  });
+  const rejectContribution = useMutation({
+    mutationFn: rejectCandidateContribution,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'candidate-contributions'] });
+    },
+  });
   const summary = preview.data?.summary;
   const updates = preview.data?.updates ?? [];
   const hasUndecided = updates.some(({ code }) => decisions[code] === undefined);
@@ -97,6 +132,101 @@ export function CandidateImportPage() {
         code,contestId,name,partyId,ballotNo,status{`\n`}
         TPE-MAYOR-001,TPE-EXECUTIVE-1,王小明,DPP,1,CONFIRMED
       </pre>
+
+      <section className="admin-visibility-setting">
+        <label>
+          <input
+            checked={candidateVisibility.data?.hidePlaceholderCandidates ?? false}
+            disabled={candidateVisibility.isPending || updateCandidateVisibility.isPending}
+            onChange={(event) => updateCandidateVisibility.mutate(event.target.checked)}
+            type="checkbox"
+          />
+          前台隱藏假候選人
+        </label>
+        <p className="admin-note">
+          開啟後，ID 含 <code>-CANDIDATE-</code> 的佔位資料不會出現在前台選區、地圖、政黨與排行。
+          {candidateVisibility.data
+            ? `目前共有 ${candidateVisibility.data.placeholderCount.toLocaleString()} 位假候選人。`
+            : ''}
+        </p>
+        {candidateVisibility.isError || updateCandidateVisibility.isError ? (
+          <p className="admin-note admin-note-error">
+            {errorMessage(candidateVisibility.error ?? updateCandidateVisibility.error)}
+          </p>
+        ) : updateCandidateVisibility.isSuccess ? (
+          <p className="admin-note">設定已儲存。</p>
+        ) : null}
+      </section>
+
+      <section className="admin-contribution-queue">
+        <h2>待批准的候選人提案</h2>
+        <p className="admin-note">
+          批准會下載照片、裁成 512 × 512 WebP，寫入 <code>public/avatars/</code>；請再將圖片 commit
+          進 Git 後部署。資料庫不保存圖片檔。
+        </p>
+        {contributions.isPending ? (
+          <p className="admin-note">讀取提案…</p>
+        ) : contributions.isError ? (
+          <p className="admin-note admin-note-error">{errorMessage(contributions.error)}</p>
+        ) : contributions.data.contributions.length === 0 ? (
+          <p className="admin-note">目前沒有待批准提案。</p>
+        ) : (
+          <div className="admin-contribution-list">
+            {contributions.data.contributions.map((contribution) => {
+              const working = approveContribution.isPending || rejectContribution.isPending;
+              const isApproving =
+                approveContribution.isPending && approveContribution.variables === contribution.id;
+              const isRejecting =
+                rejectContribution.isPending && rejectContribution.variables === contribution.id;
+              return (
+                <article className="admin-contribution" key={contribution.id}>
+                  <div>
+                    <strong>
+                      {contribution.kind === 'NEW_CANDIDATE' ? '新增候選人' : '補充候選人照片'}
+                    </strong>
+                    <span>
+                      {contribution.contestName} · {contribution.candidateName}
+                    </span>
+                    <small>
+                      {contribution.partyId ?? '無黨籍'} ·{' '}
+                      {contribution.forecaster.displayName ?? '預測者'}{' '}
+                      {contribution.forecaster.code} ·{' '}
+                      {new Date(contribution.createdAt).toLocaleString()}
+                    </small>
+                    <code>{contribution.candidateId}.webp</code>
+                    <a href={contribution.photoUrl} rel="noreferrer" target="_blank">
+                      開啟來源照片
+                    </a>
+                  </div>
+                  <div className="admin-action-row">
+                    <button
+                      className="button button-dark button-small"
+                      disabled={working}
+                      onClick={() => approveContribution.mutate(contribution.id)}
+                      type="button"
+                    >
+                      {isApproving ? '下載並轉檔中…' : '批准'}
+                    </button>
+                    <button
+                      className="button button-ghost button-small"
+                      disabled={working}
+                      onClick={() => rejectContribution.mutate(contribution.id)}
+                      type="button"
+                    >
+                      {isRejecting ? '處理中…' : '駁回'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+        {(approveContribution.isError || rejectContribution.isError) && (
+          <p className="admin-note admin-note-error">
+            {errorMessage(approveContribution.error ?? rejectContribution.error)}
+          </p>
+        )}
+      </section>
 
       <div className="admin-import-box">
         <input

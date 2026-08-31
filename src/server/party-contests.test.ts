@@ -25,7 +25,7 @@ beforeAll(async () => {
     })),
   });
   await cacheDelete(
-    partyCountsKey,
+    partyCountsKey(),
     partyCandidatesKey(partyId),
     tallyKey('TPE-COUNCIL-1'),
     tallyKey('CHA-COUNCIL-1'),
