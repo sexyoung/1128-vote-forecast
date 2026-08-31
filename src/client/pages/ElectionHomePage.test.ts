@@ -203,6 +203,22 @@ describe('election home map behavior', () => {
     expect(source).not.toContain('className="map-select phase"');
   });
 
+  it('keeps mobile search above share controls and aligns the regular search to the right', async () => {
+    const [source, styles] = await Promise.all([
+      readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8'),
+      readFile(new URL('../styles.css', import.meta.url), 'utf8'),
+    ]);
+    const phone = styles.slice(styles.indexOf('@media (max-width: 720px) {'));
+
+    expect(source).toContain("searchOpen ? 'search-open' : ''");
+    expect(phone).toContain('.map-stage.search-open .map-share');
+    expect(phone).toContain('.map-search:focus-within');
+    expect(phone).toContain('.map-search input');
+    expect(phone).toContain('grid-template-columns: minmax(0, 1fr) 40px;');
+    expect(phone).toContain('grid-column: 2;');
+    expect(source).toContain('setSearchOpen(false);');
+  });
+
   it('colours the map from the API, never from the mock numbers', async () => {
     const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
 

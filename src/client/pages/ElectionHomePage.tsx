@@ -1082,6 +1082,9 @@ export function ElectionHomePage() {
 
   function handleMapPointerDown(event: React.PointerEvent<SVGSVGElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // 搜尋輸入框一旦失焦會套回手機頁首的 Icon 模式；開始操作地圖就直接收起，
+    // 不留下只有外框、看似可點卻沒有輸入欄位的滿寬空殼。
+    setSearchOpen(false);
     cancelMapFocusAnimation();
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -1253,7 +1256,7 @@ export function ElectionHomePage() {
       <main
         className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
       >
-        <section className="map-stage" ref={mapStageRef}>
+        <section className={`map-stage ${searchOpen ? 'search-open' : ''}`} ref={mapStageRef}>
           <SocialShare className="map-share" />
           <div className="map-floating-top">
             <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>

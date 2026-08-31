@@ -71,6 +71,8 @@ export function VirtualWindowList<T>({
     estimateSize: () => estimateSize,
     gap,
     getItemKey,
+    // 跨頁時不要以舊頁的 window.scrollY 當成新清單初始位置；全站換頁一律回頂。
+    initialOffset: 0,
     overscan: 4,
     scrollMargin,
     // React 19 在生命週期內 flushSync 會警告；這種一般清單允許 React 批次更新。

@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, useState } from 'react';
+import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { currentVersion } from '../../shared/changelog';
 import type { PredictionTarget, TallyRow } from '../api';
@@ -101,8 +101,27 @@ function Highlighted({ query, text }: { query: string; text: string }) {
 
 export function SearchBox({ autoFocus = false, className = '' }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [search, setSearch] = useState('');
+  const [searchActive, setSearchActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const locationRef = useRef(`${location.pathname}${location.search}`);
   const matches = searchEverything(search);
+
+  function closeSearch() {
+    setSearch('');
+    setSearchActive(false);
+    inputRef.current?.blur();
+  }
+
+  // PageShell 現在跨路由保留，SearchBox 不會因換頁而重新掛載；網址改變時主動清掉
+  // 上一頁的查詢與結果。跳過首次 effect，否則地圖剛展開的 autoFocus 會立刻被 blur。
+  useEffect(() => {
+    const next = `${location.pathname}${location.search}`;
+    if (locationRef.current === next) return;
+    locationRef.current = next;
+    closeSearch();
+  }, [location.pathname, location.search]);
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,20 +133,33 @@ export function SearchBox({ autoFocus = false, className = '' }) {
       query_length: search.trim().length,
       control: 'submit',
     });
-    if (matches[0]) void navigate(matches[0].to);
+    if (matches[0]) {
+      const target = matches[0].to;
+      closeSearch();
+      void navigate(target);
+    }
   }
 
   return (
-    <form className={`header-search ${className}`} onSubmit={handleSearch}>
+    <form
+      className={`header-search ${className}`}
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        closeSearch();
+      }}
+      onFocus={() => setSearchActive(true)}
+      onSubmit={handleSearch}
+    >
       <Icon name="search" />
       <input
         aria-label="搜尋縣市、選區、職務或候選人"
         autoFocus={autoFocus}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="搜尋縣市、選區或候選人"
+        ref={inputRef}
         value={search}
       />
-      {matches.length > 0 && (
+      {searchActive && matches.length > 0 && (
         <div className="search-results">
           {matches.map((hit) => (
             <button
@@ -139,8 +171,10 @@ export function SearchBox({ autoFocus = false, className = '' }) {
                   query_length: search.trim().length,
                   control: 'result_click',
                 });
+                closeSearch();
                 void navigate(hit.to);
               }}
+              onPointerDown={(event) => event.preventDefault()}
               type="button"
             >
               <strong>

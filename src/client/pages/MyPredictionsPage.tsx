@@ -120,6 +120,9 @@ function IdentityDialog({
   const [rolling, setRolling] = useState(false);
   const diceInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const trimmed = draft.trim();
+  const autoFocusInput =
+    typeof window !== 'undefined' &&
+    !window.matchMedia('(pointer: coarse), (max-width: 720px)').matches;
 
   // 跟 ForecastSheet 同一套對話框行為：Escape 關閉、開著的時候鎖住背景捲動。
   useEffect(() => {
@@ -180,7 +183,7 @@ function IdentityDialog({
         <div className="identity-field">
           <input
             aria-label="顯示名稱"
-            autoFocus
+            autoFocus={autoFocusInput}
             maxLength={12}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="輸入顯示名稱"
