@@ -3042,6 +3042,19 @@ a:focus-visible {
   touch-action: none;
   width: 100%;
 }
+.taiwan-map-static {
+  display: block;
+  height: 100%;
+  inset: 0;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+.taiwan-map-svg.loading {
+  opacity: 0;
+  pointer-events: none;
+}
 .taiwan-map-svg.panning {
   cursor: grabbing;
 }

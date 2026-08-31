@@ -1,6 +1,11 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { mountHtmlRoutes } from './html.js';
+
+vi.mock('./snapshots.js', () => ({
+  readContestSnapshot: vi.fn(),
+  readNationalMap: vi.fn().mockResolvedValue([]),
+}));
 
 const template = `<html>
   <head>
@@ -18,8 +23,12 @@ const template = `<html>
 describe('HTML routes', () => {
   it('renders markup while keeping private pages out of shared caches', async () => {
     const app = new Hono();
+    let homeSeeds: unknown[] = [];
     mountHtmlRoutes(app, {
-      renderApp: async ({ url }) => ({ appHtml: `<main>${url}</main>`, stateJson: '{}' }),
+      renderApp: async ({ url, seeds }) => {
+        if (url === '/') homeSeeds = seeds;
+        return { appHtml: `<main>${url}</main>`, stateJson: '{}' };
+      },
       loadTemplate: async () => template,
     });
 
@@ -29,6 +38,11 @@ describe('HTML routes', () => {
     expect(homeHtml).toContain('<meta charset="UTF-8" />');
     expect(homeHtml).toContain('<main>/</main>');
     expect(homeHtml).toContain('<title>2026 九合一選舉預測');
+    expect(homeSeeds).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: ['map', 'national'], data: { cells: expect.any(Array) } }),
+      ]),
+    );
     expect(home.headers.get('cache-control')).toContain('s-maxage=60');
 
     const mine = await app.request('/mine');

@@ -14,6 +14,12 @@ import {
 import { getPredictionMode } from '../../shared/prediction';
 
 describe('election home map behavior', () => {
+  it('renders a map before client-side SVG parsing finishes', async () => {
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('className="taiwan-map-static"');
+    expect(source).toContain('src="/maps/taiwan-counties.svg"');
+  });
+
   it('keeps the parties link in the compact map controls', async () => {
     const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
     expect(source).toContain('aria-label="政黨列表"');

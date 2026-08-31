@@ -14,6 +14,7 @@
       "includeFiles": "{dist/server/**,node_modules/react-router/dist/development/dom-export.js}"
     }
   },
+  "routes": [{ "src": "^/$", "dest": "/api/server?__vf_path=/" }],
   "rewrites": [{ "source": "/(.*)", "destination": "/api/server?__vf_path=/$1" }],
   "crons": [{ "path": "/api/cron/daily-trend", "schedule": "0 17 * * *" }],
   "headers": [

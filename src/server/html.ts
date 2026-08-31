@@ -13,7 +13,7 @@ import {
   getPredictionTargets,
 } from './prediction-targets.js';
 import { readContestTallies } from './predictions.js';
-import { readContestSnapshot } from './snapshots.js';
+import { readContestSnapshot, readNationalMap } from './snapshots.js';
 import { env, seoIndexable } from './env.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
 import { listCandidateRankings } from './candidate-rankings.js';
@@ -149,10 +149,20 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
   });
 
   // HTML 不進 /api/* 的身份 middleware；否則新訪客的 Set-Cookie 會污染 CDN 快取。
-  app.get('/', (c) =>
-    send(c, [], {
-      head: '<link rel="preload" as="fetch" href="/maps/taiwan-counties.svg" crossorigin />',
-    }),
+  app.get('/', async (c) =>
+    send(
+      c,
+      [
+        {
+          key: ['map', 'national'],
+          data: { cells: await readNationalMap() },
+          updatedAt: Date.now(),
+        },
+      ],
+      {
+        head: '<link rel="preload" as="fetch" href="/maps/taiwan-counties.svg" crossorigin />',
+      },
+    ),
   );
 
   app.get('/regions', async (c) => {

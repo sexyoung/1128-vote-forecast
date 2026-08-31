@@ -1313,9 +1313,18 @@ export function ElectionHomePage() {
             </button>
           )}
 
+          {countyShapes.length === 0 && !mapError && (
+            <img
+              alt="臺灣直轄市及縣市界線"
+              className="taiwan-map-static"
+              src="/maps/taiwan-counties.svg"
+            />
+          )}
+
           <svg
+            aria-hidden={countyShapes.length === 0}
             aria-label="臺灣縣市預測地圖"
-            className="taiwan-map-svg"
+            className={`taiwan-map-svg ${countyShapes.length === 0 ? 'loading' : ''}`}
             onClick={handleMapBackgroundClick}
             onDoubleClick={zoomIntoSelection}
             onPointerCancel={finishMapPan}
@@ -1510,13 +1519,9 @@ export function ElectionHomePage() {
             )}
           </svg>
 
-          {countyShapes.length === 0 && (
-            <div
-              aria-live="polite"
-              className={`map-data-message ${mapError ? 'error' : ''}`}
-              role="status"
-            >
-              {mapError ?? '正在載入官方地圖…'}
+          {mapError && (
+            <div aria-live="polite" className="map-data-message error" role="status">
+              {mapError}
             </div>
           )}
 
