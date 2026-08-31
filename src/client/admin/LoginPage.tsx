@@ -38,15 +38,13 @@ export function LoginPage() {
           event.preventDefault();
           void submit();
         }}
-      >
+        >
         <h1>後台登入</h1>
-        <p>輸入 ADMIN_TOKEN。登入後換成 httpOnly cookie，token 本身不會留在瀏覽器裡。</p>
         <input
           aria-label="ADMIN_TOKEN"
           autoComplete="off"
           autoFocus
           onChange={(event) => setToken(event.target.value)}
-          placeholder="ADMIN_TOKEN"
           type="password"
           value={token}
         />

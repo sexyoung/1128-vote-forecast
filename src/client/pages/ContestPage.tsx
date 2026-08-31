@@ -309,7 +309,6 @@ function CandidateContributionDialog({
         <header>
           <div>
             <h2 id="candidate-contribution-title">提供候選人資料</h2>
-            <p>送出後由管理者確認；照片只會在批准時下載、轉成 WebP 並寫入 Git 工作樹。</p>
           </div>
           <button aria-label="關閉" className="icon-button" onClick={close} type="button">
             <Icon name="close" />
