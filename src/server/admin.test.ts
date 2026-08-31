@@ -152,3 +152,142 @@ describe('admin forecaster detail', () => {
     ).toBeNull();
   });
 });
+
+describe('admin candidates', () => {
+  const suffix = Date.now().toString(36);
+  const movedCandidateId = `KMT-LIE-EXECUTIVE-1-${suffix}`;
+  const deletedCandidateId = `DPP-LIE-EXECUTIVE-1-${suffix}`;
+  const movedForecasterId = `candidate-move-${suffix}`;
+  const deletedForecasterId = `candidate-delete-${suffix}`;
+
+  beforeAll(async () => {
+    await prisma.candidate.createMany({
+      data: [
+        {
+          id: movedCandidateId,
+          contestId: 'LIE-EXECUTIVE-1',
+          name: `移動測試${suffix}`,
+          partyId: 'KMT',
+        },
+        {
+          id: deletedCandidateId,
+          contestId: 'LIE-EXECUTIVE-1',
+          name: `刪除測試${suffix}`,
+          partyId: 'DPP',
+        },
+      ],
+    });
+    await prisma.forecaster.createMany({
+      data: [{ id: movedForecasterId }, { id: deletedForecasterId }],
+    });
+    await prisma.prediction.create({
+      data: {
+        forecasterId: movedForecasterId,
+        contestId: 'LIE-EXECUTIVE-1',
+        seatCount: 1,
+        picks: {
+          create: { targetType: 'CANDIDATE', targetId: movedCandidateId, partyId: 'KMT' },
+        },
+      },
+    });
+    await prisma.prediction.create({
+      data: {
+        forecasterId: deletedForecasterId,
+        contestId: 'LIE-EXECUTIVE-1',
+        seatCount: 1,
+        picks: {
+          create: { targetType: 'CANDIDATE', targetId: deletedCandidateId, partyId: 'DPP' },
+        },
+      },
+    });
+    await prisma.contestTally.createMany({
+      data: [movedCandidateId, deletedCandidateId].map((targetId) => ({
+        contestId: 'LIE-EXECUTIVE-1',
+        targetType: 'CANDIDATE' as const,
+        targetId,
+        count: 1,
+      })),
+    });
+    await prisma.contestSummary.upsert({
+      where: { contestId: 'LIE-EXECUTIVE-1' },
+      create: {
+        contestId: 'LIE-EXECUTIVE-1',
+        jurisdictionId: 'LIE',
+        totalPredictions: 2,
+      },
+      update: { totalPredictions: 2 },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.forecaster.deleteMany({
+      where: { id: { in: [movedForecasterId, deletedForecasterId] } },
+    });
+    await prisma.candidate.deleteMany({
+      where: { id: { in: [movedCandidateId, deletedCandidateId] } },
+    });
+    await prisma.contestTally.deleteMany({
+      where: {
+        contestId: 'LIE-EXECUTIVE-1',
+        targetId: { in: [movedCandidateId, deletedCandidateId] },
+      },
+    });
+  });
+
+  it('edits, moves, and deletes candidates without leaving active predictions or tallies', async () => {
+    const moved = await app.request(`/api/admin/candidates/${movedCandidateId}`, {
+      method: 'PATCH',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: `改名測試${suffix}`,
+        partyId: 'IND',
+        contestId: 'KIN-EXECUTIVE-1',
+      }),
+    });
+    expect(moved.status).toBe(200);
+    expect(await prisma.candidate.findUnique({ where: { id: movedCandidateId } })).toMatchObject({
+      name: `改名測試${suffix}`,
+      partyId: null,
+      contestId: 'KIN-EXECUTIVE-1',
+    });
+    expect(
+      await prisma.predictionPick.findFirst({ where: { targetId: movedCandidateId } }),
+    ).toMatchObject({ partyId: null });
+    expect(
+      await prisma.prediction.findUnique({
+        where: {
+          forecasterId_contestId: {
+            forecasterId: movedForecasterId,
+            contestId: 'LIE-EXECUTIVE-1',
+          },
+        },
+      }),
+    ).toMatchObject({ status: 'INVALIDATED', invalidReason: 'DISTRICT_CHANGED' });
+    expect(
+      await prisma.contestSummary.findUnique({ where: { contestId: 'LIE-EXECUTIVE-1' } }),
+    ).toMatchObject({
+      totalPredictions: 1,
+      leaderId: deletedCandidateId,
+    });
+
+    const deleted = await app.request(`/api/admin/candidates/${deletedCandidateId}`, {
+      method: 'DELETE',
+      headers: adminHeaders,
+    });
+    expect(deleted.status).toBe(200);
+    expect(await prisma.candidate.findUnique({ where: { id: deletedCandidateId } })).toBeNull();
+    expect(
+      await prisma.prediction.findUnique({
+        where: {
+          forecasterId_contestId: {
+            forecasterId: deletedForecasterId,
+            contestId: 'LIE-EXECUTIVE-1',
+          },
+        },
+      }),
+    ).toMatchObject({ status: 'INVALIDATED', invalidReason: 'ADMIN_INVALIDATED' });
+    expect(
+      await prisma.contestSummary.findUnique({ where: { contestId: 'LIE-EXECUTIVE-1' } }),
+    ).toBeNull();
+  });
+});

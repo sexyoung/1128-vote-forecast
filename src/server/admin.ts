@@ -1,5 +1,6 @@
 import { type Context, Hono } from 'hono';
 import type { Prisma } from '../generated/prisma/client.js';
+import { parties } from '../shared/candidates.js';
 import { closeAdminSession, openAdminSession, requireAdmin } from './admin-session.js';
 import { AnnouncementRejected, getAdminAnnouncement, saveAnnouncement } from './announcement.js';
 import {
@@ -25,7 +26,13 @@ import { dismissReport } from './moderation.js';
 import { describeTarget, refreshCandidates } from './prediction-targets.js';
 import { cacheDelete, pingRedis } from './redis.js';
 import { refreshCandidateVisibility, saveCandidateVisibility } from './site-settings.js';
-import { commentsKey } from './snapshot-keys.js';
+import {
+  candidateRankingsKey,
+  commentsKey,
+  keysAffectedBy,
+  partyCandidatesKey,
+  partyCountsKey,
+} from './snapshot-keys.js';
 import { hasSnapshotFor } from './trends.js';
 
 /**
@@ -340,11 +347,171 @@ adminApp.get('/candidates', async (c) => {
   });
 
   return c.json({
-    candidates: candidates.map((candidate) => ({
-      ...candidate,
-      contestName: getRegisteredContest(candidate.contestId)?.name ?? candidate.contestId,
-    })),
+    candidates: candidates.map((candidate) => {
+      const contest = getRegisteredContest(candidate.contestId);
+      return {
+        ...candidate,
+        contestName: contest?.name ?? candidate.contestId,
+        contestType: contest?.type ?? null,
+      };
+    }),
   });
+});
+
+async function rebuildContestTallies(tx: Prisma.TransactionClient, contestId: string) {
+  const contest = getRegisteredContest(contestId);
+  if (!contest) return;
+  const [picks, totalPredictions] = await Promise.all([
+    tx.predictionPick.findMany({
+      where: { prediction: { contestId, status: 'ACTIVE' } },
+      select: { targetType: true, targetId: true },
+    }),
+    tx.prediction.count({ where: { contestId, status: 'ACTIVE' } }),
+  ]);
+  const counts = new Map<
+    string,
+    { targetType: 'PARTY' | 'CANDIDATE'; targetId: string; count: number }
+  >();
+  for (const pick of picks) {
+    const key = `${pick.targetType}\0${pick.targetId}`;
+    const row = counts.get(key);
+    if (row) row.count += 1;
+    else counts.set(key, { ...pick, count: 1 });
+  }
+  const rows = [...counts.values()].sort(
+    (left, right) => right.count - left.count || left.targetId.localeCompare(right.targetId),
+  );
+  await tx.contestTally.deleteMany({ where: { contestId } });
+  if (rows.length)
+    await tx.contestTally.createMany({ data: rows.map((row) => ({ contestId, ...row })) });
+  if (!totalPredictions) {
+    await tx.contestSummary.deleteMany({ where: { contestId } });
+    return;
+  }
+  const leader = rows[0] ?? null;
+  const totalPicks = picks.length;
+  const summary = {
+    jurisdictionId: contest.jurisdictionId,
+    totalPredictions,
+    leaderType: leader?.targetType ?? null,
+    leaderId: leader?.targetId ?? null,
+    leaderPercent: leader ? Math.round((leader.count / totalPicks) * 100) : null,
+  };
+  await tx.contestSummary.upsert({
+    where: { contestId },
+    create: { contestId, ...summary },
+    update: summary,
+  });
+}
+
+async function invalidateCandidatePredictions(
+  tx: Prisma.TransactionClient,
+  candidateId: string,
+  contestId: string,
+  invalidReason: 'DISTRICT_CHANGED' | 'ADMIN_INVALIDATED',
+) {
+  const predictions = await tx.prediction.findMany({
+    where: {
+      contestId,
+      status: 'ACTIVE',
+      picks: { some: { targetType: 'CANDIDATE', targetId: candidateId } },
+    },
+    select: { id: true },
+  });
+  if (predictions.length)
+    await tx.prediction.updateMany({
+      where: { id: { in: predictions.map(({ id }) => id) } },
+      data: { status: 'INVALIDATED', invalidReason },
+    });
+  await rebuildContestTallies(tx, contestId);
+}
+
+async function refreshCandidateAdminCaches(contestIds: string[], partyIds: (string | null)[]) {
+  await refreshCandidates(true);
+  await cacheDelete(
+    candidateRankingsKey(),
+    partyCountsKey(),
+    ...[...new Set(partyIds.map((partyId) => partyId ?? 'IND'))].map(partyCandidatesKey),
+    ...[...new Set(contestIds)].flatMap((contestId) => {
+      const contest = getRegisteredContest(contestId);
+      return contest ? keysAffectedBy(contest.id, contest.jurisdictionId) : [];
+    }),
+  );
+}
+
+adminApp.patch('/candidates/:candidateId', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    name?: unknown;
+    contestId?: unknown;
+    partyId?: unknown;
+  } | null;
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+  const contestId = typeof body?.contestId === 'string' ? body.contestId.trim() : '';
+  const partyId = body?.partyId === null || body?.partyId === 'IND' ? null : body?.partyId;
+  if (!name || name.length > 40) return c.json({ error: '姓名必須是 1–40 個字。' }, 400);
+  if (!getRegisteredContest(contestId)) return c.json({ error: '找不到這個選區。' }, 400);
+  if (typeof partyId !== 'string' && partyId !== null)
+    return c.json({ error: '政黨代號不正確。' }, 400);
+  if (partyId && !parties.some(({ id }) => id === partyId))
+    return c.json({ error: '找不到這個政黨。' }, 400);
+
+  const candidateId = c.req.param('candidateId');
+  const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+  if (!candidate) return c.json({ error: '找不到這位候選人。' }, 404);
+  const duplicate = await prisma.candidate.findFirst({
+    where: { id: { not: candidateId }, contestId, name },
+    select: { id: true },
+  });
+  if (duplicate) return c.json({ error: '該選區已有同名候選人。' }, 409);
+
+  const moved = candidate.contestId !== contestId;
+  const updated = await prisma.$transaction(async (tx) => {
+    if (moved)
+      await invalidateCandidatePredictions(
+        tx,
+        candidateId,
+        candidate.contestId,
+        'DISTRICT_CHANGED',
+      );
+    const result = await tx.candidate.update({
+      where: { id: candidateId },
+      data: { name, contestId, partyId, ...(moved ? { ballotNo: null } : {}) },
+    });
+    if (candidate.partyId !== partyId)
+      await tx.predictionPick.updateMany({
+        where: { targetType: 'CANDIDATE', targetId: candidateId },
+        data: { partyId },
+      });
+    if (moved)
+      await tx.candidateContribution.updateMany({
+        where: { candidateId, status: 'PENDING' },
+        data: { contestId },
+      });
+    return result;
+  });
+  await refreshCandidateAdminCaches([candidate.contestId, contestId], [candidate.partyId, partyId]);
+  return c.json({ candidate: updated });
+});
+
+adminApp.delete('/candidates/:candidateId', async (c) => {
+  const candidateId = c.req.param('candidateId');
+  const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+  if (!candidate) return c.json({ error: '找不到這位候選人。' }, 404);
+  await prisma.$transaction(async (tx) => {
+    await invalidateCandidatePredictions(tx, candidateId, candidate.contestId, 'ADMIN_INVALIDATED');
+    await tx.candidateContribution.updateMany({
+      where: { candidateId, status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        reviewedAt: new Date(),
+        reviewedBy: 'admin',
+        reviewNote: '候選人已由後台刪除。',
+      },
+    });
+    await tx.candidate.delete({ where: { id: candidateId } });
+  });
+  await refreshCandidateAdminCaches([candidate.contestId], [candidate.partyId]);
+  return c.json({ ok: true });
 });
 
 async function readCandidateCsv(c: Context) {
@@ -429,7 +596,11 @@ adminApp.get('/candidate-contributions', async (c) => {
 
 adminApp.post('/candidate-contributions/:contributionId/approve', async (c) => {
   try {
-    return c.json(await approveCandidateContribution(c.req.param('contributionId')));
+    const result = await approveCandidateContribution(c.req.param('contributionId'));
+    c.header('Content-Disposition', `attachment; filename="${result.photoFile}"`);
+    c.header('Content-Type', 'image/webp');
+    c.header('X-Photo-File', result.photoFile);
+    return c.body(result.webp);
   } catch (error) {
     if (error instanceof CandidateContributionRejected)
       return c.json({ error: error.message }, 400);

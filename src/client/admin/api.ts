@@ -203,12 +203,29 @@ export type AdminCandidate = {
   id: string;
   contestId: string;
   contestName: string;
+  contestType: ContestType | null;
   name: string;
   partyId: string | null;
 };
 
 export const getAdminCandidates = () =>
   request<{ candidates: AdminCandidate[] }>('/api/admin/candidates');
+
+export const updateAdminCandidate = ({
+  id,
+  name,
+  contestId,
+  partyId,
+}: Pick<AdminCandidate, 'id' | 'name' | 'contestId' | 'partyId'>) =>
+  request<{ candidate: AdminCandidate }>(`/api/admin/candidates/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name, contestId, partyId }),
+  });
+
+export const deleteAdminCandidate = (id: string) =>
+  request<{ ok: true }>(`/api/admin/candidates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
 
 export type CandidateVisibilitySettings = {
   hidePlaceholderCandidates: boolean;
@@ -263,11 +280,21 @@ export type AdminCandidateContribution = {
 export const getCandidateContributions = () =>
   request<{ contributions: AdminCandidateContribution[] }>('/api/admin/candidate-contributions');
 
-export const approveCandidateContribution = (contributionId: string) =>
-  request<{ contributionId: string; candidateId: string; photoFile: string }>(
+export async function approveCandidateContribution(contributionId: string) {
+  const response = await fetch(
     `/api/admin/candidate-contributions/${encodeURIComponent(contributionId)}/approve`,
-    { method: 'POST' },
+    { method: 'POST', credentials: 'include', headers: { 'x-admin-request': '1' } },
   );
+  if (response.status === 401) onUnauthorized?.();
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(data.error ?? '要求失敗，請稍後再試。', response.status);
+  }
+  return {
+    blob: await response.blob(),
+    photoFile: response.headers.get('X-Photo-File') ?? 'candidate.webp',
+  };
+}
 
 export const rejectCandidateContribution = (contributionId: string) =>
   request<{ ok: true }>(

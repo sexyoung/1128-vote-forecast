@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { parties } from '../../shared/candidates';
 import { ApiError } from '../api';
 import { avatarUrl } from '../avatars';
 import {
   type AdminCandidate,
   approveCandidateContribution,
+  deleteAdminCandidate,
   getCandidateContributions,
   getCandidateVisibility,
   getAdminCandidates,
@@ -12,6 +14,7 @@ import {
   previewCandidateCsv,
   rejectCandidateContribution,
   saveCandidateVisibility,
+  updateAdminCandidate,
 } from './api';
 
 function errorMessage(error: unknown) {
@@ -24,6 +27,14 @@ const changeLabels: Record<string, string> = {
   partyId: '政黨',
   ballotNo: '號次',
   status: '狀態',
+};
+
+const contestTypeLabels = {
+  EXECUTIVE: '縣市長',
+  COUNCIL: '議員',
+  TOWNSHIP: '鄉鎮市長',
+  REPRESENTATIVE: '代表',
+  VILLAGE: '村里長',
 };
 
 function imageExists(src: string) {
@@ -61,6 +72,7 @@ export function CandidateImportPage() {
   const [fileName, setFileName] = useState('');
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [missingPhotos, setMissingPhotos] = useState<AdminCandidate[] | null>(null);
+  const [candidateSearch, setCandidateSearch] = useState('');
   const candidates = useQuery({
     queryKey: ['admin', 'candidates'],
     queryFn: getAdminCandidates,
@@ -103,7 +115,13 @@ export function CandidateImportPage() {
   });
   const approveContribution = useMutation({
     mutationFn: approveCandidateContribution,
-    onSuccess: async () => {
+    onSuccess: async ({ blob, photoFile }) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = photoFile;
+      link.click();
+      URL.revokeObjectURL(url);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin', 'candidate-contributions'] }),
         queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] }),
@@ -115,6 +133,23 @@ export function CandidateImportPage() {
     mutationFn: rejectCandidateContribution,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'candidate-contributions'] });
+    },
+  });
+  const updateCandidate = useMutation({
+    mutationFn: updateAdminCandidate,
+    onSuccess: async () => {
+      setMissingPhotos(null);
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] });
+    },
+  });
+  const deleteCandidate = useMutation({
+    mutationFn: deleteAdminCandidate,
+    onSuccess: async () => {
+      setMissingPhotos(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] }),
+      ]);
     },
   });
   const summary = preview.data?.summary;
@@ -162,8 +197,8 @@ export function CandidateImportPage() {
       <section className="admin-contribution-queue">
         <h2>待批准的候選人提案</h2>
         <p className="admin-note">
-          批准會下載照片、裁成 512 × 512 WebP，寫入 <code>public/avatars/</code>；請再將圖片 commit
-          進 Git 後部署。資料庫不保存圖片檔。
+          批准會下載照片、裁成 512 × 512 WebP 並由瀏覽器下載；請將檔案放進{' '}
+          <code>public/avatars/</code> 後 commit、部署。資料庫不保存圖片檔。
         </p>
         {contributions.isPending ? (
           <p className="admin-note">讀取提案…</p>
@@ -399,6 +434,133 @@ export function CandidateImportPage() {
           資料已寫入。圖片 commit 並重新部署後，所有執行個體都會載入新名單。
         </p>
       )}
+
+      <section className="admin-candidate-manager">
+        <h2>候選人管理</h2>
+        <p className="admin-note">
+          候選人 ID 與照片檔名不會因改名或改選區而變更。改選區或刪除會撤銷曾選到該候選人的有效預測。
+        </p>
+        <div className="admin-field">
+          <label htmlFor="candidate-search">搜尋候選人</label>
+          <input
+            id="candidate-search"
+            onChange={(event) => setCandidateSearch(event.target.value)}
+            placeholder="輸入姓名、ID 或選區代號"
+            type="search"
+            value={candidateSearch}
+          />
+        </div>
+        {candidates.isPending ? (
+          <p className="admin-note">讀取候選人…</p>
+        ) : candidates.isError ? (
+          <p className="admin-note admin-note-error">{errorMessage(candidates.error)}</p>
+        ) : (
+          <div className="admin-candidate-grid">
+            {candidates.data.candidates
+              .filter((candidate) => {
+                const query = candidateSearch.trim().toLocaleLowerCase();
+                return (
+                  !query ||
+                  candidate.name.toLocaleLowerCase().includes(query) ||
+                  candidate.id.toLocaleLowerCase().includes(query) ||
+                  candidate.contestId.toLocaleLowerCase().includes(query) ||
+                  candidate.contestName.toLocaleLowerCase().includes(query)
+                );
+              })
+              .slice(0, 100)
+              .map((candidate) => {
+                const working = updateCandidate.isPending || deleteCandidate.isPending;
+                const party = parties.find(({ id }) => id === (candidate.partyId ?? 'IND'));
+                return (
+                  <article className="admin-candidate-card" key={candidate.id}>
+                    <div className="admin-candidate-avatar">
+                      <span aria-hidden="true" />
+                      {avatarUrl(candidate.id) && (
+                        <img
+                          alt={`${candidate.name}大頭照`}
+                          onError={(event) => (event.currentTarget.hidden = true)}
+                          src={avatarUrl(candidate.id) ?? undefined}
+                        />
+                      )}
+                    </div>
+                    <div className="admin-candidate-info">
+                      <h3>{candidate.name}</h3>
+                      <dl>
+                        <div>
+                          <dt>政黨</dt>
+                          <dd>{party?.shortName ?? candidate.partyId ?? '無黨籍'}</dd>
+                        </div>
+                        <div>
+                          <dt>職位</dt>
+                          <dd>
+                            {candidate.contestType
+                              ? contestTypeLabels[candidate.contestType]
+                              : '未知職位'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>選區</dt>
+                          <dd>{candidate.contestName}</dd>
+                        </div>
+                      </dl>
+                      <code title={candidate.id}>{candidate.id}</code>
+                    </div>
+                    <div className="admin-action-row">
+                      <button
+                        className="button button-ghost button-small"
+                        disabled={working}
+                        onClick={() => {
+                          const name = window.prompt('候選人姓名', candidate.name);
+                          if (name === null) return;
+                          const partyCode = window.prompt(
+                            '政黨代號（無黨籍請填 IND）',
+                            candidate.partyId ?? 'IND',
+                          );
+                          if (partyCode === null) return;
+                          const contestId = window.prompt('選區代號', candidate.contestId);
+                          if (contestId === null) return;
+                          if (
+                            contestId.trim() !== candidate.contestId &&
+                            !window.confirm('改選區會撤銷曾選到此候選人的有效預測，確定繼續？')
+                          )
+                            return;
+                          updateCandidate.mutate({
+                            id: candidate.id,
+                            name,
+                            partyId:
+                              partyCode.trim().toUpperCase() === 'IND'
+                                ? null
+                                : partyCode.trim().toUpperCase(),
+                            contestId,
+                          });
+                        }}
+                        type="button"
+                      >
+                        修改
+                      </button>
+                      <button
+                        className="button button-ghost button-small"
+                        disabled={working}
+                        onClick={() => {
+                          if (window.confirm(`確定刪除「${candidate.name}」？此動作無法復原。`))
+                            deleteCandidate.mutate(candidate.id);
+                        }}
+                        type="button"
+                      >
+                        刪除
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+          </div>
+        )}
+        {(updateCandidate.isError || deleteCandidate.isError) && (
+          <p className="admin-note admin-note-error">
+            {errorMessage(updateCandidate.error ?? deleteCandidate.error)}
+          </p>
+        )}
+      </section>
 
       <section className="admin-photo-audit">
         <h2>候選人照片</h2>

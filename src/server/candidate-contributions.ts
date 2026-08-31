@@ -1,5 +1,3 @@
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
 import sharp from 'sharp';
 import { candidateParties } from '../shared/candidates.js';
 import { avatarFileName } from '../client/avatars.js';
@@ -10,7 +8,6 @@ import { refreshCandidates } from './prediction-targets.js';
 
 const maxPhotoBytes = 10_000_000;
 const imageTimeoutMs = 15_000;
-const avatarDirectory = resolve(process.cwd(), 'public', 'avatars');
 
 export type CandidateContributionInput = {
   kind: 'NEW_CANDIDATE' | 'PHOTO_UPDATE';
@@ -130,10 +127,7 @@ async function downloadAsWebp(photoUrl: string) {
   }
 }
 
-/**
- * 圖片檔是 Git 工作樹的一部分，不放進 PostgreSQL。批准時先把圖片轉完寫進暫存檔，
- * 再更新資料庫，最後原子替換 `{candidateId}.webp`，讓管理者能直接 git add／commit。
- */
+/** 批准後把裁切完成的圖片交給瀏覽器下載；部署環境不寫入 Git 工作樹。 */
 export async function approveCandidateContribution(contributionId: string, reviewedBy = 'admin') {
   const contribution = await prisma.candidateContribution.findUnique({
     where: { id: contributionId },
@@ -143,61 +137,51 @@ export async function approveCandidateContribution(contributionId: string, revie
     throw new CandidateContributionRejected('這筆提案已處理。');
 
   const webp = await downloadAsWebp(contribution.photoUrl);
-  const filePath = resolve(avatarDirectory, avatarFileName(contribution.candidateId));
-  // candidateId 來自 cuid 或既有 Candidate id；仍確認最終路徑在 avatars 目錄內。
-  if (dirname(filePath) !== avatarDirectory)
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(contribution.candidateId))
     throw new CandidateContributionRejected('候選人圖片檔名不正確。');
-  await mkdir(avatarDirectory, { recursive: true });
-  const tempPath = `${filePath}.${contribution.id}.tmp`;
-  await writeFile(tempPath, webp);
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const current = await tx.candidateContribution.findUnique({ where: { id: contribution.id } });
-      if (!current || current.status !== 'PENDING')
-        throw new CandidateContributionRejected('這筆提案已處理。');
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.candidateContribution.findUnique({ where: { id: contribution.id } });
+    if (!current || current.status !== 'PENDING')
+      throw new CandidateContributionRejected('這筆提案已處理。');
 
-      if (current.kind === 'NEW_CANDIDATE') {
-        if (!current.candidateName) throw new CandidateContributionRejected('候選人姓名遺失。');
-        const duplicate = await tx.candidate.findUnique({
-          where: { contestId_name: { contestId: current.contestId, name: current.candidateName } },
-          select: { id: true },
-        });
-        if (duplicate) throw new CandidateContributionRejected('此選區已有同名候選人。');
-        await tx.candidate.create({
-          data: {
-            id: current.candidateId,
-            contestId: current.contestId,
-            name: current.candidateName,
-            partyId: current.partyId,
-            status: 'REGISTERED',
-          },
-        });
-      } else {
-        const candidate = await tx.candidate.findUnique({
-          where: { id: current.candidateId },
-          select: { contestId: true },
-        });
-        if (!candidate || candidate.contestId !== current.contestId)
-          throw new CandidateContributionRejected('原候選人已不存在或不在此選區。');
-      }
-
-      await tx.candidateContribution.update({
-        where: { id: current.id },
-        data: { status: 'APPROVED', reviewedAt: new Date(), reviewedBy },
+    if (current.kind === 'NEW_CANDIDATE') {
+      if (!current.candidateName) throw new CandidateContributionRejected('候選人姓名遺失。');
+      const duplicate = await tx.candidate.findUnique({
+        where: { contestId_name: { contestId: current.contestId, name: current.candidateName } },
+        select: { id: true },
       });
+      if (duplicate) throw new CandidateContributionRejected('此選區已有同名候選人。');
+      await tx.candidate.create({
+        data: {
+          id: current.candidateId,
+          contestId: current.contestId,
+          name: current.candidateName,
+          partyId: current.partyId,
+          status: 'REGISTERED',
+        },
+      });
+    } else {
+      const candidate = await tx.candidate.findUnique({
+        where: { id: current.candidateId },
+        select: { contestId: true },
+      });
+      if (!candidate || candidate.contestId !== current.contestId)
+        throw new CandidateContributionRejected('原候選人已不存在或不在此選區。');
+    }
+
+    await tx.candidateContribution.update({
+      where: { id: current.id },
+      data: { status: 'APPROVED', reviewedAt: new Date(), reviewedBy },
     });
-    await rename(tempPath, filePath);
-  } catch (error) {
-    await rm(tempPath, { force: true });
-    throw error;
-  }
+  });
 
   await refreshCandidates(true);
   return {
     contributionId: contribution.id,
     candidateId: contribution.candidateId,
     photoFile: avatarFileName(contribution.candidateId),
+    webp,
   };
 }
 
