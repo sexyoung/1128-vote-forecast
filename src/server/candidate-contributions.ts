@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { candidateParties } from '../shared/candidates.js';
 import { avatarFileName } from '../client/avatars.js';
 import { prisma } from './db.js';
+import { createCandidateId } from './candidate-ids.js';
 import { getRegisteredContest } from './contest-registry.js';
 import { refreshCandidates } from './prediction-targets.js';
 
@@ -75,7 +76,15 @@ export async function createCandidateContribution(
     if (existing) throw new CandidateContributionRejected('此選區已有同名候選人，請改用補照片。');
 
     return prisma.candidateContribution.create({
-      data: { kind: input.kind, contestId, candidateName, partyId, photoUrl, forecasterId },
+      data: {
+        kind: input.kind,
+        contestId,
+        candidateId: createCandidateId(partyId, contestId),
+        candidateName,
+        partyId,
+        photoUrl,
+        forecasterId,
+      },
     });
   }
 

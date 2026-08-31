@@ -98,5 +98,24 @@ describe('candidate CSV import', () => {
         select: { ballotNo: true },
       }),
     ).toEqual([{ ballotNo: 1 }, { ballotNo: 2 }]);
+
+    const replacementCode = 'TEST-PEN-MAYOR-003';
+    const sameName = `${header}\n${replacementCode},${contestId},王小華,KMT,1,CONFIRMED`;
+    const sameNamePreview = await prepareCandidateImport(sameName);
+    expect(sameNamePreview.updates[0].changes[0]).toEqual({
+      field: 'code',
+      before: code,
+      after: replacementCode,
+    });
+
+    await importCandidates(sameName, []);
+    expect(await prisma.candidate.findUnique({ where: { id: code } })).not.toBeNull();
+
+    await importCandidates(sameName, [replacementCode]);
+    expect(await prisma.candidate.findUnique({ where: { id: code } })).toBeNull();
+    expect(await prisma.candidate.findUnique({ where: { id: replacementCode } })).toMatchObject({
+      name: '王小華',
+      partyId: 'KMT',
+    });
   });
 });

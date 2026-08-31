@@ -5,6 +5,7 @@ import { avatarUrl } from '../client/avatars.js';
 import { cacheDelete, cachedGzipJson } from './redis.js';
 import { isVisibleCandidateId } from './site-settings.js';
 import { candidateDataKey } from './snapshot-keys.js';
+import { alternateCandidateId } from './candidate-ids.js';
 
 /**
  * 一場選舉現在可以押哪些目標。
@@ -84,7 +85,12 @@ export function getPredictionTargets(contest: RegisteredContest): PredictionTarg
  * 候選人 id 都由這裡決定，前端送什麼進來都要對得上這份名單。
  */
 export function resolvePredictionTarget(contest: RegisteredContest, targetId: string) {
-  return getPredictionTargets(contest).find((target) => target.targetId === targetId) ?? null;
+  const targets = getPredictionTargets(contest);
+  return (
+    targets.find((target) => target.targetId === targetId) ??
+    targets.find((target) => target.targetId === alternateCandidateId(targetId)) ??
+    null
+  );
 }
 
 /** 統計要顯示的名字與顏色。政黨代號查得到就用政黨的，否則用候選人的。 */

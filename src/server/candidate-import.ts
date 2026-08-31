@@ -100,6 +100,7 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
       placeholderContestIds: [] as string[],
       existingIds: new Set<string>(),
       updates: [],
+      replacements: [],
       summary: {
         candidates: 0,
         contests: 0,
@@ -125,7 +126,14 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
     }),
     prisma.candidate.findMany({
       where: { contestId: { in: contestIds }, NOT: { id: { contains: placeholderMarker } } },
-      select: { id: true, contestId: true, name: true, ballotNo: true },
+      select: {
+        id: true,
+        contestId: true,
+        name: true,
+        partyId: true,
+        ballotNo: true,
+        status: true,
+      },
     }),
     prisma.candidate.findMany({
       where: { contestId: { in: contestIds }, id: { contains: placeholderMarker } },
@@ -140,18 +148,34 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
   }
 
   const existingById = new Map(existingCodes.map((candidate) => [candidate.id, candidate]));
+  const existingByName = new Map(
+    existingCandidates.map((candidate) => [`${candidate.contestId}\0${candidate.name}`, candidate]),
+  );
   const comparableFields = ['name', 'partyId', 'ballotNo', 'status'] as const;
   const updates = rows.flatMap((row) => {
-    const existing = existingById.get(row.code);
+    const existing =
+      existingById.get(row.code) ?? existingByName.get(`${row.contestId}\0${row.name}`);
     if (!existing) return [];
-    const changes = comparableFields.flatMap((field) =>
-      existing[field] === row[field] ? [] : [{ field, before: existing[field], after: row[field] }],
-    );
-    return changes.length ? [{ code: row.code, name: row.name, changes }] : [];
+    const changes = [
+      ...(existing.id === row.code
+        ? []
+        : [{ field: 'code', before: existing.id, after: row.code }]),
+      ...comparableFields.flatMap((field) =>
+        existing[field] === row[field]
+          ? []
+          : [{ field, before: existing[field], after: row[field] }],
+      ),
+    ];
+    return changes.length
+      ? [{ code: row.code, name: row.name, replacesCode: existing.id, changes }]
+      : [];
   });
+  const replacedCodes = new Set(
+    updates.flatMap(({ code, replacesCode }) => (code === replacesCode ? [] : [replacesCode])),
+  );
 
   const finalCandidates = [
-    ...existingCandidates.filter(({ id }) => !importedCodes.has(id)),
+    ...existingCandidates.filter(({ id }) => !importedCodes.has(id) && !replacedCodes.has(id)),
     ...rows.map(({ code: id, contestId, name, ballotNo }) => ({ id, contestId, name, ballotNo })),
   ];
   const names = new Set<string>();
@@ -179,10 +203,15 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
     placeholderContestIds: [...new Set(placeholders.map(({ contestId }) => contestId))],
     existingIds,
     updates,
+    replacements: updates.flatMap(({ code, replacesCode }) =>
+      code === replacesCode ? [] : [{ code, replacesCode }],
+    ),
     summary: {
       candidates: rows.length,
       contests: contestIds.length,
-      create: rows.filter(({ code }) => !existingIds.has(code)).length,
+      create: rows.filter(
+        ({ code }) => !existingIds.has(code) && !updates.some((update) => update.code === code),
+      ).length,
       update: updates.length,
       unchanged: rows.filter(
         ({ code }) => existingIds.has(code) && !updates.some((update) => update.code === code),
@@ -203,12 +232,36 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
     throw new CandidateImportRejected('取代確認包含不在預覽清單中的 code。');
   const confirmed = new Set(replaceCodes);
   const plan = await buildCandidatePlan(
-    preview.rows.filter(({ code }) => !preview.existingIds.has(code) || confirmed.has(code)),
+    preview.rows.filter(({ code }) => !updateCodes.has(code) || confirmed.has(code)),
   );
   const replacing = new Set(plan.placeholderContestIds);
 
   await prisma.$transaction(
     async (tx) => {
+      for (const { code, replacesCode } of plan.replacements) {
+        await tx.predictionPick.updateMany({
+          where: { targetType: 'CANDIDATE', targetId: replacesCode },
+          data: { targetId: code },
+        });
+        await tx.contestTally.updateMany({
+          where: { targetType: 'CANDIDATE', targetId: replacesCode },
+          data: { targetId: code },
+        });
+        await tx.contestTallySnapshot.updateMany({
+          where: { targetType: 'CANDIDATE', targetId: replacesCode },
+          data: { targetId: code },
+        });
+        await tx.contestSummary.updateMany({
+          where: { leaderId: replacesCode },
+          data: { leaderId: code },
+        });
+        await tx.candidateContribution.updateMany({
+          where: { candidateId: replacesCode },
+          data: { candidateId: code },
+        });
+        await tx.candidate.delete({ where: { id: replacesCode } });
+      }
+
       if (replacing.size) {
         const contestIds = [...replacing];
         await tx.prediction.updateMany({

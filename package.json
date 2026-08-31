@@ -16,7 +16,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "data:contests": "tsx scripts/build-election-contests.ts"
+    "data:contests": "tsx scripts/build-election-contests.ts",
+    "data:candidate-ids": "tsx scripts/migrate-candidate-ids.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^10.6.0",

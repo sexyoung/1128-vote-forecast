@@ -28,7 +28,7 @@ describe('candidate contributions', () => {
     });
     contributionId = contribution.id;
 
-    expect(contribution.candidateId).toMatch(/^c/);
+    expect(contribution.candidateId).toMatch(/^DPP-TPE-EXECUTIVE-1-[A-F0-9]{8}$/);
     expect(contribution.status).toBe('PENDING');
     expect(
       await prisma.candidate.findUnique({ where: { id: contribution.candidateId } }),

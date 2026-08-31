@@ -19,6 +19,7 @@ function errorMessage(error: unknown) {
 }
 
 const changeLabels: Record<string, string> = {
+  code: 'code',
   name: '姓名',
   partyId: '政黨',
   ballotNo: '號次',
@@ -287,7 +288,29 @@ export function CandidateImportPage() {
           {updates.length > 0 && (
             <section className="admin-replacement-list">
               <h2>逐筆確認取代</h2>
-              <p className="admin-note">相同 code 的資料必須逐筆確認；取消會保留資料庫原值。</p>
+              <p className="admin-note">
+                相同 code 或同選區同名的資料必須逐筆確認；取消會保留資料庫原值。
+              </p>
+              <div className="admin-action-row">
+                <button
+                  className="button button-dark button-small"
+                  onClick={() =>
+                    setDecisions(Object.fromEntries(updates.map(({ code }) => [code, true])))
+                  }
+                  type="button"
+                >
+                  全部確認
+                </button>
+                <button
+                  className="button button-ghost button-small"
+                  onClick={() =>
+                    setDecisions(Object.fromEntries(updates.map(({ code }) => [code, false])))
+                  }
+                  type="button"
+                >
+                  全部取消
+                </button>
+              </div>
               {updates.map((update) => (
                 <article className="admin-report-row" key={update.code}>
                   <strong>
