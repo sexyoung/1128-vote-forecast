@@ -13,6 +13,8 @@ export type SearchHit = {
   /** 第二行的來歷，例如「臺北市 · 臺北市全境」。 */
   sub: string;
   to: string;
+  /** 不一定顯示、但可用來找職務分類（例如「縣市長」）的關鍵字。 */
+  keywords?: string;
   candidate?: boolean;
 };
 
@@ -23,14 +25,25 @@ let index: SearchHit[] | null = null;
 function contestHits(jurisdiction: Jurisdiction, contest: Contest): SearchHit[] {
   const sub = `${jurisdiction.name} · ${contest.area}`;
   const to = `/contest/${contest.id}`;
+  const office =
+    contest.view === 'EXECUTIVE'
+      ? '縣市長 首長'
+      : contest.view === 'COUNCIL'
+        ? '議員'
+        : contest.view === 'TOWNSHIP'
+          ? '鄉鎮市長'
+          : contest.view === 'REPRESENTATIVE'
+            ? '代表'
+            : '村里長';
   return [
-    { id: contest.id, label: contest.name, sub, to },
+    { id: contest.id, label: contest.name, sub, to, keywords: office },
     // 選區名（例如「內湖區、南港區」）自己也要搜得到，但顯示的還是選舉名稱。
     {
       id: `${contest.id}-area`,
       label: contest.area,
       sub: `${jurisdiction.name}${contest.name}`,
       to,
+      keywords: office,
     },
     ...getMockCandidates(contest).map((candidate) => ({
       id: candidate.id,
@@ -70,7 +83,7 @@ export function searchEverything(
   const hits: SearchHit[] = [];
   for (const hit of index) {
     if (!includeCandidateHits && hit.candidate) continue;
-    if (hit.label.includes(needle)) hits.push(hit);
+    if (hit.label.includes(needle) || hit.keywords?.includes(needle)) hits.push(hit);
     if (hits.length === limit) break;
   }
   return hits;

@@ -44,13 +44,16 @@ export const seoIndexable =
  * Turnstile 沒設定就整個關掉，而不是擋住所有寫入。開發環境不必為了送一筆預測
  * 先去申請金鑰；正式環境沒設定會在啟動檢查時被擋下來。
  */
-export const turnstileEnabled = Boolean(env.turnstileSecretKey);
+// client widget 與 Siteverify 必須成對設定；只有 secret 會讓 API 啟用驗證、前端卻拿不到
+// 可渲染的 site key，所有寫入都會被拒絕。
+export const turnstileEnabled = Boolean(env.turnstileSiteKey && env.turnstileSecretKey);
 
 /** 正式環境不能少的設定，啟動時就檢查，不要等到第一個請求才炸。 */
 export function assertProductionEnv() {
   if (!env.isProduction) return;
   const missing: string[] = [];
   if (!env.redisUrl) missing.push('REDIS_URL');
+  if (!env.turnstileSiteKey) missing.push('TURNSTILE_SITE_KEY');
   if (!env.turnstileSecretKey) missing.push('TURNSTILE_SECRET_KEY');
   if (!env.adminToken) missing.push('ADMIN_TOKEN');
   if (!env.adminSessionSecret) missing.push('ADMIN_SESSION_SECRET');

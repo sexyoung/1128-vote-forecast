@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type CSSProperties, useEffect, useState } from 'react';
-import { ApiError, getContest, submitPrediction } from '../api';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError, getContest, getSession, submitPrediction } from '../api';
 import { type Contest, getParty } from '../mock-election';
 import { track } from '../analytics';
 import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
@@ -12,6 +12,102 @@ export type ForecastPick = { id: string; label: string };
 // 同一個表單掛在兩處（選區頁的 ForecastSheet、地圖抽屜的 MapInspector），不分開
 // 就分不出地圖上的預測佔多少。
 export type ForecastSurface = 'contest_page' | 'map_inspector';
+
+type TurnstileApi = {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      theme: 'light';
+      callback: (token: string) => void;
+      'expired-callback': () => void;
+      'error-callback': () => void;
+    },
+  ) => string;
+  remove: (widgetId: string) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
+
+let turnstileScript: Promise<TurnstileApi> | null = null;
+
+/** Turnstile 表單是動態開啟的 drawer，必須用 explicit render，不能靠初始 HTML 掃描。 */
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (turnstileScript) return turnstileScript;
+  turnstileScript = new Promise<TurnstileApi>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.onload = () => {
+      if (window.turnstile) resolve(window.turnstile);
+      else reject(new Error('Turnstile 載入失敗。'));
+    };
+    script.onerror = () => reject(new Error('Turnstile 載入失敗，請檢查網路或阻擋外掛。'));
+    document.head.append(script);
+  }).catch((error: unknown) => {
+    turnstileScript = null;
+    throw error;
+  });
+  return turnstileScript;
+}
+
+function TurnstileChallenge({
+  siteKey,
+  onToken,
+}: {
+  siteKey: string;
+  onToken: (token: string | null) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    let widgetId: string | null = null;
+    onToken(null);
+    void loadTurnstile().then(
+      (turnstile) => {
+        if (!active || !containerRef.current) return;
+        widgetId = turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          theme: 'light',
+          callback: (token) => {
+            if (active) {
+              setError('');
+              onToken(token);
+            }
+          },
+          'expired-callback': () => active && onToken(null),
+          'error-callback': () => {
+            if (active) {
+              onToken(null);
+              setError('人機驗證無法完成，請重新整理後再試。');
+            }
+          },
+        });
+      },
+      (failure: unknown) =>
+        active && setError(failure instanceof Error ? failure.message : '驗證載入失敗。'),
+    );
+    return () => {
+      active = false;
+      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
+    };
+  }, [onToken, siteKey]);
+
+  return (
+    <div className="turnstile-challenge">
+      <p>請先完成人機驗證。</p>
+      <div ref={containerRef} />
+      {error && <small>{error}</small>}
+    </div>
+  );
+}
 
 export function ForecastSheet({
   contest,
@@ -76,6 +172,7 @@ export function ForecastForm({
   surface: ForecastSurface;
 }) {
   const queryClient = useQueryClient();
+  const session = useQuery({ queryKey: ['session'], queryFn: getSession });
   // 名單、席次與目前分布都由伺服器給：中選會公告後只要換伺服器那一份，這裡不用動。
   const detail = useQuery({
     queryKey: ['contest', contest.id],
@@ -83,6 +180,9 @@ export function ForecastForm({
   });
   const [picks, setPicks] = useState<string[] | null>(null);
   const [error, setError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const receiveTurnstileToken = useCallback((token: string | null) => setTurnstileToken(token), []);
 
   const targets = detail.data?.targets ?? [];
   const seats = detail.data?.contest.seats ?? contest.seatCount;
@@ -94,9 +194,11 @@ export function ForecastForm({
   // onSuccess 時 detail 已經被 invalidate，當場再讀 detail.data?.mine 永遠是 true；
   // 送出前先算好「這是新的還是修改」，才分得出轉換漏斗裡有多少是回頭客。
   const isUpdate = Boolean(detail.data?.mine);
+  const turnstile = session.data?.turnstile;
+  const requiresTurnstile = Boolean(turnstile) || needsVerification;
 
   const submit = useMutation({
-    mutationFn: () => submitPrediction(contest.id, selected),
+    mutationFn: () => submitPrediction(contest.id, selected, turnstileToken ?? undefined),
     onSuccess: async () => {
       setError('');
       track('forecast_submitted', {
@@ -121,6 +223,7 @@ export function ForecastForm({
     },
     onError: (failure: unknown) => {
       setError(failure instanceof ApiError ? failure.message : '送出失敗，請稍後再試。');
+      if (failure instanceof ApiError && failure.needsTurnstile) setNeedsVerification(true);
       track('forecast_failed', {
         contest_id: contest.id,
         status: failure instanceof ApiError ? failure.status : null,
@@ -129,6 +232,7 @@ export function ForecastForm({
       });
     },
   });
+  const canSubmit = isValid && !submit.isPending && (!requiresTurnstile || Boolean(turnstileToken));
 
   function toggle(id: string) {
     setError('');
@@ -223,9 +327,15 @@ export function ForecastForm({
       </div>
       <footer className="forecast-footer">
         <p>再次送出只會更新原預測，不會重複計票。</p>
+        {requiresTurnstile &&
+          (turnstile?.siteKey ? (
+            <TurnstileChallenge onToken={receiveTurnstileToken} siteKey={turnstile.siteKey} />
+          ) : (
+            <p className="forecast-turnstile-error">人機驗證尚未設定完成，請稍後再試。</p>
+          ))}
         <button
           className="button button-accent button-wide"
-          disabled={!isValid || submit.isPending}
+          disabled={!canSubmit}
           onClick={() => submit.mutate()}
           type="button"
         >
@@ -236,7 +346,7 @@ export function ForecastForm({
               : singleSeat
                 ? '請先選擇一項'
                 : '請至少選擇一位'}
-          {isValid && !submit.isPending && <Icon name="chevron" />}
+          {canSubmit && <Icon name="chevron" />}
         </button>
       </footer>
     </>

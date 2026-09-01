@@ -2644,6 +2644,24 @@ a:focus-visible {
   margin: 0 0 13px;
   text-align: center;
 }
+.turnstile-challenge {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  margin: 0 0 14px;
+}
+.turnstile-challenge p,
+.turnstile-challenge small,
+.forecast-turnstile-error {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 8px;
+  text-align: center;
+}
+.forecast-turnstile-error {
+  color: var(--stamp);
+}
 
 /* 改名是從標題旁的身份標籤點開的 modal。.sheet-backdrop 本身是為右側抽屜寫的
    （靠右、撐滿高度），centered 這個變體把它改成置中的對話框。 */
