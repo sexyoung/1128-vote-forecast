@@ -202,6 +202,11 @@ export const getPartyCandidateCounts = () =>
 export const getCandidateRankings = () =>
   request<{ candidates: CandidateRanking[] }>('/api/rankings/candidates');
 
+export const searchCandidateNames = (query: string) =>
+  request<{
+    candidates: { id: string; label: string; sub: string; to: string }[];
+  }>(`/api/search/candidates?q=${encodeURIComponent(query)}`);
+
 export const getPartyContests = (partyId: string, page: number, regionId: string, view: string) =>
   request<PartyContestsPage>(
     `/api/parties/${encodeURIComponent(partyId)}/contests?page=${page}&region=${encodeURIComponent(regionId)}&view=${encodeURIComponent(view)}`,

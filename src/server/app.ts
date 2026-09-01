@@ -32,6 +32,7 @@ import {
 } from './candidate-contributions.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
 import { listCandidateRankings } from './candidate-rankings.js';
+import { searchCandidateNames } from './candidate-search.js';
 import {
   candidateVisibilityCacheKey,
   isVisibleCandidateId,
@@ -108,6 +109,7 @@ function isPublicRead(path: string, method: string) {
     path === '/api/parties' ||
     /^\/api\/parties\/[^/]+\/contests$/.test(path) ||
     path === '/api/rankings/candidates' ||
+    path === '/api/search/candidates' ||
     path === '/api/contests' ||
     /^\/api\/contests\/[^/]+\/(trend|comments)$/.test(path)
   );
@@ -185,6 +187,12 @@ app.get('/api/map/:jurisdictionId', async (c) => {
 app.get('/api/parties', async (c) => c.json(await listPartyCandidateCounts()));
 
 app.get('/api/rankings/candidates', async (c) => c.json(await listCandidateRankings()));
+
+/** 真候選人姓名從資料庫搜尋；靜態前端索引不可能知道最新匯入的正式名單。 */
+app.get('/api/search/candidates', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  return c.json({ candidates: await searchCandidateNames(c.req.query('q') ?? '') });
+});
 
 app.get('/api/parties/:partyId/contests', async (c) => {
   const partyId = c.req.param('partyId').toUpperCase();

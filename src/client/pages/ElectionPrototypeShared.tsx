@@ -1,8 +1,20 @@
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type FormEvent,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { currentVersion } from '../../shared/changelog';
-import { getCandidateVisibility, type PredictionTarget, type TallyRow } from '../api';
+import {
+  getCandidateVisibility,
+  searchCandidateNames,
+  type PredictionTarget,
+  type TallyRow,
+} from '../api';
 import { highlightParts, searchEverything } from '../search';
 import { track } from '../analytics';
 import {
@@ -105,19 +117,20 @@ export function SearchBox({ autoFocus = false, className = '' }) {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
-  const candidateVisibility = useQuery({
-    queryKey: ['candidate-visibility'],
-    queryFn: getCandidateVisibility,
+  const deferredSearch = useDeferredValue(search.trim());
+  const candidateMatches = useQuery({
+    queryKey: ['candidate-search', deferredSearch],
+    queryFn: () => searchCandidateNames(deferredSearch),
+    enabled: deferredSearch.length > 0,
     staleTime: 30_000,
   });
   const inputRef = useRef<HTMLInputElement>(null);
   const locationRef = useRef(`${location.pathname}${location.search}`);
-  // 設定還沒讀到時，保守地不提供由假名單建立的候選人搜尋結果。
-  const matches = searchEverything(
-    search,
-    6,
-    candidateVisibility.data?.hidePlaceholderCandidates === false,
-  );
+  // 真候選人由 API 查最新匯入資料；縣市、選區與職務則留在立即可用的靜態索引。
+  const apiHits = deferredSearch === search.trim() ? (candidateMatches.data?.candidates ?? []) : [];
+  const matches = [...apiHits, ...searchEverything(search, 6, false)]
+    .filter((hit, index, all) => all.findIndex((item) => item.id === hit.id) === index)
+    .slice(0, 6);
 
   function closeSearch() {
     setSearch('');
