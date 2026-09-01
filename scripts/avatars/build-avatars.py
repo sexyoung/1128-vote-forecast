@@ -21,6 +21,17 @@ def ensure_model():
         subprocess.run(['curl', '-sL', '-m', '120', '-o', MODEL, MODEL_URL], check=True)
     return cv2.FaceDetectorYN_create(MODEL, '', (320, 320), 0.6)
 
+def flatten(img):
+    """去背的 PNG／WebP 有 alpha，直接丟掉會變成黑底；先疊到白底上。"""
+    if img.ndim == 3 and img.shape[2] == 4:
+        alpha = img[:, :, 3:4].astype(np.float32) / 255.0
+        rgb = img[:, :, :3].astype(np.float32)
+        img = (rgb * alpha + 255.0 * (1.0 - alpha)).round().astype(np.uint8)
+    elif img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    return img
+
+
 def biggest_face(det, img):
     h, w = img.shape[:2]
     det.setInputSize((w, h))
@@ -55,8 +66,9 @@ def main(path):
         try:
             if not os.path.exists(cached):
                 subprocess.run(['curl', '-sL', '-m', '60', '-A', 'Mozilla/5.0', '-o', cached, j['url']], check=True)
-            img = cv2.imread(cached)
+            img = cv2.imread(cached, cv2.IMREAD_UNCHANGED)
             if img is None: raise ValueError('讀不到圖片')
+            img = flatten(img)
             face = biggest_face(det, img)
             if face is None: noface.append(j['code'])
             out = crop(img, face)
