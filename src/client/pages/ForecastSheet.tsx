@@ -1,6 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, getContest, getSession, submitPrediction } from '../api';
+import {
+  ApiError,
+  type ContestDetail,
+  type MapCell,
+  getContest,
+  getSession,
+  submitPrediction,
+} from '../api';
 import { type Contest, getParty } from '../mock-election';
 import { track } from '../analytics';
 import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
@@ -12,6 +19,45 @@ export type ForecastPick = { id: string; label: string };
 // 同一個表單掛在兩處（選區頁的 ForecastSheet、地圖抽屜的 MapInspector），不分開
 // 就分不出地圖上的預測佔多少。
 export type ForecastSurface = 'contest_page' | 'map_inspector';
+
+type MapResult = { cells: MapCell[] };
+
+export function updateCachedMaps(
+  queryClient: QueryClient,
+  contest: Contest,
+  tally: ContestDetail['tally'],
+) {
+  let previousCell: MapCell | undefined;
+  const leader = tally.rows[0];
+  const tiedParties = [
+    ...new Set(
+      tally.rows
+        .filter(({ count }) => count === leader?.count)
+        .map(({ partyId }) => partyId)
+        .filter((partyId): partyId is string => Boolean(partyId)),
+    ),
+  ].slice(0, 2);
+  const cell: MapCell = {
+    contestId: contest.id,
+    party: leader?.partyId ?? null,
+    ...(tiedParties.length === 2 ? { tiedParties } : {}),
+    percent: leader?.percent ?? 0,
+    total: tally.totalPredictions,
+  };
+
+  for (const [key, current] of queryClient.getQueriesData<MapResult>({ queryKey: ['map'] })) {
+    const matchesNational = key[1] === 'national' && contest.view === 'EXECUTIVE';
+    const matchesRegion = key[1] === contest.jurisdictionId && key[2] === contest.view;
+    if (!current || (!matchesNational && !matchesRegion)) continue;
+    previousCell ??= current.cells.find(({ contestId }) => contestId === contest.id);
+    queryClient.setQueryData<MapResult>(key, {
+      cells: current.cells.some(({ contestId }) => contestId === contest.id)
+        ? current.cells.map((item) => (item.contestId === contest.id ? cell : item))
+        : [...current.cells, cell],
+    });
+  }
+  return { previousCell, nextCell: cell };
+}
 
 type TurnstileApi = {
   render: (
@@ -168,7 +214,11 @@ export function ForecastForm({
   surface,
 }: {
   contest: Contest;
-  onSubmitted: (picked: ForecastPick[]) => void;
+  onSubmitted: (
+    picked: ForecastPick[],
+    previousMapCell: MapCell | undefined,
+    nextMapCell: MapCell,
+  ) => void;
   surface: ForecastSurface;
 }) {
   const queryClient = useQueryClient();
@@ -199,7 +249,7 @@ export function ForecastForm({
 
   const submit = useMutation({
     mutationFn: () => submitPrediction(contest.id, selected, turnstileToken ?? undefined),
-    onSuccess: async () => {
+    onSuccess: (result) => {
       setError('');
       track('forecast_submitted', {
         contest_id: contest.id,
@@ -211,14 +261,18 @@ export function ForecastForm({
         is_update: isUpdate,
         surface,
       });
-      await queryClient.invalidateQueries({ queryKey: ['contest', contest.id] });
-      await queryClient.invalidateQueries({ queryKey: ['my-predictions'] });
-      await queryClient.invalidateQueries({ queryKey: ['map'] });
+      queryClient.setQueryData<ContestDetail>(['contest', contest.id], (current) =>
+        current ? { ...current, ...result } : current,
+      );
+      const { previousCell, nextCell } = updateCachedMaps(queryClient, contest, result.tally);
+      void queryClient.invalidateQueries({ queryKey: ['my-predictions'] });
       onSubmitted(
         selected.flatMap((id) => {
           const target = targets.find((item) => item.targetId === id);
           return target ? [{ id, label: target.label }] : [];
         }),
+        previousCell,
+        nextCell,
       );
     },
     onError: (failure: unknown) => {

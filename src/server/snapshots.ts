@@ -27,17 +27,22 @@ export type MapCell = {
   contestId: string;
   /** 領先者的黨籍。地圖只要顏色，不需要是誰。 */
   party: string | null;
+  /** 最高票同票時，地圖從這兩個不同政黨中穩定選一個顏色。 */
+  tiedParties?: string[];
   percent: number;
   total: number;
 };
 
-function toCell(summary: {
-  contestId: string;
-  leaderType: string | null;
-  leaderId: string | null;
-  leaderPercent: number | null;
-  totalPredictions: number;
-}): MapCell | null {
+function toCell(
+  summary: {
+    contestId: string;
+    leaderType: string | null;
+    leaderId: string | null;
+    leaderPercent: number | null;
+    totalPredictions: number;
+  },
+  tiedParties?: string[],
+): MapCell | null {
   const contest = getRegisteredContest(summary.contestId);
   if (!contest) return null;
   if (
@@ -58,24 +63,65 @@ function toCell(summary: {
   return {
     contestId: summary.contestId,
     party: described?.partyId ?? null,
+    ...(tiedParties?.length === 2 ? { tiedParties } : {}),
     percent: summary.leaderPercent ?? 0,
     total: summary.totalPredictions,
   };
 }
 
+async function readTiedParties(contestIds: string[]) {
+  const tallies = await prisma.contestTally.findMany({
+    where: { contestId: { in: contestIds }, count: { gt: 0 } },
+  });
+  const rowsByContest = new Map<string, typeof tallies>();
+  for (const row of tallies) {
+    const rows = rowsByContest.get(row.contestId) ?? [];
+    rows.push(row);
+    rowsByContest.set(row.contestId, rows);
+  }
+
+  const result = new Map<string, string[]>();
+  for (const [contestId, rows] of rowsByContest) {
+    const contest = getRegisteredContest(contestId);
+    if (!contest) continue;
+    const visible = rows
+      .filter(
+        ({ targetId, targetType }) => targetType !== 'CANDIDATE' || isVisibleCandidateId(targetId),
+      )
+      .sort(
+        (left, right) => right.count - left.count || left.targetId.localeCompare(right.targetId),
+      );
+    const highest = visible[0]?.count;
+    const parties = [
+      ...new Set(
+        visible
+          .filter(({ count }) => count === highest)
+          .map(({ targetId, targetType }) => describeTarget(contest, targetType, targetId).partyId)
+          .filter((partyId): partyId is string => Boolean(partyId)),
+      ),
+    ];
+    if (parties.length >= 2) result.set(contestId, parties.slice(0, 2));
+  }
+  return result;
+}
+
 async function buildNational(): Promise<MapCell[]> {
   const contestIds = jurisdictions.map((jurisdiction) => `${jurisdiction.id}-EXECUTIVE-1`);
-  const summaries = await prisma.contestSummary.findMany({
-    where: { contestId: { in: contestIds } },
-  });
-  return summaries.flatMap((summary) => toCell(summary) ?? []);
+  const [summaries, tiedParties] = await Promise.all([
+    prisma.contestSummary.findMany({ where: { contestId: { in: contestIds } } }),
+    readTiedParties(contestIds),
+  ]);
+  return summaries.flatMap((summary) => toCell(summary, tiedParties.get(summary.contestId)) ?? []);
 }
 
 async function buildJurisdiction(jurisdictionId: string, type: ContestType): Promise<MapCell[]> {
   const ids = getRegisteredContests(jurisdictionId, type).map(({ id }) => id);
   if (ids.length === 0) return [];
-  const summaries = await prisma.contestSummary.findMany({ where: { contestId: { in: ids } } });
-  return summaries.flatMap((summary) => toCell(summary) ?? []);
+  const [summaries, tiedParties] = await Promise.all([
+    prisma.contestSummary.findMany({ where: { contestId: { in: ids } } }),
+    readTiedParties(ids),
+  ]);
+  return summaries.flatMap((summary) => toCell(summary, tiedParties.get(summary.contestId)) ?? []);
 }
 
 async function read<T>(key: string, build: () => Promise<T>): Promise<T> {

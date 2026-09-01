@@ -91,7 +91,13 @@ export type CandidateRanking = {
   predictionCount: number;
 };
 
-export type MapCell = { contestId: string; party: string | null; percent: number; total: number };
+export type MapCell = {
+  contestId: string;
+  party: string | null;
+  tiedParties?: string[];
+  percent: number;
+  total: number;
+};
 
 export type TrendSeries = {
   targetId: string;

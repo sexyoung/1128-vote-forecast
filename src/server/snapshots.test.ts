@@ -66,7 +66,13 @@ async function predict(targetId: string) {
 async function nationalMap() {
   const response = await app.request('/api/map/national');
   return (await response.json()) as {
-    cells: { contestId: string; party: string; percent: number; total: number }[];
+    cells: {
+      contestId: string;
+      party: string;
+      tiedParties?: string[];
+      percent: number;
+      total: number;
+    }[];
   };
 }
 
@@ -90,6 +96,19 @@ describe('map snapshots', () => {
 
     const { cells } = await nationalMap();
     expect(cells.find((item) => item.contestId === mayor.id)?.total).toBe(2);
+  });
+
+  it('reports two different parties tied for the highest tally', async () => {
+    await predict(targets[0]);
+    await predict(targets[1]);
+
+    const { cells } = await nationalMap();
+    const tiedParties = cells.find((item) => item.contestId === mayor.id)?.tiedParties;
+    const expected = getPredictionTargets(mayor)
+      .filter(({ targetId }) => targets.slice(0, 2).includes(targetId))
+      .map(({ partyId }) => partyId);
+    expect(tiedParties).toHaveLength(2);
+    expect(tiedParties).toEqual(expect.arrayContaining(expected));
   });
 
   it('skips contests nobody has predicted', async () => {

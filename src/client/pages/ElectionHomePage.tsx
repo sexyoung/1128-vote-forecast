@@ -1,5 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { type MapCell, getContest, getJurisdictionMap, getNationalMap } from '../api';
 import { useDocumentTitle } from '../use-document-title';
@@ -88,6 +95,21 @@ const minimumZoomWidth = 14;
 // 比開場視野（860）再往外一級。必須大於開場寬度，否則第一次滾動就會被夾回來。
 const maximumZoomWidth = 965;
 const mapFocusAnimationDuration = 520;
+export function getMapResultScale() {
+  return 2;
+}
+
+export function paintAnimatedLast<T>(
+  items: readonly T[],
+  animatedId: string | null,
+  getContestId: (item: T) => string | null | undefined,
+) {
+  if (!animatedId) return items;
+  return [
+    ...items.filter((item) => getContestId(item) !== animatedId),
+    ...items.filter((item) => getContestId(item) === animatedId),
+  ];
+}
 const mainMapBounds = { x: 184, y: 20, width: 652, height: 1060 };
 const islandInsets = [
   {
@@ -146,20 +168,12 @@ function useCompactChrome() {
   );
 }
 
-export function shouldShowTownshipBoundaryPreview(
-  jurisdictionId: string | null,
-  detailMode: boolean,
-) {
-  return (
-    jurisdictionId !== null && !detailMode && !shouldImmediatelyFocusJurisdiction(jurisdictionId)
-  );
-}
-
 export function shouldShowVillageBoundaryPreview(
   selectedTownshipId: string | null,
   villageMode: boolean,
+  animating = false,
 ) {
-  return selectedTownshipId !== null && !villageMode;
+  return selectedTownshipId !== null && !villageMode && !animating;
 }
 
 export function shouldShowMapInspector(jurisdictionId: string | null, contest: Contest | null) {
@@ -303,12 +317,31 @@ const noDataSelectedFill = '#c6c5bf';
  * 人預測就是灰的。
  */
 function mapFill(cell: MapCell | undefined, selected: boolean) {
-  if (!cell || cell.total === 0 || !cell.party) return selected ? noDataSelectedFill : noDataFill;
-  return tint(getParty(cell.party as PartyId).color, cell.percent, selected);
+  const partyId = getMapParty(cell);
+  if (!cell || cell.total === 0 || !partyId) return selected ? noDataSelectedFill : noDataFill;
+  return tint(getParty(partyId as PartyId).color, cell.percent, selected);
+}
+
+export function getMapParty(cell: MapCell | undefined) {
+  if (cell?.tiedParties?.length !== 2) return cell?.party ?? null;
+  let hash = 0;
+  for (let index = 0; index < cell.contestId.length; index++)
+    hash = (Math.imul(hash, 31) + cell.contestId.charCodeAt(index)) >>> 0;
+  return cell.tiedParties[hash % 2];
+}
+
+export function shouldAnimateMapResult(previousCell: MapCell | undefined, nextCell: MapCell) {
+  const previousParty = getMapParty(previousCell);
+  const nextParty = getMapParty(nextCell);
+  return Boolean(previousParty && nextParty && previousParty !== nextParty);
 }
 
 function mapLabel(name: string, cell: MapCell | undefined) {
   if (!cell || cell.total === 0 || !cell.party) return `${name}，尚無預測`;
+  if (cell.tiedParties?.length === 2)
+    return `${name}，${cell.tiedParties
+      .map((partyId) => getParty(partyId as PartyId).shortName)
+      .join('、')}平手，各 ${cell.percent}%`;
   return `${name}，${getParty(cell.party as PartyId).shortName} ${cell.percent}%`;
 }
 
@@ -344,7 +377,11 @@ function MapInspector({
   onExpandedChange: (expanded: boolean) => void;
   onForecast: () => void;
   onBackToResult: () => void;
-  onSubmitted: (picked: ForecastPick[]) => void;
+  onSubmitted: (
+    picked: ForecastPick[],
+    previousMapCell: MapCell | undefined,
+    nextMapCell: MapCell,
+  ) => void;
 }) {
   // 分布來自伺服器；還沒載回來之前不畫數字，不要先給一個等一下會跳掉的假值。
   const detail = useQuery({
@@ -553,6 +590,11 @@ export function ElectionHomePage() {
   const [detailMode, setDetailMode] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
+  const [animatedContestId, setAnimatedContestId] = useState<string | null>(null);
+  const [heldMapCell, setHeldMapCell] = useState<{
+    contestId: string;
+    cell: MapCell | undefined;
+  } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const compactChrome = useCompactChrome();
   // 這一版先記在記憶體裡，正式版會綁到匿名身份。key 是 contest.id。
@@ -593,10 +635,24 @@ export function ElectionHomePage() {
   const suppressClickRef = useRef(false);
   const mapFocusAnimationRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    if (!animatedContestId) return;
+    const reveal = window.setTimeout(() => setHeldMapCell(null), 1_375);
+    const finish = window.setTimeout(() => setAnimatedContestId(null), 2_550);
+    return () => {
+      window.clearTimeout(reveal);
+      window.clearTimeout(finish);
+    };
+  }, [animatedContestId]);
+
   const selectedLocationId = selectedJurisdiction
     ? (jurisdictionToMapLocation[selectedJurisdiction.id] ?? null)
     : null;
   const mapWidth = parseMapBounds(viewBox).width;
+  const mapResultPeakScale = getMapResultScale();
+  const mapResultAnimationStyle = {
+    '--map-result-peak-scale': mapResultPeakScale,
+  } as CSSProperties;
   const activeContest = selectedContest;
   const townshipViews = selectedJurisdiction
     ? getElectionViewsForMapLevel(selectedJurisdiction, 'township')
@@ -1336,15 +1392,19 @@ export function ElectionHomePage() {
             viewBox={viewBox}
           >
             <g className="county-layer">
-              {countyShapes.map((location) => {
+              {paintAnimatedLast(countyShapes, animatedContestId, (location) => {
+                const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
+                return getContests(jurisdiction, 'EXECUTIVE')[0].id;
+              }).map((location) => {
                 const jurisdiction = getJurisdiction(mapLocationToJurisdiction[location.id]);
                 const contest = getContests(jurisdiction, 'EXECUTIVE')[0];
-                const cell = cells.get(contest.id);
+                const cell =
+                  heldMapCell?.contestId === contest.id ? heldMapCell.cell : cells.get(contest.id);
                 const selected = selectedJurisdiction?.id === jurisdiction.id;
                 return (
                   <path
                     aria-label={mapLabel(jurisdiction.name, cell)}
-                    className={`taiwan-county ${selected ? 'selected' : ''}`}
+                    className={`taiwan-county ${selected ? 'selected' : ''} ${animatedContestId === contest.id ? 'map-result-changed' : ''}`}
                     data-jurisdiction-id={jurisdiction.id}
                     d={location.path}
                     fill={mapFill(cell, selected)}
@@ -1365,24 +1425,25 @@ export function ElectionHomePage() {
                     }}
                     role="button"
                     stroke="#fffdf8"
+                    style={animatedContestId === contest.id ? mapResultAnimationStyle : undefined}
                     tabIndex={0}
                   />
                 );
               })}
             </g>
 
-            {shouldShowTownshipBoundaryPreview(selectedJurisdiction?.id ?? null, detailMode) && (
-              <g aria-hidden="true" className="township-boundary-preview">
-                {visibleTownships.map(({ township }) => (
-                  <path className="taiwan-township-boundary" d={township.path} key={township.id} />
-                ))}
-              </g>
-            )}
-
             {detailMode && selectedJurisdiction && (
               <g className={`township-layer ${villageMode ? 'faded' : ''}`}>
-                {visibleTownships.map(({ contest, township }) => {
-                  const cell = contest ? cells.get(contest.id) : undefined;
+                {paintAnimatedLast(
+                  visibleTownships,
+                  animatedContestId,
+                  ({ contest }) => contest?.id,
+                ).map(({ contest, township }) => {
+                  const cell = contest
+                    ? heldMapCell?.contestId === contest.id
+                      ? heldMapCell.cell
+                      : cells.get(contest.id)
+                    : undefined;
                   const selected =
                     contest !== null &&
                     (selectedTownshipId === township.id ||
@@ -1394,7 +1455,7 @@ export function ElectionHomePage() {
                           ? mapLabel(`${township.countyName}${township.townName}`, cell)
                           : `${township.countyName}${township.townName}，請由村里界線選擇議員選區`
                       }
-                      className={`taiwan-township ${selected ? 'selected' : ''} ${contest ? '' : 'unresolved'}`}
+                      className={`taiwan-township ${selected ? 'selected' : ''} ${contest ? '' : 'unresolved'} ${contest?.id === animatedContestId ? 'map-result-changed' : ''}`}
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={township.townCode}
                       d={township.path}
@@ -1418,6 +1479,9 @@ export function ElectionHomePage() {
                       }}
                       role="button"
                       stroke="#fffdf8"
+                      style={
+                        contest?.id === animatedContestId ? mapResultAnimationStyle : undefined
+                      }
                       tabIndex={0}
                     />
                   );
@@ -1427,8 +1491,15 @@ export function ElectionHomePage() {
 
             {visibleCouncilVillages.length > 0 && selectedJurisdiction && (
               <g className={`council-village-layer ${villageMode ? 'faded' : ''}`}>
-                {visibleCouncilVillages.map(({ contest, village }) => {
-                  const cell = cells.get(contest.id);
+                {paintAnimatedLast(
+                  visibleCouncilVillages,
+                  animatedContestId,
+                  ({ contest }) => contest.id,
+                ).map(({ contest, village }) => {
+                  const cell =
+                    heldMapCell?.contestId === contest.id
+                      ? heldMapCell.cell
+                      : cells.get(contest.id);
                   const selected = selectedContest?.id === contest.id;
                   return (
                     <path
@@ -1436,7 +1507,7 @@ export function ElectionHomePage() {
                         `${village.countyName}${village.townName}${village.villName}，${contest.name}`,
                         cell,
                       )}
-                      className={`taiwan-township council-village ${selected ? 'selected' : ''}`}
+                      className={`taiwan-township council-village ${selected ? 'selected' : ''} ${contest.id === animatedContestId ? 'map-result-changed' : ''}`}
                       data-council-village="true"
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={village.townCode}
@@ -1460,6 +1531,7 @@ export function ElectionHomePage() {
                       }}
                       role="button"
                       stroke="#fffdf8"
+                      style={contest.id === animatedContestId ? mapResultAnimationStyle : undefined}
                       tabIndex={0}
                     />
                   );
@@ -1467,7 +1539,11 @@ export function ElectionHomePage() {
               </g>
             )}
 
-            {shouldShowVillageBoundaryPreview(selectedTownshipId, villageMode) && (
+            {shouldShowVillageBoundaryPreview(
+              selectedTownshipId,
+              villageMode,
+              animatedContestId !== null,
+            ) && (
               <g aria-hidden="true" className="village-boundary-preview">
                 {visibleVillages
                   .filter(({ village }) => village.townCode === focusedTownCode)
@@ -1479,15 +1555,22 @@ export function ElectionHomePage() {
 
             {visibleVillages.length > 0 && selectedJurisdiction && (
               <g className={`village-layer ${villageMode ? '' : 'faded'}`}>
-                {visibleVillages.map(({ contest, village }) => {
-                  const cell = cells.get(contest.id);
+                {paintAnimatedLast(
+                  visibleVillages,
+                  animatedContestId,
+                  ({ contest }) => contest.id,
+                ).map(({ contest, village }) => {
+                  const cell =
+                    heldMapCell?.contestId === contest.id
+                      ? heldMapCell.cell
+                      : cells.get(contest.id);
                   const name = village.villName || '未編定村里';
                   const dimmed = townshipFocus !== null && village.townCode !== townshipFocus;
                   const selected = selectedVillageId === village.id;
                   return (
                     <path
                       aria-label={mapLabel(`${village.countyName}${village.townName}${name}`, cell)}
-                      className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
+                      className={`taiwan-village ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''} ${contest.id === animatedContestId ? 'map-result-changed' : ''}`}
                       data-jurisdiction-id={selectedJurisdiction.id}
                       data-town-code={village.townCode}
                       d={village.path}
@@ -1511,6 +1594,7 @@ export function ElectionHomePage() {
                       }}
                       role="button"
                       stroke="#fffdf8"
+                      style={contest.id === animatedContestId ? mapResultAnimationStyle : undefined}
                       tabIndex={0}
                     />
                   );
@@ -1575,9 +1659,16 @@ export function ElectionHomePage() {
               onExpandedChange={setInspectorExpanded}
               onForecast={() => setForecastOpen(true)}
               // 送出後的顯示由伺服器回答，這裡只負責把畫面切回結果。
-              onSubmitted={() => {
+              onSubmitted={(_, previousMapCell, nextMapCell) => {
+                if (shouldAnimateMapResult(previousMapCell, nextMapCell)) {
+                  setHeldMapCell({ contestId: activeContest.id, cell: previousMapCell });
+                  setAnimatedContestId(activeContest.id);
+                } else {
+                  setHeldMapCell(null);
+                  setAnimatedContestId(null);
+                }
                 setForecastOpen(false);
-                setInspectorExpanded(true);
+                setInspectorExpanded(!isDrawerLayout());
               }}
               showForm={forecastOpen}
             />

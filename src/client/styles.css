@@ -3157,17 +3157,6 @@ a:focus-visible {
 .map-app.township-focus .taiwan-county.selected {
   opacity: 0;
 }
-/* 全臺視野點選本島縣市時，保留底下加深的縣市色，只疊上鄉鎮市區界線。 */
-.township-boundary-preview {
-  pointer-events: none;
-}
-.taiwan-township-boundary {
-  fill: none;
-  stroke: #fffdf8;
-  stroke-linejoin: round;
-  stroke-width: 1.1;
-  vector-effect: non-scaling-stroke;
-}
 /* 區檢視點選鄉鎮市區時，同樣保留加深的鄉鎮填色，只疊上該區的村里界線。 */
 .village-boundary-preview {
   pointer-events: none;
@@ -3224,6 +3213,37 @@ a:focus-visible {
 }
 .taiwan-village:focus-visible {
   filter: brightness(0.88) saturate(1.2);
+}
+.map-result-changed {
+  animation: map-result-change 2.5s cubic-bezier(0.22, 0.72, 0.2, 1) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes map-result-change {
+  0% {
+    transform: scale(1);
+  }
+  54% {
+    filter: none;
+    transform: scale(var(--map-result-peak-scale));
+  }
+  55% {
+    filter: brightness(5) saturate(0) drop-shadow(0 0 8px rgb(255 255 255 / 95%));
+    transform: scale(var(--map-result-peak-scale));
+  }
+  62% {
+    animation-timing-function: step-start;
+    filter: brightness(1) saturate(1);
+    transform: scale(var(--map-result-peak-scale));
+  }
+  63% {
+    filter: drop-shadow(0 0 2px rgb(31 43 39 / 30%));
+    transform: translate(0) scale(1);
+  }
+  100% {
+    filter: drop-shadow(0 0 22px transparent);
+    transform: translate(0) scale(1);
+  }
 }
 /* 淡化程度比照縣市層的 .taiwan-county（0.06），但保留 pointer-events，
    這樣滾輪滑過旁邊的區還能把聚焦換過去。只有村里層會淡化——鄉鎮層一律維持
@@ -4260,6 +4280,9 @@ a:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .map-result-changed {
+    animation: none;
+  }
   .t-stagger-line {
     transition: none !important;
   }

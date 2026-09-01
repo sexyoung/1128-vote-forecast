@@ -12,8 +12,8 @@ import { useLocation } from 'react-router-dom';
 // 渲染載進去，而伺服器是用 tsx 直接跑的，那裡沒有 import.meta.env，直接讀屬性會炸。
 const buildEnv = import.meta.env ?? ({} as ImportMetaEnv);
 const gaMeasurementId = buildEnv.VITE_GA_MEASUREMENT_ID ?? '';
-const posthogKey = buildEnv.VITE_POSTHOG_KEY ?? '';
-const posthogHost = buildEnv.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com';
+const posthogKey = buildEnv.VITE_POSTHOG_KEY;
+const posthogHost = buildEnv.VITE_POSTHOG_HOST;
 const enabled = Boolean(gaMeasurementId || posthogKey);
 
 /** 事件名一律 snake_case：GA4 只收得下這種，PostHog 兩種都收。 */
@@ -93,13 +93,8 @@ function loadVendors() {
           api_host: posthogHost,
           // 這裡不設 SSR 相關的選項，因為不需要：整段 init 是在 hydration 完成之後
           // 的閒置時間才跑的（見 whenIdle），伺服器端那一輪根本不會走到這裡。
-          // 村里層光是 role="button" 的 <path> 就有幾千個（ElectionHomePage.tsx 的
-          // 村里 layer），autocapture 會把每一次點地圖都變成一筆高基數的雜訊事件，
-          // 也會把留言框的 textContent 一起記走。要量什麼由下面的事件表決定。
-          autocapture: false,
           capture_pageview: false,
           capture_pageleave: true,
-          disable_session_recording: true,
           disable_surveys: true,
           // 這個站沒有登入，也刻意不建立認得出人的檔案。'never' 是硬保證：
           // 以後有人手滑寫了 identify() 也建不出來（見下方 privacy 決策）。

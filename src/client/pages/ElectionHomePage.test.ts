@@ -4,16 +4,89 @@ import { buildRepresentativeContest } from '../map-shapes';
 import { getContests, getJurisdiction, getMockCandidates } from '../mock-election';
 import {
   getElectionViewsForMapLevel,
+  getMapParty,
+  getMapResultScale,
   getTownshipContestOptions,
   interpolateMapBounds,
+  paintAnimatedLast,
+  shouldAnimateMapResult,
   shouldImmediatelyFocusJurisdiction,
   shouldShowMapInspector,
-  shouldShowTownshipBoundaryPreview,
   shouldShowVillageBoundaryPreview,
 } from './ElectionHomePage';
 import { getPredictionMode } from '../../shared/prediction';
 
 describe('election home map behavior', () => {
+  it('paints the animated district above its neighbors', () => {
+    const paths = [{ id: 'first' }, { id: 'animated' }, { id: 'last' }];
+    expect(paintAnimatedLast(paths, 'animated', ({ id }) => id)).toEqual([
+      { id: 'first' },
+      { id: 'last' },
+      { id: 'animated' },
+    ]);
+  });
+
+  it('doubles the animated district at every map zoom level', () => {
+    expect(getMapResultScale()).toBe(2);
+  });
+
+  it('animates only the district whose forecast just changed', async () => {
+    const [source, styles] = await Promise.all([
+      readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8'),
+      readFile(new URL('../styles.css', import.meta.url), 'utf8'),
+    ]);
+
+    expect(source).toContain('setAnimatedContestId(activeContest.id)');
+    expect(source).toContain('shouldAnimateMapResult(previousMapCell, nextMapCell)');
+    expect(source).toContain("? 'map-result-changed' : ''");
+    expect(styles).toContain('@keyframes map-result-change');
+    expect(styles).toContain('map-result-change 2.5s');
+    expect(styles).toContain(
+      '54% {\n    filter: none;\n    transform: scale(var(--map-result-peak-scale))',
+    );
+    expect(styles).not.toContain('transform: translate(-3px');
+    expect(styles).toContain('62% {\n    animation-timing-function: step-start;');
+    expect(styles).toContain('63% {\n    filter: drop-shadow(0 0 2px');
+    expect(styles).toContain('drop-shadow(0 0 22px transparent)');
+    expect(source).toContain(
+      'setHeldMapCell({ contestId: activeContest.id, cell: previousMapCell })',
+    );
+    expect(source).toContain('setInspectorExpanded(!isDrawerLayout())');
+    expect(styles).toContain('brightness(5) saturate(0)');
+    expect(styles).toContain('.map-result-changed {\n    animation: none;');
+  });
+
+  it('animates only when an existing displayed leader changes party', () => {
+    const kmt = {
+      contestId: 'NTP-EXECUTIVE-1',
+      party: 'KMT',
+      percent: 50,
+      total: 2,
+    };
+    const dpp = { ...kmt, party: 'DPP', total: 3 };
+
+    expect(shouldAnimateMapResult(kmt, dpp)).toBe(true);
+    expect(shouldAnimateMapResult(kmt, { ...kmt, percent: 60, total: 3 })).toBe(false);
+    expect(shouldAnimateMapResult(undefined, dpp)).toBe(false);
+  });
+
+  it('uses one stable party color for a tied district without SVG effects', async () => {
+    const cell = {
+      contestId: 'NTP-EXECUTIVE-1',
+      party: 'DPP',
+      tiedParties: ['DPP', 'KMT'],
+      percent: 50,
+      total: 2,
+    };
+    const party = getMapParty(cell);
+    expect(cell.tiedParties).toContain(party);
+    expect(getMapParty(cell)).toBe(party);
+
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
+    expect(source).not.toContain('MapTiePatterns');
+    expect(source).not.toContain('<feTurbulence');
+  });
+
   it('renders a map before client-side SVG parsing finishes', async () => {
     const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
     expect(source).toContain('className="taiwan-map-static"');
@@ -34,16 +107,15 @@ describe('election home map behavior', () => {
     expect(shouldImmediatelyFocusJurisdiction('TPE')).toBe(false);
   });
 
-  it('shows district boundaries over a selected mainland county', () => {
-    expect(shouldShowTownshipBoundaryPreview('TPE', false)).toBe(true);
-    expect(shouldShowTownshipBoundaryPreview('TPE', true)).toBe(false);
-    expect(shouldShowTownshipBoundaryPreview('PEN', false)).toBe(false);
-    expect(shouldShowTownshipBoundaryPreview(null, false)).toBe(false);
+  it('does not preview township boundaries at county zoom', async () => {
+    const source = await readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8');
+    expect(source).not.toContain('township-boundary-preview');
   });
 
   it('shows village boundaries over a selected township until village mode starts', () => {
     expect(shouldShowVillageBoundaryPreview('township-1', false)).toBe(true);
     expect(shouldShowVillageBoundaryPreview('township-1', true)).toBe(false);
+    expect(shouldShowVillageBoundaryPreview('township-1', false, true)).toBe(false);
     expect(shouldShowVillageBoundaryPreview(null, false)).toBe(false);
   });
 
