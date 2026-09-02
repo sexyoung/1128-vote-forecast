@@ -14,6 +14,11 @@ export type Release = {
 
 export const releases: Release[] = [
   {
+    version: '0.1.5',
+    date: '2026-09-02',
+    changes: ['縣市預測總覽改為顯示各選區的即時統計，避免展示數字造成誤解。'],
+  },
+  {
     version: '0.1.4',
     date: '2026-09-01',
     changes: [
