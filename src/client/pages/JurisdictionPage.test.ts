@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vite-plus/test';
 import { getContests, getJurisdiction, jurisdictions } from '../mock-election';
 import { countLocalExecutiveDistricts, isLocalExecutiveTownship } from '../map-shapes';
-import { isViewAvailable, parseView, summariseArea } from './JurisdictionPage';
+import { isViewAvailable, parseView, summariseArea, sumPredictionTotals } from './JurisdictionPage';
 import { CandidateList, toCandidateRows } from './ElectionPrototypeShared';
 
 it('shows candidates with zero votes before anyone predicts', () => {
@@ -48,6 +48,29 @@ it('does not highlight a winner when every candidate has zero votes', () => {
 
   expect(html).toContain('民主進步黨');
   expect(html).not.toContain('winner');
+});
+
+describe('jurisdiction prediction total', () => {
+  it('adds only the API tally values and treats an unloaded or empty response as zero', () => {
+    expect(sumPredictionTotals()).toBe(0);
+    expect(sumPredictionTotals({})).toBe(0);
+    expect(
+      sumPredictionTotals({
+        'TPE-EXECUTIVE-1': {
+          totalPredictions: 2,
+          totalPicks: 2,
+          rows: [],
+          targets: [],
+        },
+        'TPE-COUNCIL-1': {
+          totalPredictions: 3,
+          totalPicks: 7,
+          rows: [],
+          targets: [],
+        },
+      }),
+    ).toBe(5);
+  });
 });
 
 it('stamps every candidate in a multi-seat prediction', () => {

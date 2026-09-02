@@ -78,6 +78,11 @@ export function usesShapeContests(view: ElectionView) {
   return view === 'TOWNSHIP' || view === 'REPRESENTATIVE' || view === 'VILLAGE';
 }
 
+/** 顯示在內頁頁首的總數必須來自實際的選區 tally，不能沿用原型展示數字。 */
+export function sumPredictionTotals(tallies?: Record<string, ContestListTally>) {
+  return Object.values(tallies ?? {}).reduce((total, tally) => total + tally.totalPredictions, 0);
+}
+
 // 直轄市與市的區長是官派，不是選出來的；縣才有鄉鎮市長與代表。
 export function isViewAvailable(jurisdiction: Jurisdiction, view: ElectionView) {
   // 直轄市沒有區長選舉，只有五個山地原住民區例外，見 map-shapes 的 indigenousDistricts。
@@ -276,6 +281,7 @@ export function JurisdictionPage() {
     queryKey: ['tallies', contestIds],
     queryFn: () => getContestTallies(contestIds),
   });
+  const totalPredictions = sumPredictionTotals(tallies.data?.tallies);
   const pending = (enabled && !state && !error) || (contestIds.length > 0 && tallies.isPending);
   const {
     loading: skeletonLoading,
@@ -291,7 +297,7 @@ export function JurisdictionPage() {
           <h1>{jurisdiction.name}</h1>
           <span className="page-tag">預測總覽</span>
           <span className="page-stat">
-            <strong>{(jurisdiction.forecasts * 3).toLocaleString()}</strong> 份預測
+            <strong>{totalPredictions.toLocaleString()}</strong> 份預測
           </span>
         </section>
         <SocialShare />
