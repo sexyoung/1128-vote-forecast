@@ -25,7 +25,7 @@ export function tallyKey(contestId: string) {
   return `snap:tally:${contestId}${candidateKey()}`;
 }
 
-export const candidateRankingsKey = () => `snap:rankings:candidates${candidateKey()}`;
+export const battlegroundRankingsKey = () => `snap:rankings:battlegrounds${candidateKey()}`;
 export const partyCountsKey = () => `snap:parties:counts${candidateKey()}`;
 export const publicAnnouncementKey = 'snap:announcement:public';
 export const candidateDataKey = 'data:candidates:gzip:v2';
@@ -39,7 +39,7 @@ export function keysAffectedBy(contestId: string, jurisdictionId: string) {
   return [
     contestKey(contestId),
     tallyKey(contestId),
-    candidateRankingsKey(),
+    battlegroundRankingsKey(),
     nationalKey(),
     ...contestTypes.map((type) => jurisdictionKey(jurisdictionId, type)),
   ];

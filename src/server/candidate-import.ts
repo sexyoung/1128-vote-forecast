@@ -6,7 +6,7 @@ import { refreshCandidates } from './prediction-targets.js';
 import { cacheDelete } from './redis.js';
 import {
   candidateDataKey,
-  candidateRankingsKey,
+  battlegroundRankingsKey,
   keysAffectedBy,
   partyCandidatesKey,
   partyCountsKey,
@@ -336,7 +336,7 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
 
   await cacheDelete(
     candidateDataKey,
-    candidateRankingsKey(),
+    battlegroundRankingsKey(),
     partyCountsKey(),
     ...parties.map(({ id }) => partyCandidatesKey(id)),
     ...plan.contestIds.flatMap((contestId) => {

@@ -96,8 +96,8 @@ describe('page metadata', () => {
       [
         '/rankings',
         '',
-        '2026 九合一選舉熱門候選人排行｜預測次數 Top 50｜九合一選舉預測',
-        '預測熱度',
+        '2026 九合一選舉激戰選區 Top 20｜預測票數最接近｜九合一選舉預測',
+        '預測票數最接近的 20 個單席選區',
       ],
     ] as const;
     for (const [path, query, title, description] of pages)
@@ -197,7 +197,7 @@ describe('page metadata', () => {
     });
   });
 
-  it('publishes candidate ranking metadata', () => {
+  it('publishes battleground ranking metadata', () => {
     expect(
       resolvePageMeta('/rankings', new URLSearchParams(), { origin, indexable: true }),
     ).toMatchObject({ status: 200, canonical: `${origin}/rankings` });

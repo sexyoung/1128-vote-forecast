@@ -9,8 +9,8 @@ import { getRegisteredContest } from '../src/server/contest-registry.js';
 import { prisma } from '../src/server/db.js';
 import { cacheDelete, disconnectRedis } from '../src/server/redis.js';
 import {
+  battlegroundRankingsKey,
   candidateDataKey,
-  candidateRankingsKey,
   keysAffectedBy,
   partyCandidatesKey,
   partyCountsKey,
@@ -183,7 +183,7 @@ async function invalidate(entries: Entry[]) {
   );
   await cacheDelete(
     candidateDataKey,
-    candidateRankingsKey(),
+    battlegroundRankingsKey(),
     partyCountsKey(),
     ...parties.map(({ id }) => partyCandidatesKey(id)),
     ...[...contests].flatMap((contestId) => {

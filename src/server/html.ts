@@ -16,7 +16,7 @@ import { readContestTallies } from './predictions.js';
 import { readContestSnapshot, readNationalMap } from './snapshots.js';
 import { env, seoIndexable } from './env.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
-import { listCandidateRankings } from './candidate-rankings.js';
+import { listBattlegroundRankings } from './candidate-rankings.js';
 import {
   renderCoreSitemap,
   renderHead,
@@ -228,8 +228,8 @@ export function mountHtmlRoutes<E extends Env>(app: Hono<E>, renderer: HtmlRende
   app.get('/rankings', async (c) =>
     send(c, [
       {
-        key: ['candidate-rankings'],
-        data: await listCandidateRankings(),
+        key: ['battleground-rankings'],
+        data: await listBattlegroundRankings(),
         updatedAt: Date.now(),
       },
     ]),

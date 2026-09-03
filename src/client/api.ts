@@ -81,14 +81,19 @@ export type PartyContestsPage = {
   }[];
 };
 
-export type CandidateRanking = {
+export type BattlegroundRanking = {
   rank: number;
-  id: string;
-  name: string;
-  photo: string | null;
-  party: { id: string; name: string; color: string };
   contest: ContestDetail['contest'];
-  predictionCount: number;
+  gapPercent: number;
+  totalPredictions: number;
+  candidates: {
+    id: string;
+    name: string;
+    photo: string | null;
+    party: { id: string; name: string; color: string };
+    predictionCount: number;
+    predictionPercent: number;
+  }[];
 };
 
 export type MapCell = {
@@ -205,8 +210,8 @@ export const getPartyCandidateCounts = () =>
     >;
   }>('/api/parties');
 
-export const getCandidateRankings = () =>
-  request<{ candidates: CandidateRanking[] }>('/api/rankings/candidates');
+export const getBattlegroundRankings = () =>
+  request<{ contests: BattlegroundRanking[] }>('/api/rankings/battlegrounds');
 
 export const searchCandidateNames = (query: string) =>
   request<{

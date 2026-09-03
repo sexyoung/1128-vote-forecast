@@ -28,7 +28,7 @@ import { describeTarget, refreshCandidates } from './prediction-targets.js';
 import { cacheDelete, pingRedis } from './redis.js';
 import { refreshCandidateVisibility, saveCandidateVisibility } from './site-settings.js';
 import {
-  candidateRankingsKey,
+  battlegroundRankingsKey,
   commentsKey,
   keysAffectedBy,
   partyCandidatesKey,
@@ -546,7 +546,7 @@ async function invalidateCandidatePredictions(
 async function refreshCandidateAdminCaches(contestIds: string[], partyIds: (string | null)[]) {
   await refreshCandidates(true);
   await cacheDelete(
-    candidateRankingsKey(),
+    battlegroundRankingsKey(),
     partyCountsKey(),
     ...[...new Set(partyIds.map((partyId) => partyId ?? 'IND'))].map(partyCandidatesKey),
     ...[...new Set(contestIds)].flatMap((contestId) => {

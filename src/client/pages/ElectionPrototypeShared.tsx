@@ -251,7 +251,7 @@ export function HeaderNav() {
       </NavLink>
       <NavLink to="/rankings">
         <Icon name="spark" />
-        排行
+        激戰
       </NavLink>
       <NavLink to="/mine">
         <Icon name="vote" />
@@ -279,7 +279,7 @@ function MobileNav() {
       </NavLink>
       <NavLink to="/rankings">
         <Icon name="spark" />
-        <span>排行</span>
+        <span>激戰</span>
       </NavLink>
       <NavLink to="/mine">
         <Icon name="vote" />
@@ -307,7 +307,7 @@ export function PageShell() {
           'contest',
           'tallies',
           'map',
-          'candidate-rankings',
+          'battleground-rankings',
           'party-counts',
           'party-contests',
           'trend',

@@ -1,48 +1,118 @@
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
-import { getCandidateRankings } from '../api';
-import { useDocumentTitle } from '../use-document-title';
+import { type BattlegroundRanking, getBattlegroundRankings } from '../api';
 import { SocialShare } from '../SocialShare';
+import { useDocumentTitle } from '../use-document-title';
 import { CandidatePhoto, Icon } from './ElectionPrototypeShared';
 import { SkeletonSwap } from './SkeletonSwap';
-import { summariseArea } from '../../shared/area';
-import { VirtualWindowList } from './VirtualWindowList';
 
-const typeLabels = {
-  EXECUTIVE: '縣市長',
-  COUNCIL: '議員',
-  TOWNSHIP: '鄉鎮市長',
-  REPRESENTATIVE: '代表',
-  VILLAGE: '村里長',
-};
+type RankedCandidate = BattlegroundRanking['candidates'][number];
 
-// 沿用真實列的 class（candidate-ranking-list／-number／-avatar／-person／-score），
-// 只把文字換成灰條，尺寸就由同一套 CSS 決定。連 li:nth-child(-n+4) 前四名跨滿
-// 整列那條規則都會自動套用，骨架的版型跟真的一模一樣。
-//
-// 列用 <a> 而不是 <div>：版面規則掛在 `.candidate-ranking-list > li > a` 上，
-// 換成別的標籤就拿不到那個 grid。沒有 href 不可聚焦，骨架層本身又是
-// aria-hidden + pointer-events: none，不會被點到也不會被讀出來。
+function CandidateAvatar({ candidate }: { candidate: RankedCandidate }) {
+  return (
+    <i
+      className="battle-candidate-avatar"
+      style={{ '--candidate-color': candidate.party.color } as CSSProperties}
+    >
+      <CandidatePhoto photo={candidate.photo} />
+    </i>
+  );
+}
+
+function CandidateEndpoint({ candidate }: { candidate: RankedCandidate }) {
+  return (
+    <span className="battle-candidate-endpoint">
+      <CandidateAvatar candidate={candidate} />
+      <span>
+        <strong>{candidate.name}</strong>
+        <small>{candidate.party.name}</small>
+      </span>
+    </span>
+  );
+}
+
+export function getCandidateMarkerPosition(
+  candidates: RankedCandidate[],
+  candidateIndex: number,
+  totalPredictions: number,
+) {
+  const before = candidates
+    .slice(0, candidateIndex)
+    .reduce((total, candidate) => total + candidate.predictionCount, 0);
+  return ((before + candidates[candidateIndex].predictionCount / 2) / totalPredictions) * 100;
+}
+
+function BattlegroundBar({ ranking }: { ranking: BattlegroundRanking }) {
+  const first = ranking.candidates[0]!;
+  const last = ranking.candidates.at(-1)!;
+  return (
+    <div className="battle-matchup">
+      <CandidateEndpoint candidate={first} />
+      <div
+        aria-label={ranking.candidates
+          .map(({ name, predictionPercent }) => `${name} ${predictionPercent}%`)
+          .join('、')}
+        className="battle-bar-wrap"
+      >
+        <span className="battle-color-bar">
+          {ranking.candidates.map((candidate) => (
+            <i
+              key={candidate.id}
+              style={{ background: candidate.party.color, flexGrow: candidate.predictionCount }}
+              title={`${candidate.name} ${candidate.predictionPercent}% · ${candidate.predictionCount.toLocaleString()} 票`}
+            >
+              <span>
+                {candidate.predictionPercent}% · {candidate.predictionCount.toLocaleString()} 票
+              </span>
+            </i>
+          ))}
+        </span>
+        {ranking.candidates.slice(1, -1).map((candidate, index) => (
+          <span
+            className="battle-middle-candidate"
+            key={candidate.id}
+            style={
+              {
+                '--battle-marker-left': `${getCandidateMarkerPosition(
+                  ranking.candidates,
+                  index + 1,
+                  ranking.totalPredictions,
+                )}%`,
+              } as CSSProperties
+            }
+          >
+            <CandidateAvatar candidate={candidate} />
+            <strong>{candidate.name}</strong>
+            <small>{candidate.party.name}</small>
+          </span>
+        ))}
+      </div>
+      <CandidateEndpoint candidate={last} />
+    </div>
+  );
+}
+
 function RankingListSkeleton({ count }: { count: number }) {
   return (
-    <ol className="candidate-ranking-list">
+    <ol className="candidate-ranking-list battle-ranking-list">
       {Array.from({ length: count }, (_, index) => (
-        // biome-ignore lint/a11y/useValidAnchor: 骨架沒有目的地，見上方註解
         <li key={index}>
-          <a>
-            <b className="skel-bar skel-ranking-rank" />
-            <i className="candidate-ranking-avatar" />
-            <span className="candidate-ranking-person">
-              <strong className="skel-bar skel-ranking-name" />
-              <small className="skel-bar skel-ranking-party" />
-              <span className="skel-bar skel-ranking-meta" />
-            </span>
-            <span className="candidate-ranking-score">
-              <strong className="skel-bar skel-ranking-score" />
-              <small className="skel-bar skel-ranking-unit" />
-            </span>
-            <span />
+          {/* biome-ignore lint/a11y/useValidAnchor: 不可互動的載入骨架 */}
+          <a className="battle-ranking-card">
+            <header className="battle-ranking-heading">
+              <b className="skel-bar skel-ranking-rank" />
+              <span>
+                <strong className="skel-bar skel-ranking-name" />
+              </span>
+              <div className="battle-matchup">
+                <i className="skel-bar battle-candidate-avatar" />
+                <span className="battle-bar-wrap">
+                  <i className="skel-bar battle-color-bar" />
+                </span>
+                <i className="skel-bar battle-candidate-avatar" />
+              </div>
+            </header>
           </a>
         </li>
       ))}
@@ -52,64 +122,44 @@ function RankingListSkeleton({ count }: { count: number }) {
 
 export function CandidateRankingsPage() {
   const rankings = useQuery({
-    queryKey: ['candidate-rankings'],
-    queryFn: getCandidateRankings,
+    queryKey: ['battleground-rankings'],
+    queryFn: getBattlegroundRankings,
   });
-  useDocumentTitle('熱門候選人排行｜預測次數 Top 50｜九合一選舉預測');
+  useDocumentTitle('2026 九合一選舉激戰選區 Top 20｜預測票數最接近｜九合一選舉預測');
 
   return (
-    <>
-      <main className="page">
-        <nav className="breadcrumbs" aria-label="麵包屑">
-          <strong>排行</strong>
-        </nav>
-        <section className="page-heading">
-          <h1>熱門候選人</h1>
-          <span className="page-tag">預測次數前 50 名</span>
-          <span className="page-stat">目前 {rankings.data?.candidates.length ?? '—'} 位</span>
-        </section>
-        <SocialShare />
-        <SkeletonSwap pending={rankings.isPending} skeleton={<RankingListSkeleton count={8} />}>
-          {rankings.isPending ? null : rankings.data?.candidates.length ? (
-            <VirtualWindowList
-              as="ol"
-              className="candidate-ranking-list"
-              estimateSize={84}
-              gap={9}
-              getKey={(candidate) => candidate.id}
-              items={rankings.data.candidates}
-              renderItem={(candidate, _index, virtual) => (
-                <li {...(virtual ?? {})} key={candidate.id}>
-                  <Link to={`/contest/${candidate.contest.id}`}>
-                    <b className="candidate-ranking-number">{candidate.rank}</b>
-                    <i
-                      className="candidate-ranking-avatar"
-                      style={{ '--candidate-color': candidate.party.color } as CSSProperties}
-                    >
-                      <CandidatePhoto photo={candidate.photo} />
-                    </i>
-                    <span className="candidate-ranking-person">
-                      <strong>{candidate.name}</strong>
-                      <small>{candidate.party.name}</small>
-                      <span>
-                        {typeLabels[candidate.contest.type]} · {candidate.contest.name} ·{' '}
-                        {summariseArea(candidate.contest.area)}
-                      </span>
+    <main className="page">
+      <nav className="breadcrumbs" aria-label="麵包屑">
+        <strong>激戰選區</strong>
+      </nav>
+      <section className="page-heading">
+        <h1>激戰選區</h1>
+        <span className="page-tag">第一、二名差距最小 Top 20</span>
+        <span className="page-stat">目前 {rankings.data?.contests.length ?? '—'} 個選區</span>
+      </section>
+      <SocialShare />
+      <SkeletonSwap pending={rankings.isPending} skeleton={<RankingListSkeleton count={6} />}>
+        {rankings.isPending ? null : rankings.data?.contests.length ? (
+          <ol className="candidate-ranking-list battle-ranking-list">
+            {rankings.data.contests.map((ranking) => (
+              <li key={ranking.contest.id}>
+                <Link className="battle-ranking-card" to={`/contest/${ranking.contest.id}`}>
+                  <header className="battle-ranking-heading">
+                    <b className="candidate-ranking-number">{ranking.rank}</b>
+                    <span>
+                      <strong>{ranking.contest.name}</strong>
                     </span>
-                    <span className="candidate-ranking-score">
-                      <strong>{candidate.predictionCount.toLocaleString()}</strong>
-                      <small>次預測</small>
-                    </span>
+                    <BattlegroundBar ranking={ranking} />
                     <Icon name="chevron" />
-                  </Link>
-                </li>
-              )}
-            />
-          ) : (
-            <p className="view-note">目前還沒有候選人獲得預測。</p>
-          )}
-        </SkeletonSwap>
-      </main>
-    </>
+                  </header>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="view-note">目前還沒有足夠的單席選區預測可供比較。</p>
+        )}
+      </SkeletonSwap>
+    </main>
   );
 }

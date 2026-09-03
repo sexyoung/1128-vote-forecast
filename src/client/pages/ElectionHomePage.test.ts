@@ -9,6 +9,8 @@ import {
   getTownshipContestOptions,
   interpolateMapBounds,
   paintAnimatedLast,
+  predictionBubbleSize,
+  randomPointInPath,
   shouldAnimateMapResult,
   shouldImmediatelyFocusJurisdiction,
   shouldShowMapInspector,
@@ -17,6 +19,46 @@ import {
 import { getPredictionMode } from '../../shared/prediction';
 
 describe('election home map behavior', () => {
+  it('keeps the busiest collected candidate at the current bubble size', () => {
+    expect(predictionBubbleSize(4, 4)).toBe(56);
+    expect(predictionBubbleSize(1, 4)).toBe(38);
+  });
+
+  it('places a prediction bubble inside the county path', () => {
+    const values = [0.1, 0.5, 0.8, 0.25];
+    const point = randomPointInPath(
+      {
+        getBBox: () => ({ x: 0, y: 0, width: 10, height: 10 }),
+        isPointInFill: ({ x = 0 }) => x > 5,
+      },
+      () => values.shift() ?? 0,
+    );
+
+    expect(point).toEqual({ x: 8, y: 2.5 });
+  });
+
+  it('shows live prediction photos only on their county map path', async () => {
+    const [source, styles] = await Promise.all([
+      readFile(new URL('./ElectionHomePage.tsx', import.meta.url), 'utf8'),
+      readFile(new URL('../styles.css', import.meta.url), 'utf8'),
+    ]);
+
+    expect(source).toContain("new EventSource('/api/prediction-events')");
+    expect(source).toContain('pathRefs.current[candidate.jurisdictionId]');
+    expect(source).toContain('className="map-prediction-bubbles"');
+    expect(source).toContain('const key = `${event.jurisdictionId}:${bubble.targetId}`');
+    expect(source).toContain('window.setTimeout(flushPredictionBubbles, 400)');
+    expect(source).toContain('height: bubble.size');
+    expect(styles).toContain('@keyframes prediction-bubble');
+    expect(source).toContain('className="map-prediction-color-flash"');
+    expect(source).toContain('fill={`color-mix(in srgb, ${bubble.color} 35%, white)`}');
+    expect(source).not.toContain('<radialGradient');
+    expect(source).toContain('requestAnimationFrame(followMap)');
+    expect(source).toContain('pathRefs.current[bubble.jurisdictionId]?.getScreenCTM()');
+    expect(styles).toContain('@keyframes map-prediction-color-flash');
+    expect(styles).toContain('opacity: 0.78');
+  });
+
   it('paints the animated district above its neighbors', () => {
     const paths = [{ id: 'first' }, { id: 'animated' }, { id: 'last' }];
     expect(paintAnimatedLast(paths, 'animated', ({ id }) => id)).toEqual([

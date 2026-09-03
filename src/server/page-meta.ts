@@ -166,11 +166,11 @@ export function resolvePageMeta(
 
   if (pathname === '/rankings')
     return finish({
-      title: `2026 九合一選舉熱門候選人排行｜預測次數 Top 50｜${siteName}`,
+      title: `2026 九合一選舉激戰選區 Top 20｜預測票數最接近｜${siteName}`,
       description:
-        '依群眾預測次數排列 2026 九合一選舉目前最受關注的 50 位候選人，查看政黨、參選職位、選區與預測熱度。',
-      ogTitle: '2026 九合一選舉熱門候選人 Top 50',
-      ogDescription: '查看目前預測次數最高的 50 位候選人，以及各自的政黨、參選職位與選區。',
+        '整理 2026 九合一選舉第一、二名預測票數最接近的 20 個單席選區，查看各候選人的政黨、預測票數與佔比。',
+      ogTitle: '2026 九合一選舉激戰選區 Top 20',
+      ogDescription: '第一、二名預測票數最接近的單席選區排行，查看各候選人的政黨、票數與佔比。',
       canonical: absolute(origin, '/rankings'),
       robots: indexRobots,
       status: 200,
@@ -404,7 +404,7 @@ export function renderLlmsText(origin: string) {
 - [全臺選情地圖](${absolute(origin, '/')}): 全臺各類地方選舉的入口與群眾預測概況。
 - [縣市長選情總覽](${absolute(origin, '/regions')}): 全臺 22 縣市的縣市長候選人與預測分布。
 - [政黨候選人總覽](${absolute(origin, '/parties')}): 依政黨、行政區與參選職位瀏覽候選人。
-- [熱門候選人排行](${absolute(origin, '/rankings')}): 依群眾預測次數排列的候選人 Top 50。
+- [激戰選區排行](${absolute(origin, '/rankings')}): 第一、二名預測差距最小的單席選區 Top 20。
 
 ## 規則與索引
 

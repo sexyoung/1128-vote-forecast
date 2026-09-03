@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type CSSProperties,
   useEffect,
@@ -66,6 +66,38 @@ type MapPinchState = {
 };
 type CountyShape = { id: string; name: string; path: string };
 type CountyLayer<Shape> = { locationId: string; shapes: Shape[] };
+type MapPredictionBubble = {
+  id: number;
+  color: string;
+  photo: string;
+  size: number;
+  targetId: string;
+  jurisdictionId: string;
+  shape: string;
+  x: number;
+  y: number;
+  left: number;
+  top: number;
+};
+
+export function predictionBubbleSize(count: number, maxCount: number) {
+  return 32 + 24 * (count / Math.max(1, maxCount));
+}
+
+export function randomPointInPath(
+  path: {
+    getBBox: () => { x: number; y: number; width: number; height: number };
+    isPointInFill: (point: DOMPointInit) => boolean;
+  },
+  random = Math.random,
+) {
+  const box = path.getBBox();
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const point = { x: box.x + random() * box.width, y: box.y + random() * box.height };
+    if (path.isPointInFill(point)) return point;
+  }
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
 
 // 開場就把整張畫布放進來：臺灣本島在 x 184–836，澎湖、金門、馬祖在圖資裡是
 // 投影在左側 x 18–158 那一欄，寬度要涵蓋兩邊才會一起出現。
@@ -590,6 +622,7 @@ function MapInspector({
 
 export function ElectionHomePage() {
   useDocumentTitle('九合一選舉預測｜2026.11.28 全臺 22 縣市預測地圖');
+  const queryClient = useQueryClient();
   const [selectedJurisdiction, setSelectedJurisdiction] = useState<Jurisdiction | null>(null);
   const [selectedContest, setSelectedContest] = useState<Contest | null>(null);
   const [detailMode, setDetailMode] = useState(false);
@@ -616,6 +649,7 @@ export function ElectionHomePage() {
   const [townshipLayer, setTownshipLayer] = useState<CountyLayer<TownshipShape> | null>(null);
   const [villageLayer, setVillageLayer] = useState<CountyLayer<VillageShape> | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [predictionBubbles, setPredictionBubbles] = useState<MapPredictionBubble[]>([]);
   const [insetAnchors, setInsetAnchors] = useState<Record<string, { left: number; top: number }>>(
     {},
   );
@@ -639,6 +673,110 @@ export function ElectionHomePage() {
   const multiTouchRef = useRef(false);
   const suppressClickRef = useRef(false);
   const mapFocusAnimationRef = useRef<number | null>(null);
+  const nextBubbleIdRef = useRef(0);
+
+  useEffect(() => {
+    const source = new EventSource('/api/prediction-events');
+    const timers = new Set<number>();
+    const pending = new Map<
+      string,
+      { color: string; count: number; jurisdictionId: string; photo: string; targetId: string }
+    >();
+    let collectionTimer: number | null = null;
+
+    const flushPredictionBubbles = () => {
+      collectionTimer = null;
+      const candidates = [...pending.values()];
+      pending.clear();
+      const stage = mapStageRef.current;
+      if (!stage || !candidates.length) return;
+
+      const stageBox = stage.getBoundingClientRect();
+      const maxCount = Math.max(...candidates.map(({ count }) => count));
+      const next: MapPredictionBubble[] = [];
+      for (const candidate of candidates) {
+        const path = pathRefs.current[candidate.jurisdictionId];
+        const matrix = path?.getScreenCTM();
+        if (!path || !matrix) continue;
+        const point = randomPointInPath(path);
+        const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        next.push({
+          ...candidate,
+          id: nextBubbleIdRef.current++,
+          shape: path.getAttribute('d') ?? '',
+          size: predictionBubbleSize(candidate.count, maxCount),
+          x: point.x,
+          y: point.y,
+          left: screenPoint.x - stageBox.left,
+          top: screenPoint.y - stageBox.top,
+        });
+      }
+      if (!next.length) return;
+
+      const ids = next.map(({ id }) => id);
+      setPredictionBubbles((current) => [...current, ...next]);
+      const timer = window.setTimeout(
+        () => {
+          setPredictionBubbles((current) => current.filter(({ id }) => !ids.includes(id)));
+          timers.delete(timer);
+        },
+        2200 + next.length * 80,
+      );
+      timers.add(timer);
+    };
+
+    source.addEventListener('prediction', (message) => {
+      const event = JSON.parse((message as MessageEvent).data) as {
+        contestId: string;
+        jurisdictionId: string;
+        bubbles: { color: string; photo: string; targetId: string }[];
+      };
+      for (const bubble of event.bubbles) {
+        const key = `${event.jurisdictionId}:${bubble.targetId}`;
+        const collected = pending.get(key);
+        if (collected) collected.count += 1;
+        else pending.set(key, { ...bubble, count: 1, jurisdictionId: event.jurisdictionId });
+      }
+      if (event.bubbles.length && collectionTimer === null)
+        collectionTimer = window.setTimeout(flushPredictionBubbles, 400);
+      void queryClient.invalidateQueries({ queryKey: ['map'] });
+      void queryClient.invalidateQueries({ queryKey: ['contest', event.contestId] });
+    });
+    return () => {
+      source.close();
+      if (collectionTimer !== null) window.clearTimeout(collectionTimer);
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!predictionBubbles.length) return;
+    let frame = 0;
+    const followMap = () => {
+      const stage = mapStageRef.current;
+      if (stage) {
+        const stageBox = stage.getBoundingClientRect();
+        setPredictionBubbles((current) => {
+          let changed = false;
+          const next = current.map((bubble) => {
+            const matrix = pathRefs.current[bubble.jurisdictionId]?.getScreenCTM();
+            if (!matrix) return bubble;
+            const point = new DOMPoint(bubble.x, bubble.y).matrixTransform(matrix);
+            const left = point.x - stageBox.left;
+            const top = point.y - stageBox.top;
+            if (Math.abs(left - bubble.left) < 0.1 && Math.abs(top - bubble.top) < 0.1)
+              return bubble;
+            changed = true;
+            return { ...bubble, left, top };
+          });
+          return changed ? next : current;
+        });
+      }
+      frame = window.requestAnimationFrame(followMap);
+    };
+    frame = window.requestAnimationFrame(followMap);
+    return () => window.cancelAnimationFrame(frame);
+  }, [predictionBubbles.length]);
 
   useEffect(() => {
     if (!animatedContestId) return;
@@ -1318,6 +1456,24 @@ export function ElectionHomePage() {
         className={`map-app ${activeContest ? 'has-selection' : ''} ${detailMode ? 'detail-mode' : ''} ${townshipFocus ? 'township-focus' : ''} ${activeContestOptions.length > 1 ? 'has-switch' : ''}`}
       >
         <section className={`map-stage ${searchOpen ? 'search-open' : ''}`} ref={mapStageRef}>
+          <div aria-hidden="true" className="map-prediction-bubbles">
+            {predictionBubbles.map((bubble) => (
+              <span
+                key={bubble.id}
+                style={
+                  {
+                    '--prediction-bubble-color': bubble.color,
+                    height: bubble.size,
+                    left: bubble.left,
+                    top: bubble.top,
+                    width: bubble.size,
+                  } as CSSProperties
+                }
+              >
+                <img alt="" src={bubble.photo} />
+              </span>
+            ))}
+          </div>
           <SocialShare className="map-share" />
           <div className="map-floating-top">
             <div className="map-context" aria-label={`目前顯示${mapLevelLabel}預測`}>
@@ -1606,6 +1762,15 @@ export function ElectionHomePage() {
                 })}
               </g>
             )}
+
+            {predictionBubbles.map((bubble) => (
+              <path
+                className="map-prediction-color-flash"
+                d={bubble.shape}
+                fill={`color-mix(in srgb, ${bubble.color} 35%, white)`}
+                key={bubble.id}
+              />
+            ))}
           </svg>
 
           {mapError && (

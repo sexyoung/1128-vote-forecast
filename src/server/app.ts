@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { streamSSE } from 'hono/streaming';
 import { adminApp } from './admin.js';
 import { getPublicAnnouncement } from './announcement.js';
 import { prisma } from './db.js';
@@ -25,14 +26,15 @@ import { fileReport, parseReportReason, parseReportTarget } from './moderation.j
 import { cacheDelete, hitCounter } from './redis.js';
 import { commentsKey } from './snapshot-keys.js';
 import { ensureHuman, isHumanVerified } from './turnstile.js';
-import { candidateParties } from '../shared/candidates.js';
+import { candidateParties, getParty, type PartyId } from '../shared/candidates.js';
 import {
   CandidateContributionRejected,
   createCandidateContribution,
 } from './candidate-contributions.js';
 import { listPartyCandidateCounts, listPartyContests } from './party-contests.js';
-import { listCandidateRankings } from './candidate-rankings.js';
+import { listBattlegroundRankings } from './candidate-rankings.js';
 import { searchCandidateNames } from './candidate-search.js';
+import { publishPrediction, subscribeToPredictions } from './prediction-events.js';
 import {
   candidateVisibilityCacheKey,
   isVisibleCandidateId,
@@ -69,6 +71,31 @@ app.use('/api/*', (c, next) =>
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'vote-forecast-api' }));
 
+app.get('/api/prediction-events', (c) =>
+  streamSSE(c, async (stream) => {
+    const events: Parameters<typeof publishPrediction>[0][] = [];
+    let wake: (() => void) | null = null;
+    const unsubscribe = subscribeToPredictions((event) => {
+      events.push(event);
+      wake?.();
+      wake = null;
+    });
+    stream.onAbort(() => {
+      unsubscribe();
+      wake?.();
+    });
+    try {
+      while (!stream.aborted) {
+        if (!events.length) await new Promise<void>((resolve) => (wake = resolve));
+        const event = events.shift();
+        if (event) await stream.writeSSE({ data: JSON.stringify(event), event: 'prediction' });
+      }
+    } finally {
+      unsubscribe();
+    }
+  }),
+);
+
 /** 沒有公告或還沒發布都回 null，草稿內容永遠不會流到這裡。 */
 app.get('/api/announcement', async (c) => {
   c.header('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');
@@ -103,12 +130,13 @@ function isPublicRead(path: string, method: string) {
   if (method !== 'GET') return false;
   return (
     path === '/api/announcement' ||
+    path === '/api/prediction-events' ||
     path === '/api/settings/candidate-visibility' ||
     path === '/api/map/national' ||
     path.startsWith('/api/map/') ||
     path === '/api/parties' ||
     /^\/api\/parties\/[^/]+\/contests$/.test(path) ||
-    path === '/api/rankings/candidates' ||
+    path === '/api/rankings/battlegrounds' ||
     path === '/api/search/candidates' ||
     path === '/api/contests' ||
     /^\/api\/contests\/[^/]+\/(trend|comments)$/.test(path)
@@ -186,7 +214,7 @@ app.get('/api/map/:jurisdictionId', async (c) => {
 
 app.get('/api/parties', async (c) => c.json(await listPartyCandidateCounts()));
 
-app.get('/api/rankings/candidates', async (c) => c.json(await listCandidateRankings()));
+app.get('/api/rankings/battlegrounds', async (c) => c.json(await listBattlegroundRankings()));
 
 /** 真候選人姓名從資料庫搜尋；靜態前端索引不可能知道最新匯入的正式名單。 */
 app.get('/api/search/candidates', async (c) => {
@@ -317,6 +345,22 @@ app.post('/api/contests/:contestId/prediction', async (c) => {
 
   try {
     const { created } = await savePrediction(forecaster.id, contest, targetIds as string[]);
+    publishPrediction({
+      contestId: contest.id,
+      jurisdictionId: contest.jurisdictionId,
+      bubbles: targetIds.flatMap((id) => {
+        const target = getPredictionTargets(contest).find(({ targetId }) => targetId === id);
+        return target?.photo
+          ? [
+              {
+                color: getParty((target.partyId ?? 'IND') as PartyId).color,
+                photo: target.photo,
+                targetId: target.targetId,
+              },
+            ]
+          : [];
+      }),
+    });
     return c.json(
       {
         mine: await readMyPrediction(forecaster.id, contest.id),

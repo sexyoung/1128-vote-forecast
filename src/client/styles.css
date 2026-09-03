@@ -1274,13 +1274,10 @@ a:focus-visible {
 .candidate-ranking-list {
   display: grid;
   gap: 9px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   list-style: none;
   margin: 0;
   padding: 0;
-}
-.candidate-ranking-list > li:nth-child(-n + 4) {
-  grid-column: 1 / -1;
 }
 .candidate-ranking-list > li > a {
   align-items: center;
@@ -1361,6 +1358,146 @@ a:focus-visible {
   font-family: Georgia, serif;
   font-size: 20px;
   font-weight: 500;
+}
+.candidate-ranking-list > li > .battle-ranking-card {
+  display: block;
+  padding: 10px 18px;
+}
+.battle-ranking-heading {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 36px minmax(120px, 0.45fr) minmax(420px, 1.55fr) 20px;
+}
+.battle-ranking-heading > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.battle-ranking-heading > span:nth-child(2) > strong {
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 19px;
+  font-weight: 500;
+}
+.battle-ranking-heading small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.battle-matchup {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(88px, 132px) minmax(150px, 1fr) minmax(88px, 132px);
+  margin: 0;
+}
+.battle-candidate-endpoint {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  min-width: 0;
+}
+.battle-candidate-endpoint:last-child {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.battle-candidate-endpoint > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.battle-candidate-endpoint strong,
+.battle-middle-candidate strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-candidate-endpoint small,
+.battle-middle-candidate small {
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.battle-candidate-avatar {
+  align-items: center;
+  background: #e4e3de;
+  border: 3px solid var(--candidate-color);
+  border-radius: 50%;
+  color: #818883;
+  display: flex;
+  flex: 0 0 54px;
+  height: 54px;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 54px;
+  z-index: 2;
+}
+.battle-candidate-avatar img {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
+}
+.battle-candidate-avatar .icon {
+  height: 24px;
+  width: 24px;
+}
+.battle-bar-wrap {
+  min-height: 78px;
+  position: relative;
+}
+.battle-color-bar {
+  background: #deddd8;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(31 43 39 / 8%);
+  display: flex;
+  height: 30px;
+  left: 0;
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  top: 24px;
+}
+.battle-color-bar > i {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
+  white-space: nowrap;
+}
+.battle-color-bar > i > span {
+  overflow: hidden;
+  padding: 0 4px;
+  text-overflow: ellipsis;
+}
+.battle-middle-candidate {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  left: var(--battle-marker-left);
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 82px;
+  z-index: 2;
+}
+.battle-middle-candidate .battle-candidate-avatar {
+  flex-basis: 50px;
+  height: 50px;
+  width: 50px;
+}
+.battle-middle-candidate strong {
+  margin-top: 2px;
+  max-width: 100%;
 }
 .feature-score {
   font-family: Georgia, serif;
@@ -2376,6 +2513,57 @@ a:focus-visible {
   overflow: hidden;
   padding: 28px 28px 0;
   width: 40vw;
+}
+
+.map-prediction-bubbles {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 11;
+}
+.map-prediction-bubbles span {
+  animation: prediction-bubble 1.8s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  background: var(--card);
+  border: 3px solid var(--prediction-bubble-color);
+  border-radius: 50%;
+  box-shadow: 0 12px 30px rgb(16 25 21 / 28%);
+  height: 56px;
+  position: absolute;
+  width: 56px;
+}
+.map-prediction-bubbles img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.map-prediction-color-flash {
+  animation: map-prediction-color-flash 1.4s ease-in-out 0.12s both;
+  pointer-events: none;
+}
+@keyframes map-prediction-color-flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.78;
+  }
+}
+@keyframes prediction-bubble {
+  0% {
+    transform: translate(-50%, -50%) scale(0.75);
+  }
+  12% {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  20%,
+  65% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0);
+  }
 }
 @keyframes slide-in {
   from {
@@ -3752,6 +3940,70 @@ a:focus-visible {
   .candidate-ranking-list {
     grid-template-columns: 1fr;
   }
+  .candidate-ranking-list > li > .battle-ranking-card {
+    padding: 8px 9px;
+  }
+  .battle-ranking-heading {
+    gap: 6px;
+    grid-template-columns: 20px 52px minmax(0, 1fr);
+  }
+  .battle-ranking-heading > .icon {
+    display: none;
+  }
+  .battle-ranking-heading > span:nth-child(2) > strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .battle-ranking-heading > span:nth-child(2) > small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .battle-matchup {
+    gap: 3px;
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+  }
+  .battle-candidate-endpoint,
+  .battle-candidate-endpoint:last-child {
+    flex-direction: column;
+    gap: 3px;
+    text-align: center;
+  }
+  .battle-candidate-endpoint > span {
+    display: none;
+  }
+  .battle-candidate-avatar {
+    flex-basis: 34px;
+    height: 34px;
+    width: 34px;
+  }
+  .battle-middle-candidate {
+    width: 38px;
+  }
+  .battle-middle-candidate .battle-candidate-avatar {
+    flex-basis: 30px;
+    height: 30px;
+    width: 30px;
+  }
+  .battle-middle-candidate strong,
+  .battle-middle-candidate small {
+    display: none;
+  }
+  .battle-bar-wrap {
+    min-height: 48px;
+  }
+  .battle-color-bar {
+    height: 26px;
+    top: 11px;
+  }
+  .battle-color-bar > i {
+    font-size: 8px;
+  }
+  .battle-color-bar > i > span {
+    padding: 0 2px;
+  }
   .council-contest-card .candidate-list li.winner {
     display: grid;
   }
@@ -5077,6 +5329,9 @@ a:focus-visible {
   border-color: #e4e1da;
   height: 56px;
   width: 56px;
+}
+.t-skel-skeleton .battle-candidate-avatar {
+  border-color: #e4e1da;
 }
 /* 排行榜一列裡的五個欄位。高度照真的字級抓（名次 22px、姓名 19px、其餘 12px），
    間距用 margin 而不是 gap——person 與 score 兩欄是 flex column，真的那邊也是
