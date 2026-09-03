@@ -1,7 +1,7 @@
-import { Suspense, lazy, useEffect, useLayoutEffect } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Component, type ReactNode, Suspense, lazy, useEffect, useLayoutEffect } from 'react';
+import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { AnnouncementModal } from './AnnouncementModal';
-import { usePageViews } from './analytics';
+import { captureException, usePageViews } from './analytics';
 import { ContestPage } from './pages/ContestPage';
 import { ElectionHomePage } from './pages/ElectionHomePage';
 import { JurisdictionPage } from './pages/JurisdictionPage';
@@ -63,35 +63,75 @@ function ScrollToTop() {
   return null;
 }
 
+// render 一炸就整頁空白，而且沒有 $exception 看得到（見 analytics 的 captureException）。
+// 錯誤邊界把空白換成看得懂的畫面，並把例外送出去。
+class ErrorBoundary extends Component<
+  { children: ReactNode; resetKey: string },
+  { failed: boolean; resetKey: string }
+> {
+  state = { failed: false, resetKey: this.props.resetKey };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  static getDerivedStateFromProps(props: { resetKey: string }, state: { resetKey: string }) {
+    // 換頁時歸零，讓使用者走得出壞掉的那一頁，不用重新整理。
+    if (props.resetKey !== state.resetKey) return { failed: false, resetKey: props.resetKey };
+    return null;
+  }
+
+  componentDidCatch(error: unknown, info: { componentStack?: string | null }) {
+    captureException(error, { componentStack: info.componentStack ?? undefined });
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <main className="page">
+        <section className="page-heading">
+          <h1>這一頁出了點問題</h1>
+          <Link className="button" to="/">
+            回預測地圖
+          </Link>
+        </section>
+      </main>
+    );
+  }
+}
+
 export function App() {
   usePageViews();
+  const { pathname } = useLocation();
   return (
     <>
       <ScrollToTop />
-      <Routes>
-        <Route element={<PageShell />}>
-          <Route path="/" element={<ElectionHomePage />} />
-          <Route path="/regions" element={<RegionsPage />} />
-          <Route path="/parties" element={<PartiesPage />} />
-          <Route path="/parties/:partyId" element={<PartiesPage />} />
-          <Route path="/rankings" element={<CandidateRankingsPage />} />
-          <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
-          <Route path="/contest/:contestId" element={<ContestPage />} />
-          <Route path="/mine" element={<MyPredictionsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/changelog" element={<ChangelogPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-        <Route
-          path="/admin/*"
-          element={
-            <Suspense fallback={null}>
-              <AdminApp />
-            </Suspense>
-          }
-        />
-      </Routes>
+      <ErrorBoundary resetKey={pathname}>
+        <Routes>
+          <Route element={<PageShell />}>
+            <Route path="/" element={<ElectionHomePage />} />
+            <Route path="/regions" element={<RegionsPage />} />
+            <Route path="/parties" element={<PartiesPage />} />
+            <Route path="/parties/:partyId" element={<PartiesPage />} />
+            <Route path="/rankings" element={<CandidateRankingsPage />} />
+            <Route path="/region/:jurisdictionId" element={<JurisdictionPage />} />
+            <Route path="/contest/:contestId" element={<ContestPage />} />
+            <Route path="/mine" element={<MyPredictionsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/changelog" element={<ChangelogPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+          <Route
+            path="/admin/*"
+            element={
+              <Suspense fallback={null}>
+                <AdminApp />
+              </Suspense>
+            }
+          />
+        </Routes>
+      </ErrorBoundary>
       {/* Routes 外面、跟它平行：任何網址都要看得到，不能只掛在某一個 route 底下。 */}
       <AnnouncementModal />
     </>
