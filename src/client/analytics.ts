@@ -102,8 +102,6 @@ function loadVendors() {
           // 身份 cookie 只有一個（vf_fid），不要為了量測再放一個。
           persistence: 'localStorage',
           respect_dnt: true,
-          // 沒有用 feature flag、實驗與問卷，關掉可以省下每次載入的那一次 /flags 請求。
-          advanced_disable_flags: true,
         });
         ph = posthog;
       })
