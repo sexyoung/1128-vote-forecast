@@ -81,13 +81,28 @@ export function VirtualWindowList<T>({
 
   useIsomorphicLayoutEffect(() => {
     if (!enabled) return;
+    const list = listRef.current;
+    if (!list) return;
     const updateMargin = () => {
-      const list = listRef.current;
-      if (list) setScrollMargin(list.getBoundingClientRect().top + window.scrollY);
+      setScrollMargin(list.getBoundingClientRect().top + window.scrollY);
     };
     updateMargin();
     window.addEventListener('resize', updateMargin);
-    return () => window.removeEventListener('resize', updateMargin);
+
+    // 清單上方任何東西改變高度（tallies 回來、SkeletonSwap 揭曉、彈窗切換
+    // body.sheet-open），都會把清單往下推。只在 resize 量測會漏掉這些，offset
+    // 一舊，整排絕對定位的卡就落到容器外，畫面變空白。改成觀察清單與它的定位
+    // 祖先，任一改變就重新量。
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateMargin);
+    observer?.observe(list);
+    const offsetParent = list.offsetParent;
+    if (offsetParent) observer?.observe(offsetParent);
+
+    return () => {
+      window.removeEventListener('resize', updateMargin);
+      observer?.disconnect();
+    };
   }, [enabled]);
 
   if (!enabled) {

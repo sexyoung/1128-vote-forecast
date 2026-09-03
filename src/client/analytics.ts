@@ -42,7 +42,8 @@ export type EventName =
 type EventProps = Record<string, string | number | boolean | null | undefined>;
 type Hit =
   | { kind: 'pageview'; path: string; title: string }
-  | { kind: 'event'; name: EventName; props: EventProps };
+  | { kind: 'event'; name: EventName; props: EventProps }
+  | { kind: 'exception'; error: unknown; props: EventProps };
 
 let ga: typeof import('react-ga4').default | null = null;
 let ph: typeof import('posthog-js').posthog | null = null;
@@ -123,6 +124,11 @@ function deliver(hit: Hit) {
     ph?.capture('$pageview');
     return;
   }
+  if (hit.kind === 'exception') {
+    // 錯誤邊界攔到的 render 失敗；GA 沒有例外通道，只送 PostHog。
+    ph?.captureException(hit.error, hit.props);
+    return;
+  }
   ga?.event(hit.name, hit.props);
   ph?.capture(hit.name, hit.props);
 }
@@ -139,6 +145,11 @@ function dispatch(hit: Hit) {
 
 export function track(name: EventName, props: EventProps = {}) {
   dispatch({ kind: 'event', name, props });
+}
+
+// 錯誤邊界用：render 炸掉時原本整頁空白、量測也看不到，這裡讓它變成一筆例外。
+export function captureException(error: unknown, props: EventProps = {}) {
+  dispatch({ kind: 'exception', error, props });
 }
 
 // 後台是同一個人在用，混進漏斗只會拉低每一個轉換率——不算數的雜訊，直接不送。
