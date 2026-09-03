@@ -14,6 +14,13 @@ export type Release = {
 
 export const releases: Release[] = [
   {
+    version: '0.1.7',
+    date: '2026-09-03',
+    changes: [
+      '補上廖昶淳、陳玥妗、林詩涵、劉仲書、薛兆基與于仙玲的候選人大頭照。',
+    ],
+  },
+  {
     version: '0.1.6',
     date: '2026-09-03',
     changes: ['新增吳翌立、鄒明諺與蔡佩珊的候選人資料，並補上大頭照。'],
