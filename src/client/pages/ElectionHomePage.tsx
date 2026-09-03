@@ -557,6 +557,11 @@ function MapInspector({
         <p className="map-inspector-total">
           共 <strong>{totalPredictions.toLocaleString()}</strong> 份預測
         </p>
+        <SocialShare
+          className="map-inspector-social-share"
+          pageUrl={`/contest/${contest.id}`}
+          text={`${contest.name}預測｜九合一選舉預測`}
+        />
         <div className="map-inspector-links">
           <Link to={`/contest/${contest.id}?tab=trend`}>查看趨勢</Link>
           <i />

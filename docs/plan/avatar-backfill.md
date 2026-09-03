@@ -7,32 +7,32 @@
 
 本輪從各議會官網補上 176 張：
 
-| 縣市 | 補上 | 仍缺 | 可用頁面 |
-| --- | --- | --- | --- |
-| 臺中市 | 29 | 16 | `tccc.gov.tw/wb_introduction01.asp`（`ConnThumb.asp` 把 LW/LH 開大到 400×520 才是原圖 138×192） |
-| 臺北市 | 25 | 19 | `tcc.gov.tw/cp.aspx?n=13898`（原圖僅 178×198） |
-| 桃園市 | 24 | 18 | `tycc.gov.tw/TC/councilor-all.aspx?mid=39&area=1..14`（圖片路徑用反斜線 `file\person\app`） |
-| 高雄市 | 24 | 22 | `kcc.gov.tw/Member_List3.aspx?n=39&sms=9028`（`alt="姓名_大頭照"`，去掉 `@50x67`） |
-| 新北市 | 17 | 40 | `ntp.gov.tw/councilor-all?program=37` → 逐頁 `councilor-detail` |
-| 新竹縣 | 14 | 8 | `hcc.gov.tw/member-content?program=190&C=30..80` |
-| 新竹市 | 13 | 8 | `hsinchu-cc.gov.tw/tc/councilor.aspx?mid=39&c=1..60`（名字取自 `<title>`） |
-| 基隆市 | 11 | 7 | `kmc.gov.tw/index.php/mac/mi` |
-| 南投縣 | 9 | 3 | `ntcc.gov.tw/tw/rep/index.aspx` |
-| 連江縣 | 6 | 1 | `mtcc.gov.tw/ch/counciler_index/7176` |
-| 花蓮縣 | 4 | 11 | `hlcc.gov.tw/councillor-data.php?index_no=N` |
+| 縣市   | 補上 | 仍缺 | 可用頁面                                                                                        |
+| ------ | ---- | ---- | ----------------------------------------------------------------------------------------------- |
+| 臺中市 | 29   | 16   | `tccc.gov.tw/wb_introduction01.asp`（`ConnThumb.asp` 把 LW/LH 開大到 400×520 才是原圖 138×192） |
+| 臺北市 | 25   | 19   | `tcc.gov.tw/cp.aspx?n=13898`（原圖僅 178×198）                                                  |
+| 桃園市 | 24   | 18   | `tycc.gov.tw/TC/councilor-all.aspx?mid=39&area=1..14`（圖片路徑用反斜線 `file\person\app`）     |
+| 高雄市 | 24   | 22   | `kcc.gov.tw/Member_List3.aspx?n=39&sms=9028`（`alt="姓名_大頭照"`，去掉 `@50x67`）              |
+| 新北市 | 17   | 40   | `ntp.gov.tw/councilor-all?program=37` → 逐頁 `councilor-detail`                                 |
+| 新竹縣 | 14   | 8    | `hcc.gov.tw/member-content?program=190&C=30..80`                                                |
+| 新竹市 | 13   | 8    | `hsinchu-cc.gov.tw/tc/councilor.aspx?mid=39&c=1..60`（名字取自 `<title>`）                      |
+| 基隆市 | 11   | 7    | `kmc.gov.tw/index.php/mac/mi`                                                                   |
+| 南投縣 | 9    | 3    | `ntcc.gov.tw/tw/rep/index.aspx`                                                                 |
+| 連江縣 | 6    | 1    | `mtcc.gov.tw/ch/counciler_index/7176`                                                           |
+| 花蓮縣 | 4    | 11   | `hlcc.gov.tw/councillor-data.php?index_no=N`                                                    |
 
 掃過但拿不到照片的站：
 
-| 縣市 | 情況 |
-| --- | --- |
-| 彰化縣 | 議員頁只有姓名與臉書連結，站上沒有照片 |
-| 屏東縣 | `ptcc.gov.tw` 議員個人頁沒有照片 |
-| 臺南市 | 現任議員上一輪已補完，這次剩下的 29 人都不是現任 |
-| 宜蘭縣 | 舊 frameset 網站，議員頁掃不到 |
-| 雲林縣 | `ylcc.gov.tw` 議員頁是 SPA，HTML 內沒有資料 |
-| 臺東縣 | `taitungcc.gov.tw` 用 axios 打自家 API，未找到端點 |
-| 嘉義縣 | Vue 樣板（`item.FirstPicFullPath`），資料來自 API |
-| 嘉義市／金門縣 | 名單頁掃不到照片；金門先前誤抓到選區地圖，已刪除 |
+| 縣市           | 情況                                               |
+| -------------- | -------------------------------------------------- |
+| 彰化縣         | 議員頁只有姓名與臉書連結，站上沒有照片             |
+| 屏東縣         | `ptcc.gov.tw` 議員個人頁沒有照片                   |
+| 臺南市         | 現任議員上一輪已補完，這次剩下的 29 人都不是現任   |
+| 宜蘭縣         | 舊 frameset 網站，議員頁掃不到                     |
+| 雲林縣         | `ylcc.gov.tw` 議員頁是 SPA，HTML 內沒有資料        |
+| 臺東縣         | `taitungcc.gov.tw` 用 axios 打自家 API，未找到端點 |
+| 嘉義縣         | Vue 樣板（`item.FirstPicFullPath`），資料來自 API  |
+| 嘉義市／金門縣 | 名單頁掃不到照片；金門先前誤抓到選區地圖，已刪除   |
 
 ## 管線
 

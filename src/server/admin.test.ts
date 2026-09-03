@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test';
 import { app } from './app.js';
+import { parseCandidateCsv } from './candidate-import.js';
 import { prisma } from './db.js';
 import { env } from './env.js';
 
@@ -22,6 +23,31 @@ describe('admin overview', () => {
 });
 
 describe('admin forecasters', () => {
+  const forecasterId = `admin-list-${Date.now()}`;
+
+  beforeAll(async () => {
+    await prisma.forecaster.create({
+      data: {
+        id: forecasterId,
+        lastIp: '198.51.100.8',
+        lastCountry: 'TW',
+        lastRegion: 'TXG',
+        lastCity: '臺中市',
+        predictions: {
+          create: {
+            contestId: 'TPE-EXECUTIVE-1',
+            seatCount: 1,
+            picks: { create: { targetType: 'PARTY', targetId: 'DPP', partyId: 'DPP' } },
+          },
+        },
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.forecaster.deleteMany({ where: { id: forecasterId } });
+  });
+
   it('returns at most 50 forecasters per page', async () => {
     const response = await app.request('/api/admin/forecasters?page=1', {
       headers: adminHeaders,
@@ -38,6 +64,29 @@ describe('admin forecasters', () => {
     expect(body.pageSize).toBe(50);
     expect(body.items.length).toBeLessThanOrEqual(50);
     expect(body.totalPages).toBeGreaterThanOrEqual(1);
+  });
+
+  it('sorts by the requested field and includes the latest active vote', async () => {
+    const response = await app.request(
+      '/api/admin/forecasters?sort=predictionCount&direction=desc',
+      {
+        headers: adminHeaders,
+      },
+    );
+    const body = (await response.json()) as {
+      sort: string;
+      direction: string;
+      items: { id: string; latestVote: { contestId: string; labels: string[] } | null }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ sort: 'predictionCount', direction: 'desc' });
+    expect(body.items).toContainEqual(
+      expect.objectContaining({
+        id: forecasterId,
+        latestVote: { contestId: 'TPE-EXECUTIVE-1', labels: ['民進黨'] },
+      }),
+    );
   });
 });
 
@@ -101,14 +150,22 @@ describe('admin forecaster detail', () => {
     };
 
     expect(response.status).toBe(200);
-    expect(body.forecaster.counts).toMatchObject({ predictions: 1, comments: 1, signals: 1 });
+    expect(body.forecaster.counts).toMatchObject({
+      predictions: 1,
+      comments: 1,
+      signals: 1,
+    });
     expect(body.forecaster).toMatchObject({
       lastIp: '203.0.113.42',
       lastCountry: 'TW',
       lastCity: '臺北市',
     });
     expect(body.forecaster.signals).toContainEqual(
-      expect.objectContaining({ kind: 'IP', code: 'abcdef123456', seenCount: 3 }),
+      expect.objectContaining({
+        kind: 'IP',
+        code: 'abcdef123456',
+        seenCount: 3,
+      }),
     );
   });
 
@@ -121,8 +178,12 @@ describe('admin forecaster detail', () => {
         headers: adminHeaders,
       }),
     ]);
-    const predictionBody = (await predictions.json()) as { items: { id: string }[] };
-    const commentBody = (await comments.json()) as { items: { id: string; body: string }[] };
+    const predictionBody = (await predictions.json()) as {
+      items: { id: string }[];
+    };
+    const commentBody = (await comments.json()) as {
+      items: { id: string; body: string }[];
+    };
 
     expect(predictions.status).toBe(200);
     expect(comments.status).toBe(200);
@@ -186,7 +247,11 @@ describe('admin candidates', () => {
         contestId: 'LIE-EXECUTIVE-1',
         seatCount: 1,
         picks: {
-          create: { targetType: 'CANDIDATE', targetId: movedCandidateId, partyId: 'KMT' },
+          create: {
+            targetType: 'CANDIDATE',
+            targetId: movedCandidateId,
+            partyId: 'KMT',
+          },
         },
       },
     });
@@ -196,7 +261,11 @@ describe('admin candidates', () => {
         contestId: 'LIE-EXECUTIVE-1',
         seatCount: 1,
         picks: {
-          create: { targetType: 'CANDIDATE', targetId: deletedCandidateId, partyId: 'DPP' },
+          create: {
+            targetType: 'CANDIDATE',
+            targetId: deletedCandidateId,
+            partyId: 'DPP',
+          },
         },
       },
     });
@@ -234,6 +303,22 @@ describe('admin candidates', () => {
     });
   });
 
+  it('exports all real candidates as an importable CSV', async () => {
+    const response = await app.request('/api/admin/candidates/export', {
+      headers: adminHeaders,
+    });
+    const csv = await response.text();
+    const rows = parseCandidateCsv(csv);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('text/csv');
+    expect(response.headers.get('Content-Disposition')).toContain('candidate-import.csv');
+    expect(rows).toContainEqual(
+      expect.objectContaining({ code: movedCandidateId, partyId: 'KMT' }),
+    );
+    expect(rows.some(({ code }) => code.includes('-CANDIDATE-'))).toBe(false);
+  });
+
   it('edits, moves, and deletes candidates without leaving active predictions or tallies', async () => {
     const moved = await app.request(`/api/admin/candidates/${movedCandidateId}`, {
       method: 'PATCH',
@@ -251,7 +336,9 @@ describe('admin candidates', () => {
       contestId: 'KIN-EXECUTIVE-1',
     });
     expect(
-      await prisma.predictionPick.findFirst({ where: { targetId: movedCandidateId } }),
+      await prisma.predictionPick.findFirst({
+        where: { targetId: movedCandidateId },
+      }),
     ).toMatchObject({ partyId: null });
     expect(
       await prisma.prediction.findUnique({
@@ -262,9 +349,14 @@ describe('admin candidates', () => {
           },
         },
       }),
-    ).toMatchObject({ status: 'INVALIDATED', invalidReason: 'DISTRICT_CHANGED' });
+    ).toMatchObject({
+      status: 'INVALIDATED',
+      invalidReason: 'DISTRICT_CHANGED',
+    });
     expect(
-      await prisma.contestSummary.findUnique({ where: { contestId: 'LIE-EXECUTIVE-1' } }),
+      await prisma.contestSummary.findUnique({
+        where: { contestId: 'LIE-EXECUTIVE-1' },
+      }),
     ).toMatchObject({
       totalPredictions: 1,
       leaderId: deletedCandidateId,
@@ -285,9 +377,14 @@ describe('admin candidates', () => {
           },
         },
       }),
-    ).toMatchObject({ status: 'INVALIDATED', invalidReason: 'ADMIN_INVALIDATED' });
+    ).toMatchObject({
+      status: 'INVALIDATED',
+      invalidReason: 'ADMIN_INVALIDATED',
+    });
     expect(
-      await prisma.contestSummary.findUnique({ where: { contestId: 'LIE-EXECUTIVE-1' } }),
+      await prisma.contestSummary.findUnique({
+        where: { contestId: 'LIE-EXECUTIVE-1' },
+      }),
     ).toBeNull();
   });
 });

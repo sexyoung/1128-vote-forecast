@@ -80,7 +80,16 @@ export function buildSocialShareUrl(
   return share.toString();
 }
 
-export function SocialShare({ className = '' }: { className?: string }) {
+export function SocialShare({
+  className = '',
+  pageUrl,
+  text,
+}: {
+  className?: string;
+  /** 傳相對路徑即可；點擊時才依目前網域組成完整分享網址。 */
+  pageUrl?: string;
+  text?: string;
+}) {
   return (
     <section aria-label="分享這個頁面" className={`social-share ${className}`.trim()}>
       <span>分享</span>
@@ -90,8 +99,11 @@ export function SocialShare({ className = '' }: { className?: string }) {
           className={platform}
           key={platform}
           onClick={() => {
+            const sharedPage = pageUrl
+              ? new URL(pageUrl, window.location.origin).toString()
+              : window.location.href;
             window.open(
-              buildSocialShareUrl(platform, window.location.href, document.title, Date.now()),
+              buildSocialShareUrl(platform, sharedPage, text ?? document.title, Date.now()),
               '_blank',
               'noopener,noreferrer,width=720,height=720',
             );

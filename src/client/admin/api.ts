@@ -28,8 +28,14 @@ async function request<T>(path: string, init: RequestOptions = {}): Promise<T> {
   // 請求送不出自訂 header，requireAdmin 靠這個再擋一次，所以非 GET 一定要帶。
   if ((rest.method ?? 'GET') !== 'GET') headers.set('x-admin-request', '1');
 
-  const response = await fetch(path, { ...rest, credentials: 'include', headers });
-  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
+  const response = await fetch(path, {
+    ...rest,
+    credentials: 'include',
+    headers,
+  });
+  const data = (await response.json().catch(() => ({}))) as T & {
+    error?: string;
+  };
 
   if (response.status === 401 && !skipAuthRedirect) onUnauthorized?.();
   if (!response.ok) throw new ApiError(data.error ?? '要求失敗，請稍後再試。', response.status);
@@ -82,7 +88,18 @@ export type AdminForecaster = {
   blockedAt: string | null;
   createdAt: string;
   lastSeenAt: string;
+  latestVote: { contestId: string; labels: string[] } | null;
 };
+
+export type AdminForecasterSort =
+  | 'predictionCount'
+  | 'commentCount'
+  | 'lastIp'
+  | 'lastLocation'
+  | 'status'
+  | 'createdAt'
+  | 'lastSeenAt';
+export type SortDirection = 'asc' | 'desc';
 
 export type AdminForecastersPage = {
   items: AdminForecaster[];
@@ -90,10 +107,18 @@ export type AdminForecastersPage = {
   pageSize: number;
   total: number;
   totalPages: number;
+  sort: AdminForecasterSort;
+  direction: SortDirection;
 };
 
-export const getAdminForecasters = (page: number) =>
-  request<AdminForecastersPage>(`/api/admin/forecasters?page=${page}`);
+export const getAdminForecasters = (
+  page: number,
+  sort: AdminForecasterSort,
+  direction: SortDirection,
+) =>
+  request<AdminForecastersPage>(
+    `/api/admin/forecasters?page=${page}&sort=${sort}&direction=${direction}`,
+  );
 
 export type AdminForecasterDetail = {
   id: string;
@@ -109,7 +134,12 @@ export type AdminForecasterDetail = {
   lastRegion: string | null;
   lastCity: string | null;
   lastGeoSource: string | null;
-  counts: { predictions: number; comments: number; reports: number; signals: number };
+  counts: {
+    predictions: number;
+    comments: number;
+    reports: number;
+    signals: number;
+  };
   signals: {
     id: string;
     kind: 'COOKIE' | 'FINGERPRINT' | 'IP';
@@ -196,7 +226,11 @@ export type CandidateImportRow = {
 export type CandidateImportUpdate = {
   code: string;
   name: string;
-  changes: { field: string; before: string | number | null; after: string | number | null }[];
+  changes: {
+    field: string;
+    before: string | number | null;
+    after: string | number | null;
+  }[];
 };
 
 export type AdminCandidate = {
@@ -210,6 +244,24 @@ export type AdminCandidate = {
 
 export const getAdminCandidates = () =>
   request<{ candidates: AdminCandidate[] }>('/api/admin/candidates');
+
+export async function exportCandidateCsv() {
+  const response = await fetch('/api/admin/candidates/export', {
+    credentials: 'include',
+  });
+  if (response.status === 401) onUnauthorized?.();
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new ApiError(data.error ?? '要求失敗，請稍後再試。', response.status);
+  }
+  const match = response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i);
+  return {
+    blob: await response.blob(),
+    fileName: match?.[1] ?? 'candidate-import.csv',
+  };
+}
 
 export const updateAdminCandidate = ({
   id,
@@ -237,13 +289,13 @@ export const getCandidateVisibility = () =>
   request<CandidateVisibilitySettings>('/api/admin/candidate-visibility');
 
 export const saveCandidateVisibility = (hidePlaceholderCandidates: boolean) =>
-  request<{ hidePlaceholderCandidates: boolean; candidateVisibilityVersion: number }>(
-    '/api/admin/candidate-visibility',
-    {
-      method: 'PUT',
-      body: JSON.stringify({ hidePlaceholderCandidates }),
-    },
-  );
+  request<{
+    hidePlaceholderCandidates: boolean;
+    candidateVisibilityVersion: number;
+  }>('/api/admin/candidate-visibility', {
+    method: 'PUT',
+    body: JSON.stringify({ hidePlaceholderCandidates }),
+  });
 
 export const previewCandidateCsv = (csv: string) =>
   request<{
@@ -283,11 +335,17 @@ export const getCandidateContributions = () =>
 export async function approveCandidateContribution(contributionId: string) {
   const response = await fetch(
     `/api/admin/candidate-contributions/${encodeURIComponent(contributionId)}/approve`,
-    { method: 'POST', credentials: 'include', headers: { 'x-admin-request': '1' } },
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'x-admin-request': '1' },
+    },
   );
   if (response.status === 401) onUnauthorized?.();
   if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
     throw new ApiError(data.error ?? '要求失敗，請稍後再試。', response.status);
   }
   return {

@@ -14,6 +14,11 @@ export type Release = {
 
 export const releases: Release[] = [
   {
+    version: '0.1.6',
+    date: '2026-09-03',
+    changes: ['新增吳翌立、鄒明諺與蔡佩珊的候選人資料，並補上大頭照。'],
+  },
+  {
     version: '0.1.5',
     date: '2026-09-02',
     changes: ['縣市預測總覽改為顯示各選區的即時統計，避免展示數字造成誤解。'],

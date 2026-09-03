@@ -38,7 +38,7 @@ export function LoginPage() {
           event.preventDefault();
           void submit();
         }}
-        >
+      >
         <h1>後台登入</h1>
         <input
           aria-label="ADMIN_TOKEN"

@@ -1,12 +1,13 @@
 import { type Context, Hono } from 'hono';
 import type { Prisma } from '../generated/prisma/client.js';
-import { parties } from '../shared/candidates.js';
+import { getParty, parties } from '../shared/candidates.js';
 import { closeAdminSession, openAdminSession, requireAdmin } from './admin-session.js';
 import { AnnouncementRejected, getAdminAnnouncement, saveAnnouncement } from './announcement.js';
 import {
   CandidateImportRejected,
   importCandidates,
   prepareCandidateImport,
+  serializeCandidateCsv,
 } from './candidate-import.js';
 import {
   CandidateContributionRejected,
@@ -42,7 +43,9 @@ import { hasSnapshotFor } from './trends.js';
  */
 export const adminApp = new Hono();
 
-type CommentWithForecaster = Prisma.CommentGetPayload<{ include: { forecaster: true } }>;
+type CommentWithForecaster = Prisma.CommentGetPayload<{
+  include: { forecaster: true };
+}>;
 
 function toAdminComment(comment: CommentWithForecaster) {
   return {
@@ -63,6 +66,55 @@ function requestedPage(value: string | undefined) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
+const forecasterSorts = [
+  'predictionCount',
+  'commentCount',
+  'lastIp',
+  'lastLocation',
+  'status',
+  'createdAt',
+  'lastSeenAt',
+] as const;
+type ForecasterSort = (typeof forecasterSorts)[number];
+type SortDirection = 'asc' | 'desc';
+
+function requestedForecasterSort(value: string | undefined): ForecasterSort {
+  return forecasterSorts.includes(value as ForecasterSort)
+    ? (value as ForecasterSort)
+    : 'lastSeenAt';
+}
+
+function requestedSortDirection(value: string | undefined): SortDirection {
+  return value === 'asc' ? 'asc' : 'desc';
+}
+
+function forecasterOrderBy(
+  sort: ForecasterSort,
+  direction: SortDirection,
+): Prisma.ForecasterOrderByWithRelationInput[] {
+  switch (sort) {
+    case 'predictionCount':
+      return [{ predictions: { _count: direction } }, { id: 'asc' }];
+    case 'commentCount':
+      return [{ comments: { _count: direction } }, { id: 'asc' }];
+    case 'lastIp':
+      return [{ lastIp: direction }, { id: 'asc' }];
+    case 'lastLocation':
+      return [
+        { lastCountry: direction },
+        { lastRegion: direction },
+        { lastCity: direction },
+        { id: 'asc' },
+      ];
+    case 'status':
+      return [{ blockedAt: direction }, { id: 'asc' }];
+    case 'createdAt':
+      return [{ createdAt: direction }, { id: 'asc' }];
+    case 'lastSeenAt':
+      return [{ lastSeenAt: direction }, { id: 'asc' }];
+  }
+}
+
 // --- 認證 -----------------------------------------------------------------
 // 這兩支路由要留在 requireAdmin 之前註冊：Hono 依註冊順序組成 middleware 鏈，
 // 這裡的 handler 會直接回應、不呼叫 next()，下面的 requireAdmin 因此永遠不會
@@ -70,7 +122,9 @@ function requestedPage(value: string | undefined) {
 
 adminApp.post('/session', async (c) => {
   if (!env.adminToken) return c.json({ error: '後台未啟用。' }, 503);
-  const body = (await c.req.json().catch(() => null)) as { token?: unknown } | null;
+  const body = (await c.req.json().catch(() => null)) as {
+    token?: unknown;
+  } | null;
   const token = typeof body?.token === 'string' ? body.token : '';
   const ok = await openAdminSession(c, token);
   if (!ok) return c.json({ error: '需要後台權限。' }, 401);
@@ -144,11 +198,13 @@ adminApp.get('/overview', async (c) => {
 
 adminApp.get('/forecasters', async (c) => {
   const page = requestedPage(c.req.query('page'));
+  const sort = requestedForecasterSort(c.req.query('sort'));
+  const direction = requestedSortDirection(c.req.query('direction'));
   const pageSize = 50;
   const [total, forecasters] = await Promise.all([
     prisma.forecaster.count(),
     prisma.forecaster.findMany({
-      orderBy: [{ lastSeenAt: 'desc' }, { id: 'asc' }],
+      orderBy: forecasterOrderBy(sort, direction),
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
@@ -164,21 +220,48 @@ adminApp.get('/forecasters', async (c) => {
         lastCity: true,
         lastGeoSource: true,
         _count: { select: { predictions: true, comments: true } },
+        predictions: {
+          where: { status: 'ACTIVE' },
+          orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+          take: 1,
+          select: {
+            contestId: true,
+            picks: { select: { targetType: true, targetId: true } },
+          },
+        },
       },
     }),
   ]);
 
   return c.json({
-    items: forecasters.map(({ _count, ...forecaster }) => ({
-      ...forecaster,
-      code: forecasterCode(forecaster.id),
-      predictionCount: _count.predictions,
-      commentCount: _count.comments,
-    })),
+    items: forecasters.map(({ _count, predictions, ...forecaster }) => {
+      const latestPrediction = predictions[0];
+      const contest = latestPrediction ? getRegisteredContest(latestPrediction.contestId) : null;
+      return {
+        ...forecaster,
+        code: forecasterCode(forecaster.id),
+        predictionCount: _count.predictions,
+        commentCount: _count.comments,
+        latestVote: latestPrediction
+          ? {
+              contestId: latestPrediction.contestId,
+              labels: latestPrediction.picks.map((pick) =>
+                pick.targetType === 'PARTY'
+                  ? getParty(pick.targetId as never).shortName
+                  : contest
+                    ? describeTarget(contest, pick.targetType, pick.targetId).label
+                    : pick.targetId,
+              ),
+            }
+          : null,
+      };
+    }),
     page,
     pageSize,
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    sort,
+    direction,
   });
 });
 
@@ -209,7 +292,14 @@ adminApp.get('/forecasters/:forecasterId', async (c) => {
           seenCount: true,
         },
       },
-      _count: { select: { predictions: true, comments: true, reports: true, signals: true } },
+      _count: {
+        select: {
+          predictions: true,
+          comments: true,
+          reports: true,
+          signals: true,
+        },
+      },
     },
   });
   if (!forecaster) return c.json({ error: '找不到這個身份。' }, 404);
@@ -358,6 +448,31 @@ adminApp.get('/candidates', async (c) => {
   });
 });
 
+adminApp.get('/candidates/export', async (c) => {
+  const candidates = await prisma.candidate.findMany({
+    where: { NOT: { id: { contains: '-CANDIDATE-' } } },
+    select: {
+      id: true,
+      contestId: true,
+      name: true,
+      partyId: true,
+      ballotNo: true,
+      status: true,
+    },
+    orderBy: [{ contestId: 'asc' }, { ballotNo: 'asc' }, { name: 'asc' }],
+  });
+  const csv = serializeCandidateCsv(candidates);
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  c.header('Content-Type', 'text/csv; charset=utf-8');
+  c.header('Content-Disposition', `attachment; filename="${date}-candidate-import.csv"`);
+  return c.body(csv);
+});
+
 async function rebuildContestTallies(tx: Prisma.TransactionClient, contestId: string) {
   const contest = getRegisteredContest(contestId);
   if (!contest) return;
@@ -383,7 +498,9 @@ async function rebuildContestTallies(tx: Prisma.TransactionClient, contestId: st
   );
   await tx.contestTally.deleteMany({ where: { contestId } });
   if (rows.length)
-    await tx.contestTally.createMany({ data: rows.map((row) => ({ contestId, ...row })) });
+    await tx.contestTally.createMany({
+      data: rows.map((row) => ({ contestId, ...row })),
+    });
   if (!totalPredictions) {
     await tx.contestSummary.deleteMany({ where: { contestId } });
     return;
@@ -456,7 +573,9 @@ adminApp.patch('/candidates/:candidateId', async (c) => {
     return c.json({ error: '找不到這個政黨。' }, 400);
 
   const candidateId = c.req.param('candidateId');
-  const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+  const candidate = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+  });
   if (!candidate) return c.json({ error: '找不到這位候選人。' }, 404);
   const duplicate = await prisma.candidate.findFirst({
     where: { id: { not: candidateId }, contestId, name },
@@ -495,7 +614,9 @@ adminApp.patch('/candidates/:candidateId', async (c) => {
 
 adminApp.delete('/candidates/:candidateId', async (c) => {
   const candidateId = c.req.param('candidateId');
-  const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+  const candidate = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+  });
   if (!candidate) return c.json({ error: '找不到這位候選人。' }, 404);
   await prisma.$transaction(async (tx) => {
     await invalidateCandidatePredictions(tx, candidateId, candidate.contestId, 'ADMIN_INVALIDATED');
@@ -524,7 +645,11 @@ async function readCandidateCsv(c: Context) {
 adminApp.post('/candidates/import/preview', async (c) => {
   try {
     const plan = await prepareCandidateImport(await readCandidateCsv(c));
-    return c.json({ summary: plan.summary, rows: plan.rows.slice(0, 100), updates: plan.updates });
+    return c.json({
+      summary: plan.summary,
+      rows: plan.rows.slice(0, 100),
+      updates: plan.updates,
+    });
   } catch (error) {
     if (error instanceof CandidateImportRejected) return c.json({ error: error.message }, 400);
     throw error;
@@ -545,7 +670,9 @@ adminApp.post('/candidates/import', async (c) => {
       throw new CandidateImportRejected('匯入確認內容不完整。');
     if (new TextEncoder().encode(body.csv).byteLength > 2_000_000)
       throw new CandidateImportRejected('CSV 不可超過 2 MB。');
-    return c.json({ summary: await importCandidates(body.csv, body.replaceCodes as string[]) });
+    return c.json({
+      summary: await importCandidates(body.csv, body.replaceCodes as string[]),
+    });
   } catch (error) {
     if (error instanceof CandidateImportRejected) return c.json({ error: error.message }, 400);
     throw error;
@@ -642,7 +769,9 @@ adminApp.get('/reports', async (c) => {
     }),
   ]);
   const comments = await prisma.comment.findMany({
-    where: { id: { in: [...new Set(reports.map((report) => report.targetId))] } },
+    where: {
+      id: { in: [...new Set(reports.map((report) => report.targetId))] },
+    },
     include: { forecaster: true },
   });
   const commentById = new Map(comments.map((comment) => [comment.id, comment]));
@@ -669,7 +798,10 @@ adminApp.post('/comments/:commentId/hide', async (c) => {
   if (!comment) return c.json({ error: '找不到這則留言。' }, 404);
 
   await prisma.$transaction([
-    prisma.comment.update({ where: { id: commentId }, data: { status: 'HIDDEN' } }),
+    prisma.comment.update({
+      where: { id: commentId },
+      data: { status: 'HIDDEN' },
+    }),
     prisma.report.updateMany({
       where: { targetType: 'COMMENT', targetId: commentId, status: 'OPEN' },
       data: { status: 'ACTIONED', handledAt: new Date() },
@@ -685,7 +817,10 @@ adminApp.post('/comments/:commentId/restore', async (c) => {
   });
   if (!comment) return c.json({ error: '找不到已隱藏的留言。' }, 404);
 
-  await prisma.comment.update({ where: { id: comment.id }, data: { status: 'VISIBLE' } });
+  await prisma.comment.update({
+    where: { id: comment.id },
+    data: { status: 'VISIBLE' },
+  });
   await cacheDelete(commentsKey(comment.contestId));
   return c.json({ ok: true });
 });

@@ -11,10 +11,12 @@ export function ChangelogPage() {
         </section>
         <p className="legal-lede">這個站每次上版改了什麼，新的在最上面。</p>
         <ol className="changelog">
-          {releases.map((release) => (
+          {releases.map((release, index) => (
             <li key={release.version}>
               <div className="changelog-head">
-                <strong>v{release.version}</strong>
+                <strong className={index === 0 ? 'is-current' : undefined}>
+                  v{release.version}
+                </strong>
                 <time dateTime={release.date}>{release.date}</time>
               </div>
               <ul>

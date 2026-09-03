@@ -208,6 +208,14 @@ a {
 }
 .changelog-head strong {
   font-size: 17px;
+  text-decoration: none;
+}
+.changelog-head strong.is-current {
+  text-decoration-color: var(--accent);
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.22em;
 }
 .changelog-head time {
   color: var(--muted);
@@ -3536,6 +3544,10 @@ a:focus-visible {
 .map-inspector .map-share-bar {
   display: none;
 }
+.map-inspector .map-inspector-social-share {
+  justify-content: flex-start;
+  margin: 16px 0 0;
+}
 .map-share-bar {
   display: flex;
   gap: 2px;
@@ -4363,6 +4375,32 @@ a:focus-visible {
 .admin-note-error {
   color: var(--accent-dark);
 }
+.admin-section-tabs {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 24px;
+}
+.admin-section-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  margin-bottom: -1px;
+  padding: 9px 12px;
+}
+.admin-section-tabs button:hover,
+.admin-section-tabs button.is-active {
+  color: var(--accent-dark);
+}
+.admin-section-tabs button.is-active {
+  border-bottom-color: var(--accent);
+}
 .admin-csv-example,
 .admin-import-box {
   background: var(--card);
@@ -4466,6 +4504,25 @@ a:focus-visible {
 .admin-table a {
   color: var(--accent-dark);
   font-weight: 750;
+}
+.admin-sort-button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+  padding: 0;
+  white-space: nowrap;
+}
+.admin-sort-button[aria-pressed='true'] {
+  color: var(--accent-dark);
+}
+.admin-infinite-status {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 16px 0 0;
+  text-align: center;
 }
 .admin-candidate-grid {
   display: grid;

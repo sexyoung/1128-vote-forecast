@@ -26,6 +26,27 @@ export type CandidateImportRow = {
   status: (typeof statuses)[number];
 };
 
+/** 後台匯出的欄位與匯入器完全共用，讓下載後的檔案可直接再上傳。 */
+export function serializeCandidateCsv(
+  rows: Array<{
+    id: string;
+    contestId: string;
+    name: string;
+    partyId: string | null;
+    ballotNo: number | null;
+    status: CandidateImportRow['status'];
+  }>,
+) {
+  const escape = (value: string | number | null) => {
+    const text = value === null ? '' : String(value);
+    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  const lines = rows.map(({ id, contestId, name, partyId, ballotNo, status }) =>
+    [id, contestId, name, partyId ?? 'IND', ballotNo, status].map(escape).join(','),
+  );
+  return `${headers.join(',')}\n${lines.join('\n')}\n`;
+}
+
 export class CandidateImportRejected extends Error {
   constructor(message: string) {
     super(message);
@@ -125,7 +146,10 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
       },
     }),
     prisma.candidate.findMany({
-      where: { contestId: { in: contestIds }, NOT: { id: { contains: placeholderMarker } } },
+      where: {
+        contestId: { in: contestIds },
+        NOT: { id: { contains: placeholderMarker } },
+      },
       select: {
         id: true,
         contestId: true,
@@ -136,7 +160,10 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
       },
     }),
     prisma.candidate.findMany({
-      where: { contestId: { in: contestIds }, id: { contains: placeholderMarker } },
+      where: {
+        contestId: { in: contestIds },
+        id: { contains: placeholderMarker },
+      },
       select: { id: true, contestId: true },
     }),
   ]);
@@ -176,7 +203,12 @@ async function buildCandidatePlan(rows: CandidateImportRow[]) {
 
   const finalCandidates = [
     ...existingCandidates.filter(({ id }) => !importedCodes.has(id) && !replacedCodes.has(id)),
-    ...rows.map(({ code: id, contestId, name, ballotNo }) => ({ id, contestId, name, ballotNo })),
+    ...rows.map(({ code: id, contestId, name, ballotNo }) => ({
+      id,
+      contestId,
+      name,
+      ballotNo,
+    })),
   ];
   const names = new Set<string>();
   const ballots = new Set<string>();
@@ -268,11 +300,20 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
           where: { contestId: { in: contestIds }, status: 'ACTIVE' },
           data: { status: 'INVALIDATED', invalidReason: 'ADMIN_INVALIDATED' },
         });
-        await tx.contestTally.deleteMany({ where: { contestId: { in: contestIds } } });
-        await tx.contestSummary.deleteMany({ where: { contestId: { in: contestIds } } });
-        await tx.contestTallySnapshot.deleteMany({ where: { contestId: { in: contestIds } } });
+        await tx.contestTally.deleteMany({
+          where: { contestId: { in: contestIds } },
+        });
+        await tx.contestSummary.deleteMany({
+          where: { contestId: { in: contestIds } },
+        });
+        await tx.contestTallySnapshot.deleteMany({
+          where: { contestId: { in: contestIds } },
+        });
         await tx.candidate.deleteMany({
-          where: { contestId: { in: contestIds }, id: { contains: placeholderMarker } },
+          where: {
+            contestId: { in: contestIds },
+            id: { contains: placeholderMarker },
+          },
         });
       }
 
@@ -286,7 +327,9 @@ export async function importCandidates(csv: string, replaceCodes: string[]) {
         });
       for (const { id, ...candidate } of existing)
         await tx.candidate.update({ where: { id }, data: candidate });
-      await tx.candidate.createMany({ data: data.filter(({ id }) => !plan.existingIds.has(id)) });
+      await tx.candidate.createMany({
+        data: data.filter(({ id }) => !plan.existingIds.has(id)),
+      });
     },
     { timeout: 300_000 },
   );
