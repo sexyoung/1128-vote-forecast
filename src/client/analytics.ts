@@ -21,6 +21,7 @@ export type EventName =
   | 'forecast_sheet_opened'
   | 'forecast_submitted'
   | 'forecast_failed'
+  | 'forecast_blocked'
   | 'map_area_selected'
   | 'map_level_changed'
   | 'map_reset'

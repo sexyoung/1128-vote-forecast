@@ -110,7 +110,7 @@ function TurnstileChallenge({
   onToken: (token: string | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState('人機驗證載入中…');
 
   useEffect(() => {
     let active = true;
@@ -124,21 +124,26 @@ function TurnstileChallenge({
           theme: 'light',
           callback: (token) => {
             if (active) {
-              setError('');
+              setStatus('');
               onToken(token);
             }
           },
-          'expired-callback': () => active && onToken(null),
+          'expired-callback': () => {
+            if (active) {
+              onToken(null);
+              setStatus('人機驗證已逾時，請再驗證一次。');
+            }
+          },
           'error-callback': () => {
             if (active) {
               onToken(null);
-              setError('人機驗證無法完成，請重新整理後再試。');
+              setStatus('人機驗證無法完成，請重新整理後再試。');
             }
           },
         });
       },
       (failure: unknown) =>
-        active && setError(failure instanceof Error ? failure.message : '驗證載入失敗。'),
+        active && setStatus(failure instanceof Error ? failure.message : '驗證載入失敗。'),
     );
     return () => {
       active = false;
@@ -150,7 +155,7 @@ function TurnstileChallenge({
     <div className="turnstile-challenge">
       <p>請先完成人機驗證。</p>
       <div ref={containerRef} />
-      {error && <small>{error}</small>}
+      {status && <small>{status}</small>}
     </div>
   );
 }
@@ -245,7 +250,12 @@ export function ForecastForm({
   // 送出前先算好「這是新的還是修改」，才分得出轉換漏斗裡有多少是回頭客。
   const isUpdate = Boolean(detail.data?.mine);
   const turnstile = session.data?.turnstile;
-  const requiresTurnstile = Boolean(turnstile) || needsVerification;
+  // 伺服器對驗證過的預測者在 12 小時內直接放行（見 server/turnstile.ts），只有沒驗過、
+  // 過期，或送出被回 403 要求驗證時才真的要 token。跟著 humanVerified 走，回頭客就不會
+  // 每次都被叫去驗一次。
+  const humanVerified = session.data?.forecaster.humanVerified ?? false;
+  const requiresTurnstile = Boolean(turnstile) && (!humanVerified || needsVerification);
+  const missingTurnstile = requiresTurnstile && !turnstileToken;
 
   const submit = useMutation({
     mutationFn: () => submitPrediction(contest.id, selected, turnstileToken ?? undefined),
@@ -286,7 +296,22 @@ export function ForecastForm({
       });
     },
   });
-  const canSubmit = isValid && !submit.isPending && (!requiresTurnstile || Boolean(turnstileToken));
+  const canSubmit = isValid && !submit.isPending && !missingTurnstile;
+
+  // 按鈕不因缺 token 而變灰：那樣點下去沒反應也沒理由。缺 token 時仍可點，點了就說原因，
+  // 並把下方的驗證狀態指出來，使用者才知道下一步。
+  function handleSubmit() {
+    if (missingTurnstile) {
+      setError('請先完成下方的人機驗證再送出。');
+      track('forecast_blocked', {
+        contest_id: contest.id,
+        reason: 'turnstile_pending',
+        surface,
+      });
+      return;
+    }
+    submit.mutate();
+  }
 
   function toggle(id: string) {
     setError('');
@@ -389,8 +414,8 @@ export function ForecastForm({
           ))}
         <button
           className="button button-accent button-wide"
-          disabled={!canSubmit}
-          onClick={() => submit.mutate()}
+          disabled={!isValid || submit.isPending}
+          onClick={handleSubmit}
           type="button"
         >
           {submit.isPending
