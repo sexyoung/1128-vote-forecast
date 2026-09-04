@@ -1,13 +1,8 @@
-import sharp from 'sharp';
 import { candidateParties } from '../shared/candidates.js';
-import { avatarFileName } from '../client/avatars.js';
 import { prisma } from './db.js';
 import { createCandidateId } from './candidate-ids.js';
 import { getRegisteredContest } from './contest-registry.js';
 import { refreshCandidates } from './prediction-targets.js';
-
-const maxPhotoBytes = 10_000_000;
-const imageTimeoutMs = 15_000;
 
 export type CandidateContributionInput = {
   kind: 'NEW_CANDIDATE' | 'PHOTO_UPDATE';
@@ -98,36 +93,7 @@ export async function createCandidateContribution(
   });
 }
 
-async function downloadAsWebp(photoUrl: string) {
-  const signal = AbortSignal.timeout(imageTimeoutMs);
-  let response: Response;
-  try {
-    response = await fetch(photoUrl, { redirect: 'follow', signal });
-  } catch {
-    throw new CandidateContributionRejected('無法下載照片網址。');
-  }
-  if (!response.ok) throw new CandidateContributionRejected(`照片下載失敗（${response.status}）。`);
-  if (new URL(response.url).protocol !== 'https:')
-    throw new CandidateContributionRejected('重新導向後的照片網址必須使用 https。');
-  const contentLength = Number(response.headers.get('content-length') ?? 0);
-  if (contentLength > maxPhotoBytes)
-    throw new CandidateContributionRejected('照片檔案不可超過 10 MB。');
-
-  const source = Buffer.from(await response.arrayBuffer());
-  if (source.byteLength === 0 || source.byteLength > maxPhotoBytes)
-    throw new CandidateContributionRejected('照片檔案不可超過 10 MB。');
-  try {
-    return await sharp(source, { limitInputPixels: 30_000_000, failOn: 'error' })
-      .rotate()
-      .resize(512, 512, { fit: 'cover', position: 'attention' })
-      .webp({ quality: 82, effort: 4 })
-      .toBuffer();
-  } catch {
-    throw new CandidateContributionRejected('照片無法轉換為 WebP。');
-  }
-}
-
-/** 批准後把裁切完成的圖片交給瀏覽器下載；部署環境不寫入 Git 工作樹。 */
+/** 批准只採納候選人資料；來源照片由管理者另行確認與處理。 */
 export async function approveCandidateContribution(contributionId: string, reviewedBy = 'admin') {
   const contribution = await prisma.candidateContribution.findUnique({
     where: { id: contributionId },
@@ -135,10 +101,6 @@ export async function approveCandidateContribution(contributionId: string, revie
   if (!contribution) throw new CandidateContributionRejected('找不到這筆提案。');
   if (contribution.status !== 'PENDING')
     throw new CandidateContributionRejected('這筆提案已處理。');
-
-  const webp = await downloadAsWebp(contribution.photoUrl);
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(contribution.candidateId))
-    throw new CandidateContributionRejected('候選人圖片檔名不正確。');
 
   await prisma.$transaction(async (tx) => {
     const current = await tx.candidateContribution.findUnique({ where: { id: contribution.id } });
@@ -177,12 +139,6 @@ export async function approveCandidateContribution(contributionId: string, revie
   });
 
   await refreshCandidates(true);
-  return {
-    contributionId: contribution.id,
-    candidateId: contribution.candidateId,
-    photoFile: avatarFileName(contribution.candidateId),
-    webp,
-  };
 }
 
 export async function rejectCandidateContribution(contributionId: string, reviewedBy = 'admin') {

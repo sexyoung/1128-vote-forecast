@@ -302,8 +302,8 @@ model Candidate {
   @@index([contestId])
 }
 
-/// 前台使用者提供的候選人資料。正式 Candidate 與圖片都要等後台批准才產生；
-/// candidateId 在提案建立時就確定，批准後的圖片檔名因此也固定為 `{candidateId}.webp`。
+/// 前台使用者提供的候選人資料。正式 Candidate 要等後台批准才產生；
+/// 使用者提供的照片網址僅供管理者人工核對，不會在批准時自動採用。
 enum CandidateContributionKind {
   NEW_CANDIDATE
   PHOTO_UPDATE

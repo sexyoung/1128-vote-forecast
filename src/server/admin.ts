@@ -723,11 +723,8 @@ adminApp.get('/candidate-contributions', async (c) => {
 
 adminApp.post('/candidate-contributions/:contributionId/approve', async (c) => {
   try {
-    const result = await approveCandidateContribution(c.req.param('contributionId'));
-    c.header('Content-Disposition', `attachment; filename="${result.photoFile}"`);
-    c.header('Content-Type', 'image/webp');
-    c.header('X-Photo-File', result.photoFile);
-    return c.body(result.webp);
+    await approveCandidateContribution(c.req.param('contributionId'));
+    return c.json({ ok: true });
   } catch (error) {
     if (error instanceof CandidateContributionRejected)
       return c.json({ error: error.message }, 400);

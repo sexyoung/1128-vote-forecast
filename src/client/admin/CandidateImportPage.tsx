@@ -146,13 +146,7 @@ export function CandidateImportPage() {
   });
   const approveContribution = useMutation({
     mutationFn: approveCandidateContribution,
-    onSuccess: async ({ blob, photoFile }) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = photoFile;
-      link.click();
-      URL.revokeObjectURL(url);
+    onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ['admin', 'candidate-contributions'],
@@ -278,8 +272,7 @@ export function CandidateImportPage() {
         <section className="admin-contribution-queue">
           <h2>待批准的候選人提案</h2>
           <p className="admin-note">
-            批准會下載照片、裁成 512 × 512 WebP 並由瀏覽器下載；請將檔案放進{' '}
-            <code>public/avatars/</code> 後 commit、部署。資料庫不保存圖片檔。
+            批准只會採納候選人資料，不會下載或處理對方提供的照片；照片請另外確認正確性與來源。
           </p>
           {contributions.isPending ? (
             <p className="admin-note">讀取提案…</p>
@@ -323,7 +316,7 @@ export function CandidateImportPage() {
                         onClick={() => approveContribution.mutate(contribution.id)}
                         type="button"
                       >
-                        {isApproving ? '下載並轉檔中…' : '批准'}
+                        {isApproving ? '處理中…' : '批准'}
                       </button>
                       <button
                         className="button button-ghost button-small"

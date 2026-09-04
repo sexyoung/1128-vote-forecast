@@ -332,27 +332,11 @@ export type AdminCandidateContribution = {
 export const getCandidateContributions = () =>
   request<{ contributions: AdminCandidateContribution[] }>('/api/admin/candidate-contributions');
 
-export async function approveCandidateContribution(contributionId: string) {
-  const response = await fetch(
+export const approveCandidateContribution = (contributionId: string) =>
+  request<{ ok: true }>(
     `/api/admin/candidate-contributions/${encodeURIComponent(contributionId)}/approve`,
-    {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'x-admin-request': '1' },
-    },
+    { method: 'POST' },
   );
-  if (response.status === 401) onUnauthorized?.();
-  if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new ApiError(data.error ?? '要求失敗，請稍後再試。', response.status);
-  }
-  return {
-    blob: await response.blob(),
-    photoFile: response.headers.get('X-Photo-File') ?? 'candidate.webp',
-  };
-}
 
 export const rejectCandidateContribution = (contributionId: string) =>
   request<{ ok: true }>(

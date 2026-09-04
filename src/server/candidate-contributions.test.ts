@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test';
-import sharp from 'sharp';
 import {
   CandidateContributionRejected,
   approveCandidateContribution,
@@ -59,33 +58,21 @@ describe('candidate contributions', () => {
     expect(contribution?.status).toBe('PENDING');
   });
 
-  it('returns the processed WebP for the browser to download', async () => {
-    const source = await sharp({
-      create: { width: 20, height: 30, channels: 3, background: '#336699' },
-    })
-      .png()
-      .toBuffer();
+  it('approves the contribution without downloading the submitted photo', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      const response = new Response(source, {
-        headers: { 'content-length': String(source.byteLength) },
-      });
-      Object.defineProperty(response, 'url', { value: 'https://images.example/candidate.png' });
-      return response;
+      throw new Error('approval must not download the submitted photo');
     };
     try {
-      const approved = await approveCandidateContribution(contributionId);
-      expect(approved.photoFile).toBe(`${candidateId}.webp`);
-      await expect(sharp(approved.webp).metadata()).resolves.toMatchObject({
-        width: 512,
-        height: 512,
-        format: 'webp',
-      });
-      expect(
-        await prisma.candidateContribution.findUnique({ where: { id: contributionId } }),
-      ).toMatchObject({ status: 'APPROVED' });
+      await approveCandidateContribution(contributionId);
     } finally {
       globalThis.fetch = originalFetch;
     }
+    expect(
+      await prisma.candidateContribution.findUnique({ where: { id: contributionId } }),
+    ).toMatchObject({ status: 'APPROVED' });
+    expect(await prisma.candidate.findUnique({ where: { id: candidateId } })).toMatchObject({
+      name: candidateName,
+    });
   });
 });
