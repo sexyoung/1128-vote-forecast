@@ -14,6 +14,13 @@ export type Release = {
 
 export const releases: Release[] = [
   {
+    version: '0.1.8',
+    date: '2026-09-04',
+    changes: [
+      '大量補上議員與鄉鎮市長候選人的大頭照，有照片的候選人從 477 位增加到 816 位，佔全部候選人的九成以上。',
+    ],
+  },
+  {
     version: '0.1.7',
     date: '2026-09-03',
     changes: [
